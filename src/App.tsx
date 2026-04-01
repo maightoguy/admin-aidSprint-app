@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./login/login";
 import NotFound from "./not-found/not-found";
 import Overview from "./components/dashboard/overview/overview";
+import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/" element={<Login />} />
           <Route path="/overview" element={<Overview />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/users/:userId" element={<UserDetailsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

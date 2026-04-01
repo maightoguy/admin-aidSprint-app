@@ -5,6 +5,8 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import {
   userRecords,
@@ -14,7 +16,7 @@ import {
 import { UsersActionsMenu } from "./users-actions-menu";
 import { usersStyles } from "./users.styles";
 import { filterUsers, getStatusPillClasses } from "./users.utils";
-import type { UserRecord } from "./users.types";
+import type { UserMenuAction, UserRecord } from "./users.types";
 
 function StatusPill({ status }: Pick<UserRecord, "status">) {
   return (
@@ -56,11 +58,23 @@ export default function Users({
   errorMessage?: string | null;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
 
   const filteredUsers = useMemo(
     () => filterUsers(initialUsers, searchQuery),
     [initialUsers, searchQuery],
   );
+
+  const handleUserAction = (action: UserMenuAction, user: UserRecord) => {
+    if (action === "View profile") {
+      navigate(`/users/${user.id}`);
+      return;
+    }
+
+    toast.success(action, {
+      description: `${action} selected for ${user.name}`,
+    });
+  };
 
   return (
     <DashboardLayout title="User’s">
@@ -189,7 +203,7 @@ export default function Users({
                             <StatusPill status={user.status} />
                           </td>
                           <td className="px-5 py-4 text-right">
-                            <UsersActionsMenu user={user} />
+                            <UsersActionsMenu user={user} onAction={handleUserAction} />
                           </td>
                         </tr>
                       ))}
@@ -203,7 +217,7 @@ export default function Users({
                       className="relative rounded-2xl border border-[#EAECF0] p-4"
                     >
                       <div className="absolute right-4 top-4 z-10">
-                        <UsersActionsMenu user={user} />
+                        <UsersActionsMenu user={user} onAction={handleUserAction} />
                       </div>
                       <div className="flex min-w-0 items-start gap-3 pr-16">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
