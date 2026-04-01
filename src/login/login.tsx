@@ -1,6 +1,8 @@
 import { useState, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -10,7 +12,8 @@ export default function Login() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // Login logic would go here
+    if (!isActive) return;
+    navigate("/overview");
   };
 
   return (
