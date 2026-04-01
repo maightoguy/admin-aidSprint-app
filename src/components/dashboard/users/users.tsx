@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import { DashboardLayout } from "../shared/dashboard-layout";
-import { userRecords, usersSummaryCards, usersSummaryPattern } from "./users.data";
+import {
+  userRecords,
+  usersSummaryCards,
+  usersSummaryPattern,
+} from "./users.data";
 import { UsersActionsMenu } from "./users-actions-menu";
 import { usersStyles } from "./users.styles";
 import { filterUsers, getStatusPillClasses } from "./users.utils";
@@ -10,10 +19,9 @@ import type { UserRecord } from "./users.types";
 function StatusPill({ status }: Pick<UserRecord, "status">) {
   return (
     <span
-      className={[
-        usersStyles.statusPill,
-        getStatusPillClasses(status),
-      ].join(" ")}
+      className={[usersStyles.statusPill, getStatusPillClasses(status)].join(
+        " ",
+      )}
     >
       {status}
     </span>
@@ -104,7 +112,9 @@ export default function Users({
           </section>
           <section className="mt-5 rounded-[10px] border border-[#EAECF0] bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-[#EAECF0] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-sm font-semibold text-[#667085]">All users</h2>
+              <h2 className="text-sm font-semibold text-[#667085]">
+                All users
+              </h2>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <label className="inline-flex h-10 min-w-0 items-center gap-2 rounded-xl border border-[#EAECF0] bg-white px-4 text-sm text-[#667085] shadow-sm sm:min-w-[300px]">
                   <Search className="h-4 w-4 shrink-0" />
@@ -190,26 +200,26 @@ export default function Users({
                   {filteredUsers.map((user) => (
                     <article
                       key={user.id}
-                      className="rounded-2xl border border-[#EAECF0] p-4"
+                      className="relative rounded-2xl border border-[#EAECF0] p-4"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
-                            {user.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-[#101828]">
-                              {user.name}
-                            </p>
-                            <p className="truncate text-xs text-[#98A2B3]">
-                              {user.email}
-                            </p>
-                          </div>
+                      <div className="absolute right-4 top-4 z-10">
+                        <UsersActionsMenu user={user} />
+                      </div>
+                      <div className="flex min-w-0 items-start gap-3 pr-16">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
+                          {user.name.charAt(0)}
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <StatusPill status={user.status} />
-                          <UsersActionsMenu user={user} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[#101828]">
+                            {user.name}
+                          </p>
+                          <p className="truncate text-xs text-[#98A2B3]">
+                            {user.email}
+                          </p>
                         </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-start">
+                        <StatusPill status={user.status} />
                       </div>
                       <div className="mt-4 grid gap-2 text-sm text-[#667085] sm:grid-cols-2">
                         <p className="sm:col-span-2">

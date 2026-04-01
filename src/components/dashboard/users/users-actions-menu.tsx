@@ -46,7 +46,7 @@ export function UsersActionsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#D0D5DD] bg-white text-[#667085] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+          className="inline-flex h-11 min-h-11 w-11 min-w-11 touch-manipulation items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] transition hover:bg-[#F8FAFC] active:bg-[#EEF2F6] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
           aria-label={`Open user actions for ${user.name}`}
         >
           <MoreVertical className="h-4 w-4" />
@@ -54,17 +54,15 @@ export function UsersActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        sideOffset={10}
+        sideOffset={8}
+        collisionPadding={12}
         className={usersStyles.actionMenuPanel}
       >
         {menuActions.map((action, index) => (
           <div key={action}>
             <DropdownMenuItem
               onClick={() => handleAction(action)}
-              className={cn(
-                usersStyles.actionMenuItem,
-                menuItemColors[action],
-              )}
+              className={cn(usersStyles.actionMenuItem, menuItemColors[action])}
             >
               {action}
             </DropdownMenuItem>
