@@ -74,12 +74,70 @@ const revenueBars = [
   { month: "Dec", value: 54 },
 ];
 
-const topServices = [
-  { label: "Plumber", value: "₦6,000,000", color: "#22C55E" },
-  { label: "Electrician", value: "₦5,200,000", color: "#22B8CF" },
-  { label: "Cleaning", value: "₦3,400,000", color: "#8B5CF6" },
-  { label: "Title", value: "₦4,100,000", color: "#EC4899" },
+type TopService = {
+  label: string;
+  amount: number;
+  color: string;
+};
+
+const topServices: TopService[] = [
+  { label: "Plumber", amount: 6000000, color: "#22C55E" },
+  { label: "Electrician", amount: 5200000, color: "#22B8CF" },
+  { label: "Cleaning", amount: 3400000, color: "#8B5CF6" },
+  { label: "Title", amount: 4100000, color: "#EC4899" },
 ];
+
+const pieChartSize = 168;
+const pieChartRadius = pieChartSize / 2;
+const pieChartCenter = pieChartSize / 2;
+const pieTooltipOffset = 24;
+const pieTooltipBounds = {
+  minX: 28,
+  maxX: pieChartSize - 28,
+  minY: 24,
+  maxY: pieChartSize - 24,
+};
+
+function formatCurrency(amount: number) {
+  return `₦${amount.toLocaleString("en-US")}`;
+}
+
+function polarToCartesian(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  angleInDegrees: number,
+) {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: centerX + radius * Math.cos(angleInRadians),
+    y: centerY + radius * Math.sin(angleInRadians),
+  };
+}
+
+function buildPieSlicePath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+) {
+  const start = polarToCartesian(centerX, centerY, radius, endAngle);
+  const end = polarToCartesian(centerX, centerY, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${centerX} ${centerY}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
+    "Z",
+  ].join(" ");
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
 const requests = [
   {
@@ -283,6 +341,56 @@ export default function Overview() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [expandedNotificationId, setExpandedNotificationId] =
     useState("new-request");
+  const [hoveredServiceLabel, setHoveredServiceLabel] = useState<string | null>(
+    null,
+  );
+
+  const totalTopServicesAmount = topServices.reduce(
+    (total, service) => total + service.amount,
+    0,
+  );
+
+  let currentAngle = 0;
+  const pieSegments = topServices.map((service) => {
+    const angle = (service.amount / totalTopServicesAmount) * 360;
+    const startAngle = currentAngle;
+    const endAngle = startAngle + angle;
+    const middleAngle = startAngle + angle / 2;
+    const tooltipAnchor = polarToCartesian(
+      pieChartCenter,
+      pieChartCenter,
+      pieChartRadius + pieTooltipOffset,
+      middleAngle,
+    );
+
+    currentAngle = endAngle;
+
+    return {
+      ...service,
+      value: formatCurrency(service.amount),
+      path: buildPieSlicePath(
+        pieChartCenter,
+        pieChartCenter,
+        pieChartRadius,
+        startAngle,
+        endAngle,
+      ),
+      tooltipX: clamp(
+        tooltipAnchor.x,
+        pieTooltipBounds.minX,
+        pieTooltipBounds.maxX,
+      ),
+      tooltipY: clamp(
+        tooltipAnchor.y,
+        pieTooltipBounds.minY,
+        pieTooltipBounds.maxY,
+      ),
+    };
+  });
+
+  const hoveredService =
+    pieSegments.find((segment) => segment.label === hoveredServiceLabel) ??
+    null;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#F6F8FB] text-[#101828]">
@@ -557,29 +665,92 @@ export default function Overview() {
                   </button>
                 </div>
                 <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start">
-                  <div className="relative flex items-center justify-center">
+                  <div
+                    className="relative flex h-[220px] w-[220px] items-center justify-center"
+                    onMouseLeave={() => setHoveredServiceLabel(null)}
+                  >
+                    <svg
+                      viewBox={`0 0 ${pieChartSize} ${pieChartSize}`}
+                      className="h-[168px] w-[168px] overflow-visible"
+                      role="img"
+                      aria-label="Top services distribution"
+                    >
+                      {pieSegments.map((segment) => {
+                        const isHovered =
+                          hoveredService?.label === segment.label;
+
+                        return (
+                          <path
+                            key={segment.label}
+                            d={segment.path}
+                            fill={segment.color}
+                            stroke="#FFFFFF"
+                            strokeWidth={isHovered ? 4 : 3}
+                            className="cursor-pointer transition-all duration-200 ease-out"
+                            style={{
+                              filter: isHovered
+                                ? "drop-shadow(0 10px 20px rgba(15, 23, 42, 0.18))"
+                                : "none",
+                              transform: isHovered ? "scale(1.03)" : "scale(1)",
+                              transformOrigin: `${pieChartCenter}px ${pieChartCenter}px`,
+                            }}
+                            onMouseEnter={() =>
+                              setHoveredServiceLabel(segment.label)
+                            }
+                            onFocus={() =>
+                              setHoveredServiceLabel(segment.label)
+                            }
+                            onBlur={() => setHoveredServiceLabel(null)}
+                            tabIndex={0}
+                            aria-label={`${segment.label} ${segment.value}`}
+                          />
+                        );
+                      })}
+                    </svg>
                     <div
-                      className="h-[168px] w-[168px] rounded-full"
+                      className={[
+                        "pointer-events-none absolute z-10 rounded-xl bg-white px-4 py-3 shadow-[0_16px_32px_rgba(15,23,42,0.12)] transition-all duration-200 ease-out",
+                        hoveredService
+                          ? "opacity-100 scale-100"
+                          : "opacity-0 scale-95",
+                      ].join(" ")}
                       style={{
-                        background:
-                          "conic-gradient(#EC4899 0deg 90deg, #8B5CF6 90deg 135deg, #22B8CF 135deg 270deg, #22C55E 270deg 360deg)",
+                        left: hoveredService
+                          ? `${hoveredService.tooltipX}px`
+                          : "50%",
+                        top: hoveredService
+                          ? `${hoveredService.tooltipY}px`
+                          : "40px",
+                        transform: hoveredService
+                          ? "translate(-50%, -115%)"
+                          : "translate(-50%, -115%)",
                       }}
-                    />
-                    <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-xl bg-white px-4 py-3 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                    >
                       <div className="flex items-center gap-2 whitespace-nowrap text-sm font-medium text-[#667085]">
-                        <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
-                        Plumber
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{
+                            background: hoveredService?.color ?? "#22C55E",
+                          }}
+                        />
+                        {hoveredService?.label ?? ""}
                       </div>
                       <p className="mt-1 whitespace-nowrap text-sm font-bold text-[#101828]">
-                        ₦6,000,000
+                        {hoveredService?.value ?? ""}
                       </p>
+                      <span className="absolute left-1/2 top-full h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] bg-white" />
                     </div>
                   </div>
                   <div className="w-full space-y-3">
                     {topServices.map((service) => (
                       <div
                         key={service.label}
-                        className="flex items-center justify-between gap-4"
+                        className={[
+                          "flex items-center justify-between gap-4 rounded-xl px-2 py-1.5 transition-colors duration-200",
+                          hoveredService?.label === service.label
+                            ? "bg-[#F8FAFC]"
+                            : "",
+                        ].join(" ")}
                       >
                         <div className="flex items-center gap-3">
                           <span
@@ -591,7 +762,7 @@ export default function Overview() {
                           </span>
                         </div>
                         <span className="whitespace-nowrap text-sm font-semibold text-[#101828]">
-                          {service.value}
+                          {formatCurrency(service.amount)}
                         </span>
                       </div>
                     ))}
