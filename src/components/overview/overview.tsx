@@ -18,6 +18,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { NavLink } from "react-router-dom";
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
 
 const totalRevenueIconSvg = `
@@ -55,8 +56,8 @@ const totalRevenuePattern = summaryCardPattern;
 const requestsCardPattern = summaryCardPattern;
 
 const navigationItems = [
-  { label: "Dashboard", icon: LayoutDashboard, active: true },
-  { label: "Users", icon: Users },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/overview" },
+  { label: "Users", icon: Users, path: "/users" },
   { label: "Contractors", icon: UserSquare2 },
   { label: "Requests", icon: FileText },
   { label: "Transaction", icon: WalletCards },
@@ -347,17 +348,39 @@ function Sidebar({
       <nav className="flex flex-1 flex-col gap-1 px-4">
         {navigationItems.map((item) => {
           const Icon = item.icon;
+          const baseClassName =
+            "flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition";
+
+          if (item.path) {
+            return (
+              <NavLink
+                key={item.label}
+                to={item.path}
+                onClick={mobile ? onClose : undefined}
+                className={({ isActive }) =>
+                  [
+                    baseClassName,
+                    isActive
+                      ? "bg-[#05163E] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
+                      : "text-white/65 hover:bg-white/10 hover:text-white",
+                  ].join(" ")
+                }
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          }
 
           return (
             <button
               key={item.label}
               type="button"
               className={[
-                "flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition",
-                item.active
-                  ? "bg-[#05163E] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
-                  : "text-white/65 hover:bg-white/10 hover:text-white",
+                baseClassName,
+                "cursor-not-allowed text-white/45",
               ].join(" ")}
+              aria-disabled="true"
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span>{item.label}</span>
