@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -17,9 +16,15 @@ import {
   Users,
   UserSquare2,
   WalletCards,
-  Wrench,
   X,
 } from "lucide-react";
+import totalRevenueIconSvg from "../../.figma/image/mnfy487h-lmd1v3h.svg?raw";
+import totalUsersIconSvg from "../../.figma/image/mnfy487h-qbnewaq.svg?raw";
+import totalContractorsIconSvg from "../../.figma/image/mnfy487h-x3wyum0.svg?raw";
+import totalRequestsIconSvg from "../../.figma/image/mnfy487h-rkf9y2n.svg?raw";
+import totalRevenuePattern from "../../.figma/image/mnfy487h-zlws5y3.png";
+import summaryCardPattern from "../../.figma/image/mnfy487h-9hveie0.png";
+import requestsCardPattern from "../../.figma/image/mnfy487h-a0inarg.png";
 
 const navigationItems = [
   { label: "Dashboard", icon: LayoutDashboard, active: true },
@@ -36,42 +41,60 @@ const statistics = [
     title: "Total Revenue",
     value: "$15,837",
     trend: "+ 2.3% vs Yesterday",
-    icon: WalletCards,
+    iconSvg: totalRevenueIconSvg,
     highlighted: true,
+    patternSrc: totalRevenuePattern,
+    patternClassName:
+      "absolute -left-[27px] -top-[14px] hidden h-[156px] w-[318px] max-w-none rotate-180 opacity-80 lg:block",
   },
   {
     title: "Total users",
     value: "100,000",
     trend: "+ 2.3% vs Yesterday",
-    icon: Users,
+    iconSvg: totalUsersIconSvg,
+    patternSrc: summaryCardPattern,
+    patternClassName:
+      "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
   },
   {
     title: "Total Contractors",
     value: "100,000",
     trend: "+ 2.3% vs Yesterday",
-    icon: UserSquare2,
+    iconSvg: totalContractorsIconSvg,
+    patternSrc: summaryCardPattern,
+    patternClassName:
+      "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
   },
   {
     title: "Total Request",
     value: "100,000",
     trend: "+ 2.3% vs Yesterday",
-    icon: FileText,
+    iconSvg: totalRequestsIconSvg,
+    patternSrc: requestsCardPattern,
+    patternClassName:
+      "absolute -left-[81px] -top-[14px] hidden h-[156px] w-[428px] max-w-none rotate-180 opacity-80 lg:block",
   },
 ];
 
 const revenueBars = [
-  { month: "Jan", value: 82 },
-  { month: "Feb", value: 42 },
-  { month: "Mar", value: 68, active: true },
-  { month: "Apr", value: 53 },
-  { month: "May", value: 74 },
-  { month: "Jun", value: 61 },
-  { month: "Jul", value: 80 },
-  { month: "Aug", value: 58 },
-  { month: "Sep", value: 47 },
-  { month: "Oct", value: 56 },
-  { month: "Nov", value: 66 },
-  { month: "Dec", value: 54 },
+  { month: "Jan", shortMonth: "J", fullMonth: "January", value: 82 },
+  { month: "Feb", shortMonth: "F", fullMonth: "February", value: 42 },
+  {
+    month: "Mar",
+    shortMonth: "M",
+    fullMonth: "March",
+    value: 68,
+    active: true,
+  },
+  { month: "Apr", shortMonth: "A", fullMonth: "April", value: 53 },
+  { month: "May", shortMonth: "M", fullMonth: "May", value: 74 },
+  { month: "Jun", shortMonth: "J", fullMonth: "June", value: 61 },
+  { month: "Jul", shortMonth: "J", fullMonth: "July", value: 80 },
+  { month: "Aug", shortMonth: "A", fullMonth: "August", value: 58 },
+  { month: "Sep", shortMonth: "S", fullMonth: "September", value: 47 },
+  { month: "Oct", shortMonth: "O", fullMonth: "October", value: 56 },
+  { month: "Nov", shortMonth: "N", fullMonth: "November", value: 66 },
+  { month: "Dec", shortMonth: "D", fullMonth: "December", value: 54 },
 ];
 
 type TopService = {
@@ -253,7 +276,7 @@ function StatusPill({ status }: { status: string }) {
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
         isActive
           ? "bg-[#DCFCE7] text-[#22A75A]"
           : "bg-[#FFF4DB] text-[#F59E0B]",
@@ -528,60 +551,70 @@ export default function Overview() {
                 </div>
               </div>
             </div>
-            <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-              {statistics.map((item) => {
-                const Icon = item.icon;
-
-                return (
-                  <article
-                    key={item.title}
-                    className={[
-                      "rounded-2xl border px-5 py-4 shadow-sm",
-                      item.highlighted
-                        ? "border-[#07133A] bg-[linear-gradient(135deg,#020817_0%,#041B5C_100%)] text-white"
-                        : "border-[#EAECF0] bg-white text-[#101828]",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p
-                          className={[
-                            "text-sm font-medium",
-                            item.highlighted
-                              ? "text-white/80"
-                              : "text-[#98A2B3]",
-                          ].join(" ")}
-                        >
-                          {item.title}
-                        </p>
-                        <p className="mt-3 text-[34px] font-bold leading-none tracking-[-0.04em]">
-                          {item.value}
-                        </p>
-                        <p
-                          className={[
-                            "mt-3 text-xs font-medium",
-                            item.highlighted
-                              ? "text-white/65"
-                              : "text-[#16A34A]",
-                          ].join(" ")}
-                        >
-                          {item.trend}
-                        </p>
-                      </div>
-                      <div
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-[14px]">
+              {statistics.map((item) => (
+                <article
+                  key={item.title}
+                  className={[
+                    "relative overflow-hidden rounded-[10px] border p-[13px] shadow-sm",
+                    item.highlighted
+                      ? "border-[#07133A] bg-[linear-gradient(135deg,#020817_0%,#041B5C_100%)] text-white"
+                      : "border-[#F0F1F2] bg-[#FAFAFA] text-[#101828]",
+                  ].join(" ")}
+                >
+                  <img
+                    src={item.patternSrc}
+                    alt=""
+                    aria-hidden="true"
+                    className={item.patternClassName}
+                  />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p
                         className={[
-                          "flex h-10 w-10 items-center justify-center rounded-xl border",
+                          "truncate text-[14px] leading-[19px]",
                           item.highlighted
-                            ? "border-white/15 bg-white/5 text-white"
-                            : "border-[#EAECF0] bg-[#F8FAFC] text-[#0F172A]",
+                            ? "text-[#EEF3E6]"
+                            : "text-[#6B7280]",
                         ].join(" ")}
                       >
-                        <Icon className="h-4 w-4" />
-                      </div>
+                        {item.title}
+                      </p>
+                      <p
+                        className={[
+                          "mt-[10px] text-[24px] font-semibold leading-[33px] tracking-[-0.02em]",
+                          item.highlighted ? "text-white" : "text-[#020715]",
+                        ].join(" ")}
+                      >
+                        {item.value}
+                      </p>
+                      <p
+                        className={[
+                          "mt-[8px] text-[12px] leading-[15px]",
+                          item.highlighted
+                            ? "text-[#B1B5C0]"
+                            : "text-[#136C34]",
+                        ].join(" ")}
+                      >
+                        {item.trend}
+                      </p>
                     </div>
-                  </article>
-                );
-              })}
+                    <div
+                      className={[
+                        "relative flex h-[26px] w-[26px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border p-[3px] [&_svg]:h-5 [&_svg]:w-5",
+                        item.highlighted
+                          ? "border-[#36415C] bg-[#02091C]"
+                          : "border-[#F0F1F2] bg-white",
+                      ].join(" ")}
+                    >
+                      <span
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{ __html: item.iconSvg }}
+                      />
+                    </div>
+                  </div>
+                </article>
+              ))}
             </section>
             <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
               <article className="rounded-2xl border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
@@ -617,7 +650,7 @@ export default function Overview() {
                         />
                       ))}
                     </div>
-                    <div className="relative flex h-[250px] items-end gap-2 pt-10 sm:gap-3">
+                    <div className="relative flex h-[250px] items-end gap-1 pt-10 min-[420px]:gap-1.5 sm:gap-3">
                       {revenueBars.map((bar) => (
                         <div
                           key={bar.month}
@@ -642,8 +675,20 @@ export default function Overview() {
                               style={{ height: `${bar.value}%` }}
                             />
                           </div>
-                          <span className="text-[11px] font-medium text-[#98A2B3]">
-                            {bar.month}
+                          <span
+                            className="text-[10px] font-medium tracking-[-0.01em] text-[#98A2B3] sm:text-[11px]"
+                            title={bar.fullMonth}
+                          >
+                            <span className="sr-only">{bar.fullMonth}</span>
+                            <span aria-hidden="true" className="sm:hidden">
+                              {bar.shortMonth}
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="hidden sm:inline"
+                            >
+                              {bar.month}
+                            </span>
                           </span>
                         </div>
                       ))}
@@ -761,9 +806,6 @@ export default function Overview() {
                             {service.label}
                           </span>
                         </div>
-                        <span className="whitespace-nowrap text-sm font-semibold text-[#101828]">
-                          {formatCurrency(service.amount)}
-                        </span>
                       </div>
                     ))}
                   </div>
@@ -914,12 +956,6 @@ export default function Overview() {
                 </button>
               </div>
             </section>
-            <div className="mt-5 flex items-center gap-2 text-xs font-medium text-[#98A2B3]">
-              <ShieldCheck className="h-4 w-4 text-[#12B76A]" />
-              <span>
-                Responsive overview optimized for mobile, tablet, and desktop.
-              </span>
-            </div>
           </div>
         </main>
       </div>
