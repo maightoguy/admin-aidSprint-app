@@ -15,7 +15,7 @@ import type { DashboardNavigationItem } from "./dashboard-types";
 const navigationItems: DashboardNavigationItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/overview" },
   { label: "Users", icon: Users, path: "/users" },
-  { label: "Contractors", icon: UserSquare2 },
+  { label: "Contractors", icon: UserSquare2, path: "/contractors" },
   { label: "Requests", icon: FileText },
   { label: "Transaction", icon: WalletCards },
   { label: "Support", icon: MessageCircleMore },
