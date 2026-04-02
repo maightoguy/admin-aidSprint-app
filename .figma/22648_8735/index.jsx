@@ -7,15 +7,15 @@ const Component = () => {
     <div className={styles.frame2147224472}>
       <div className={styles.frame2147224465}>
         <p className={styles.liveTracker}>Live tracker</p>
-        <img src="../image/mnheglmz-qbrr1ng.svg" className={styles.frame} />
+        <img src="../image/mnhjg60v-hc74hym.svg" className={styles.frame} />
       </div>
       <div className={styles.frame2147224463}>
         <div className={styles.aMapMakerLagosLagosN}>
           <div className={styles.frame1000007689}>
-            <img src="../image/mnheglmz-zvzf1rs.svg" className={styles.vector61} />
-            <img src="../image/mnheglmz-ceno34g.png" className={styles.group2041} />
+            <img src="../image/mnhjg60v-8jlmihe.svg" className={styles.vector61} />
+            <img src="../image/mnhjg60v-0yuar7f.png" className={styles.group2041} />
             <img
-              src="../image/mnheglmz-q7lsba4.svg"
+              src="../image/mnhjg60v-t8li84y.svg"
               className={styles.gridiconsLocation}
             />
           </div>
@@ -28,7 +28,7 @@ const Component = () => {
                   <div className={styles.frame2147224462}>
                     <div className={styles.frame2147224456}>
                       <img
-                        src="../image/mnheglmz-hu1h2w9.svg"
+                        src="../image/mnhjg60v-s3n5jpg.svg"
                         className={styles.frame}
                       />
                       <p className={styles.plumbingService}>Plumbing Service</p>
@@ -50,7 +50,7 @@ const Component = () => {
                         className={styles.group2045}
                       />
                       <img
-                        src="../image/mnheglmz-alinteo.svg"
+                        src="../image/mnhjg60v-jsx34gg.svg"
                         className={styles.gridiconsLocation2}
                       />
                     </div>

@@ -11,6 +11,8 @@ This feature renders the user profile details view that opens from the Users act
 - `update-account-modal.tsx` renders the activate/deactivate account dialog
 - `update-account-action-item.tsx` renders each actionable row inside the dialog
 - the Request History tab is route-driven from the selected user id and reads per-user request records from `user-details.data.ts`
+- `request-details.store.ts` keeps the selected request, per-request status overrides, map-overlay visibility, and the last-viewed request id in session storage
+- request row actions open the Request Details sidebar and the embedded live-tracker overlay from the same page
 
 ## Route Usage
 
@@ -39,3 +41,6 @@ This feature renders the user profile details view that opens from the Users act
 - The Users list passes menu actions into `UsersActionsMenu`
 - Selecting **View profile** navigates to `/users/:userId`
 - The profile page manages local tab state, update-account dialog state, and request-history rendering for the selected user
+- Request detail data is loaded from `user-details.mock.json` through `getMockUserDetailsRecords()` in `user-details.data.ts`
+- The mock loader is the current integration point for a future `GET /api/users/:userId/details` endpoint
+- Request status updates are currently client-side only and can later connect to a request mutation endpoint without changing the sidebar API

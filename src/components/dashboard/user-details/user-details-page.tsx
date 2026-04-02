@@ -11,6 +11,14 @@ import {
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { RequestDetailsLiveTrackerOverlay } from "../request-details/request-details-overlay";
+import { RequestDetailsSidebar } from "../request-details/request-details-sidebar";
+import {
+  applyRequestStatusOverride,
+  getRequestHistoryStatus,
+  useRequestDetailsStore,
+  type RequestStatusAction,
+} from "../request-details/request-details.store";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import { getStatusPillClasses } from "../users/users.utils";
 import { usersStyles } from "../users/users.styles";
@@ -136,10 +144,12 @@ function PersonalDetailsPanel({ user }: { user: UserDetailsRecord }) {
 }
 
 function RequestHistoryStatusPill({
-  status,
+  request,
 }: {
-  status: UserRequestHistoryItem["status"];
+  request: UserRequestHistoryItem;
 }) {
+  const status = getRequestHistoryStatus(request);
+
   return (
     <span
       className={[
@@ -152,7 +162,13 @@ function RequestHistoryStatusPill({
   );
 }
 
-function RequestHistoryPanel({ user }: { user: UserDetailsRecord }) {
+function RequestHistoryPanel({
+  requests,
+  onOpenRequestDetails,
+}: {
+  requests: UserRequestHistoryItem[];
+  onOpenRequestDetails: (requestId: string) => void;
+}) {
   return (
     <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-[#EAECF0] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
@@ -189,7 +205,7 @@ function RequestHistoryPanel({ user }: { user: UserDetailsRecord }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#EAECF0]">
-            {user.requestHistory.map((request) => (
+            {requests.map((request) => (
               <tr key={request.id}>
                 <td className="px-5 py-4 text-sm font-semibold text-[#101828]">
                   {request.service}
@@ -203,13 +219,14 @@ function RequestHistoryPanel({ user }: { user: UserDetailsRecord }) {
                   {request.date}
                 </td>
                 <td className="px-5 py-4">
-                  <RequestHistoryStatusPill status={request.status} />
+                  <RequestHistoryStatusPill request={request} />
                 </td>
                 <td className="px-5 py-4 text-right">
                   <button
                     type="button"
+                    onClick={() => onOpenRequestDetails(request.id)}
                     className="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-white text-[#667085] transition hover:bg-[#F8FAFC]"
-                    aria-label={`Open request actions for ${request.service}`}
+                    aria-label={`Open request details for ${request.service}`}
                   >
                     <MoreVertical className="h-4 w-4" />
                   </button>
@@ -220,7 +237,7 @@ function RequestHistoryPanel({ user }: { user: UserDetailsRecord }) {
         </table>
       </div>
       <div className="grid gap-3 p-4 md:hidden">
-        {user.requestHistory.map((request) => (
+        {requests.map((request) => (
           <article
             key={request.id}
             className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4"
@@ -236,15 +253,16 @@ function RequestHistoryPanel({ user }: { user: UserDetailsRecord }) {
               </div>
               <button
                 type="button"
+                onClick={() => onOpenRequestDetails(request.id)}
                 className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-white text-[#667085]"
-                aria-label={`Open request actions for ${request.service}`}
+                aria-label={`Open request details for ${request.service}`}
               >
                 <MoreVertical className="h-4 w-4" />
               </button>
             </div>
             <div className="mt-4 flex items-center justify-between gap-3">
               <p className="text-sm text-[#667085]">{request.date}</p>
-              <RequestHistoryStatusPill status={request.status} />
+              <RequestHistoryStatusPill request={request} />
             </div>
           </article>
         ))}
@@ -305,12 +323,42 @@ export default function UserDetailsPage({
   const [currentUser, setCurrentUser] = useState<UserDetailsRecord | null>(
     matchedUser,
   );
+  const selectedRequestId = useRequestDetailsStore((state) => state.selectedRequestId);
+  const isRequestDetailsOpen = useRequestDetailsStore((state) => state.isSidebarOpen);
+  const openRequest = useRequestDetailsStore((state) => state.openRequest);
+  const closeSidebar = useRequestDetailsStore((state) => state.closeSidebar);
+  const openMap = useRequestDetailsStore((state) => state.openMap);
+  const closeAll = useRequestDetailsStore((state) => state.closeAll);
+  const updateRequestStatus = useRequestDetailsStore((state) => state.updateRequestStatus);
+  const requestStatusById = useRequestDetailsStore((state) => state.requestStatusById);
 
   useEffect(() => {
     setCurrentUser(matchedUser);
     setActionError(null);
     setIsUpdateAccountOpen(false);
-  }, [matchedUser]);
+    closeAll();
+  }, [closeAll, matchedUser]);
+
+  const currentUserWithRequestOverrides = useMemo(() => {
+    if (!currentUser) {
+      return null;
+    }
+
+    return {
+      ...currentUser,
+      requestHistory: currentUser.requestHistory.map((request) =>
+        applyRequestStatusOverride(request, requestStatusById[request.id]),
+      ),
+    };
+  }, [currentUser, requestStatusById]);
+
+  const selectedRequest = useMemo(
+    () =>
+      currentUserWithRequestOverrides?.requestHistory.find(
+        (request) => request.id === selectedRequestId,
+      ) ?? null,
+    [currentUserWithRequestOverrides, selectedRequestId],
+  );
 
   const handleStatusAction = async (action: UpdateAccountAction) => {
     if (!currentUser) {
@@ -349,6 +397,48 @@ export default function UserDetailsPage({
     }
   };
 
+  const handleOpenRequestDetails = (requestId: string) => {
+    const request = currentUserWithRequestOverrides?.requestHistory.find(
+      (item) => item.id === requestId,
+    );
+
+    if (!request) {
+      toast.error("Unable to open request details", {
+        description: "The selected request could not be found.",
+      });
+      return;
+    }
+
+    openRequest(requestId);
+  };
+
+  const handleOpenLiveTracker = () => {
+    if (!selectedRequest) {
+      toast.error("Unable to open live tracker", {
+        description: "No request is currently selected.",
+      });
+      return;
+    }
+
+    openMap();
+  };
+
+  const handleUpdateRequestStatus = (action: RequestStatusAction) => {
+    if (!selectedRequestId || !selectedRequest) {
+      toast.error("Unable to update status", {
+        description: "No request is currently selected.",
+      });
+      return;
+    }
+
+    updateRequestStatus(selectedRequestId, action);
+    toast.success(action, {
+      description: `${selectedRequest.service} is now ${action
+        .replace(" order", "")
+        .toLowerCase()}.`,
+    });
+  };
+
   return (
     <DashboardLayout title="User’s">
       <div className="space-y-5">
@@ -378,7 +468,7 @@ export default function UserDetailsPage({
             </p>
           </div>
         ) : null}
-        {!isLoading && currentUser ? (
+        {!isLoading && currentUser && currentUserWithRequestOverrides ? (
           <>
             <Tabs
               value={activeTab}
@@ -396,10 +486,10 @@ export default function UserDetailsPage({
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-[28px] font-bold tracking-[-0.03em] text-[#101828]">
-                      {currentUser.name}
+                      {currentUserWithRequestOverrides.name}
                     </p>
                     <div className="mt-2">
-                      <UserStatusPill status={currentUser.status} />
+                      <UserStatusPill status={currentUserWithRequestOverrides.status} />
                     </div>
                   </div>
                 </div>
@@ -415,10 +505,13 @@ export default function UserDetailsPage({
                 </button>
               </section>
               <TabsContent value="personal-details" className="mt-0">
-                <PersonalDetailsPanel user={currentUser} />
+                <PersonalDetailsPanel user={currentUserWithRequestOverrides} />
               </TabsContent>
               <TabsContent value="request-history" className="mt-0">
-                <RequestHistoryPanel user={currentUser} />
+                <RequestHistoryPanel
+                  requests={currentUserWithRequestOverrides.requestHistory}
+                  onOpenRequestDetails={handleOpenRequestDetails}
+                />
               </TabsContent>
             </Tabs>
             <UpdateAccountModal
@@ -428,6 +521,15 @@ export default function UserDetailsPage({
               onOpenChange={setIsUpdateAccountOpen}
               onSelectAction={handleStatusAction}
             />
+            <RequestDetailsSidebar
+              open={isRequestDetailsOpen}
+              request={selectedRequest}
+              customerName={currentUserWithRequestOverrides.name}
+              onOpenChange={(open) => (open ? null : closeSidebar())}
+              onOpenLiveTracker={handleOpenLiveTracker}
+              onUpdateStatus={handleUpdateRequestStatus}
+            />
+            <RequestDetailsLiveTrackerOverlay requestId={selectedRequest?.id ?? null} />
           </>
         ) : null}
       </div>

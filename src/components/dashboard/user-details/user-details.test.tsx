@@ -4,17 +4,26 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useRequestDetailsStore } from "../request-details/request-details.store";
 import Users from "../users/users";
 import UserDetailsPage from "./user-details-page";
 
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
+  useRequestDetailsStore.setState({
+    selectedRequestId: null,
+    isSidebarOpen: false,
+    isMapOpen: false,
+    requestStatusById: {},
+  });
 });
 
 function renderUserDetails(options?: {
@@ -57,6 +66,7 @@ describe("UserDetailsPage", () => {
     expect(screen.getByText("First name")).toBeTruthy();
     expect(screen.getByText("Emery")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Personal details" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Live tracker" })).toBeNull();
   });
 
   it("switches between Personal details and Request history tabs", async () => {
@@ -88,7 +98,7 @@ describe("UserDetailsPage", () => {
       screen.getByRole("textbox", { name: "Search request history" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Past").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
     expect(
       screen.getByRole("button", { name: "Previous request history page" }),
     ).toBeTruthy();
@@ -96,6 +106,52 @@ describe("UserDetailsPage", () => {
       screen.getByRole("button", { name: "Next request history page" }),
     ).toBeTruthy();
   });
+
+  it("opens the request details sidebar from a request row", async () => {
+    const user = userEvent.setup();
+
+    renderUserDetails();
+
+    await user.click(screen.getByRole("tab", { name: "Request history" }));
+    await user.click(
+      screen.getAllByRole("button", {
+        name: "Open request details for Plumbing",
+      })[0],
+    );
+
+    expect(screen.getAllByText("Request details").length).toBeGreaterThan(0);
+    expect(screen.getByText("KJH 123456")).toBeTruthy();
+    expect(screen.getByText("Uploaded images")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open live tracker" }),
+    ).toBeTruthy();
+  });
+
+  it("updates the request status without a reload", async () => {
+    const user = userEvent.setup();
+
+    renderUserDetails();
+
+    await user.click(screen.getByRole("tab", { name: "Request history" }));
+    await user.click(
+      screen.getAllByRole("button", {
+        name: "Open request details for Plumbing",
+      })[0],
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Update request status" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: /Complete order/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Completed order").length).toBeGreaterThan(0);
+    });
+  }, 10000);
 
   it("opens and closes the update account modal", async () => {
     const user = userEvent.setup();
@@ -186,5 +242,36 @@ describe("UserDetailsPage", () => {
 
     expect(await screen.findByText("User information")).toBeTruthy();
     expect(screen.getByText("Emery Torff")).toBeTruthy();
+  });
+
+  it("navigates from request details to the live tracker route", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/users/emery-torff"]}>
+        <Routes>
+          <Route path="/users/:userId" element={<UserDetailsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Request history" }));
+    await user.click(
+      screen.getAllByRole("button", {
+        name: "Open request details for Plumbing",
+      })[0],
+    );
+    await user.click(screen.getByRole("button", { name: "Open live tracker" }));
+
+    expect(
+      screen.getByRole("button", { name: "Close live tracker" }),
+    ).toBeTruthy();
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Close live tracker" }),
+      ).toBeNull();
+    });
   });
 });

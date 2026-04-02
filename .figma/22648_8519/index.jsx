@@ -8,24 +8,24 @@ const Component = () => {
       <div className={styles.frame2147224500}>
         <div className={styles.frame2147224465}>
           <p className={styles.requestDetails}>Request details</p>
-          <img src="../image/mnheg4l5-ucvnw1v.svg" className={styles.frame} />
+          <img src="../image/mnhjd6cn-vwyyme0.svg" className={styles.frame} />
         </div>
         <div className={styles.frame48096105}>
           <div className={styles.frame2147224475}>
             <div className={styles.frame2147224476}>
               <div className={styles.frame2147224433}>
                 <img
-                  src="../image/mnheg4l5-nqs0zf9.svg"
+                  src="../image/mnhjd6cn-cvfm37u.svg"
                   className={styles.frame2}
                 />
                 <div className={styles.line21} />
                 <img
-                  src="../image/mnheg4l5-nqs0zf9.svg"
+                  src="../image/mnhjd6cn-cvfm37u.svg"
                   className={styles.frame2}
                 />
                 <div className={styles.line21} />
                 <img
-                  src="../image/mnheg4l5-nqs0zf9.svg"
+                  src="../image/mnhjd6cn-cvfm37u.svg"
                   className={styles.frame2}
                 />
               </div>
@@ -35,14 +35,14 @@ const Component = () => {
                     <div className={styles.frame2147224474}>
                       <div className={styles.frame2147224467}>
                         <img
-                          src="../image/mnheg4my-0uv433j.png"
+                          src="../image/mnhjd6d3-og4b1e6.png"
                           className={styles.ellipse66}
                         />
                         <p className={styles.johnDoe}>John Doe&nbsp;</p>
                       </div>
                       <div className={styles.frame2147224471}>
                         <img
-                          src="../image/mnheg4l6-ajl1nv2.svg"
+                          src="../image/mnhjd6cn-0kxo1li.svg"
                           className={styles.frame3}
                         />
                         <p className={styles.a100RequestsComplete}>
@@ -62,7 +62,7 @@ const Component = () => {
                     <div className={styles.frame2147224438}>
                       <div className={styles.frame2147224456}>
                         <img
-                          src="../image/mnheg4l6-2ycwfhm.svg"
+                          src="../image/mnhjd6cn-x9d6mhd.svg"
                           className={styles.frame3}
                         />
                         <p className={styles.ratings}>Ratings</p>
@@ -72,7 +72,7 @@ const Component = () => {
                   </div>
                   <div className={styles.frame1000007579}>
                     <img
-                      src="../image/mnheg4l6-hon7bpw.svg"
+                      src="../image/mnhjd6cn-iux4xpx.svg"
                       className={styles.frame4}
                     />
                   </div>
@@ -84,7 +84,7 @@ const Component = () => {
                 <div className={styles.frame2147224462}>
                   <div className={styles.frame21472244562}>
                     <img
-                      src="../image/mnheg4l6-am2ib55.svg"
+                      src="../image/mnhjd6cn-4z1q24m.svg"
                       className={styles.frame}
                     />
                     <p className={styles.ratings}>Plumbing Service</p>
@@ -154,7 +154,7 @@ const Component = () => {
         </div>
         <div className={styles.frame48096600}>
           <p className={styles.updateStatus}>Update Status</p>
-          <img src="../image/mnheg4l7-dj2xpx0.svg" className={styles.frame2} />
+          <img src="../image/mnhjd6co-zof37z2.svg" className={styles.frame2} />
         </div>
       </div>
     </div>

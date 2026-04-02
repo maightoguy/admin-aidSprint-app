@@ -1,0 +1,303 @@
+{
+  "emery-torff": {
+    "firstName": "Emery",
+    "lastName": "Torff",
+    "gender": "Male",
+    "locations": [
+      {
+        "id": "emery-torff-location-1",
+        "primaryLine": "163 Owode-Sango Road",
+        "secondaryLine": "Ogun, Nigeria",
+        "isCurrent": true
+      },
+      {
+        "id": "emery-torff-location-2",
+        "primaryLine": "42 Raymond Avenue",
+        "secondaryLine": "Lagos, Nigeria"
+      },
+      {
+        "id": "emery-torff-location-3",
+        "primaryLine": "18 Admiralty Way",
+        "secondaryLine": "Lekki, Nigeria"
+      }
+    ],
+    "requestHistory": [
+      {
+        "id": "emery-request-1",
+        "requestCode": "KJH 123456",
+        "service": "Plumbing",
+        "location": "163 Owode-Sango Road",
+        "date": "Apr 12, 2023",
+        "status": "Active",
+        "completedRequests": "100 requests completed",
+        "rating": "4.9",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$214.99",
+        "baseFee": "$90/hr",
+        "totalHours": "2hrs($180)",
+        "description": "My toilet has been clogged for the past 2hrs and needs urgent attention.",
+        "platformFee": "$4.99",
+        "lifecycleStatus": "Current",
+        "contractorLocation": "6b, Surulere, Lagos, Nigeria",
+        "userLocation": "Beckham, United kingdom",
+        "etaLabel": "5mins away",
+        "uploadedImages": [
+          { "id": "emery-request-1-image-1", "label": "Receipt", "tone": "light" },
+          { "id": "emery-request-1-image-2", "label": "Plumbing", "tone": "dark" }
+        ]
+      },
+      {
+        "id": "emery-request-2",
+        "requestCode": "KJH 123457",
+        "service": "Cleaning",
+        "location": "34 Awgu-Mgbidi Road",
+        "date": "Apr 12, 2023",
+        "status": "Pending",
+        "completedRequests": "100 requests completed",
+        "rating": "4.8",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$164.20",
+        "baseFee": "$60/hr",
+        "totalHours": "2hrs($120)",
+        "description": "Emergency deep cleaning request for a flooded kitchen and hallway.",
+        "platformFee": "$14.20",
+        "lifecycleStatus": "Assigned",
+        "contractorLocation": "34 Awgu-Mgbidi Road, Enugu, Nigeria",
+        "userLocation": "19 Independence Layout, Enugu, Nigeria",
+        "etaLabel": "7mins away",
+        "uploadedImages": [
+          { "id": "emery-request-2-image-1", "label": "Before", "tone": "light" },
+          { "id": "emery-request-2-image-2", "label": "Site", "tone": "dark" }
+        ]
+      },
+      {
+        "id": "emery-request-3",
+        "requestCode": "KJH 123458",
+        "service": "Baby sitting",
+        "location": "170 Ejigbo-Apomu Road",
+        "date": "Apr 12, 2023",
+        "status": "Active",
+        "completedRequests": "100 requests completed",
+        "rating": "4.9",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$98.00",
+        "baseFee": "$32/hr",
+        "totalHours": "3hrs($96)",
+        "description": "Immediate child care assistance requested for a late-night work emergency.",
+        "platformFee": "$2.00",
+        "lifecycleStatus": "Current",
+        "contractorLocation": "12 Ring Road, Osogbo, Nigeria",
+        "userLocation": "170 Ejigbo-Apomu Road, Osun, Nigeria",
+        "etaLabel": "4mins away",
+        "uploadedImages": [
+          { "id": "emery-request-3-image-1", "label": "Home", "tone": "light" },
+          { "id": "emery-request-3-image-2", "label": "Checklist", "tone": "dark" }
+        ]
+      },
+      {
+        "id": "emery-request-4",
+        "requestCode": "KJH 123459",
+        "service": "Electrician",
+        "location": "178 Omu-Aran Township",
+        "date": "Apr 12, 2023",
+        "status": "Past",
+        "completedRequests": "100 requests completed",
+        "rating": "4.7",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$142.50",
+        "baseFee": "$55/hr",
+        "totalHours": "2hrs($110)",
+        "description": "Power outage and exposed wiring inspection completed successfully.",
+        "platformFee": "$32.50",
+        "lifecycleStatus": "Completed",
+        "contractorLocation": "9 Allen Avenue, Ikeja, Nigeria",
+        "userLocation": "178 Omu-Aran Township, Kwara, Nigeria",
+        "etaLabel": "Completed",
+        "uploadedImages": [
+          { "id": "emery-request-4-image-1", "label": "Panel", "tone": "light" },
+          { "id": "emery-request-4-image-2", "label": "Repair", "tone": "dark" }
+        ]
+      },
+      {
+        "id": "emery-request-5",
+        "requestCode": "KJH 123460",
+        "service": "Plumbing",
+        "location": "113 Gashua-Bursari Road",
+        "date": "Apr 12, 2023",
+        "status": "Active",
+        "completedRequests": "100 requests completed",
+        "rating": "4.9",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$214.99",
+        "baseFee": "$90/hr",
+        "totalHours": "2hrs($180)",
+        "description": "Burst kitchen pipe causing low water pressure in the apartment.",
+        "platformFee": "$34.99",
+        "lifecycleStatus": "Current",
+        "contractorLocation": "82, Lagos, Jumofak, Ikeja, Nigeria",
+        "userLocation": "113 Gashua-Bursari Road, Yobe, Nigeria",
+        "etaLabel": "6mins away",
+        "uploadedImages": [
+          { "id": "emery-request-5-image-1", "label": "Leak", "tone": "light" },
+          { "id": "emery-request-5-image-2", "label": "Valve", "tone": "dark" }
+        ]
+      }
+    ]
+  },
+  "maren-dokidis": {
+    "firstName": "Maren",
+    "lastName": "Dokidis",
+    "gender": "Female",
+    "locations": [
+      {
+        "id": "maren-dokidis-location-1",
+        "primaryLine": "34 Awgu-Mgbidi Road",
+        "secondaryLine": "Enugu, Nigeria",
+        "isCurrent": true
+      },
+      {
+        "id": "maren-dokidis-location-2",
+        "primaryLine": "17 Airport Road",
+        "secondaryLine": "Owerri, Nigeria"
+      }
+    ],
+    "requestHistory": [
+      {
+        "id": "maren-request-1",
+        "requestCode": "KJH 123461",
+        "service": "Cleaning",
+        "location": "34 Awgu-Mgbidi Road",
+        "date": "Apr 12, 2023",
+        "status": "Past",
+        "completedRequests": "64 requests completed",
+        "rating": "4.6",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$140.00",
+        "baseFee": "$50/hr",
+        "totalHours": "2hrs($100)",
+        "description": "Routine after-event clean-up request completed for living room and patio.",
+        "platformFee": "$40.00",
+        "lifecycleStatus": "Completed",
+        "contractorLocation": "17 Airport Road, Owerri, Nigeria",
+        "userLocation": "34 Awgu-Mgbidi Road, Enugu, Nigeria",
+        "etaLabel": "Completed",
+        "uploadedImages": [
+          { "id": "maren-request-1-image-1", "label": "Room", "tone": "light" },
+          { "id": "maren-request-1-image-2", "label": "Patio", "tone": "dark" }
+        ]
+      },
+      {
+        "id": "maren-request-2",
+        "requestCode": "KJH 123462",
+        "service": "Laundry",
+        "location": "17 Airport Road",
+        "date": "Jun 08, 2023",
+        "status": "Pending",
+        "completedRequests": "64 requests completed",
+        "rating": "4.6",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$76.00",
+        "baseFee": "$24/hr",
+        "totalHours": "3hrs($72)",
+        "description": "Express laundry service with same-day collection and ironing required.",
+        "platformFee": "$4.00",
+        "lifecycleStatus": "Assigned",
+        "contractorLocation": "29 Tetlow Road, Owerri, Nigeria",
+        "userLocation": "17 Airport Road, Owerri, Nigeria",
+        "etaLabel": "9mins away",
+        "uploadedImages": [
+          { "id": "maren-request-2-image-1", "label": "Bundle", "tone": "light" },
+          { "id": "maren-request-2-image-2", "label": "Tag", "tone": "dark" }
+        ]
+      }
+    ]
+  },
+  "cooper-siphron": {
+    "firstName": "Cooper",
+    "lastName": "Siphron",
+    "gender": "Male",
+    "locations": [
+      {
+        "id": "cooper-siphron-location-1",
+        "primaryLine": "170 Ejigbo-Apomu Road",
+        "secondaryLine": "Osun, Nigeria",
+        "isCurrent": true
+      },
+      {
+        "id": "cooper-siphron-location-2",
+        "primaryLine": "26 Ring Road",
+        "secondaryLine": "Ibadan, Nigeria"
+      }
+    ],
+    "requestHistory": [
+      {
+        "id": "cooper-request-1",
+        "requestCode": "KJH 123463",
+        "service": "Baby sitting",
+        "location": "170 Ejigbo-Apomu Road",
+        "date": "Apr 12, 2023",
+        "status": "Active",
+        "completedRequests": "31 requests completed",
+        "rating": "4.7",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$98.00",
+        "baseFee": "$32/hr",
+        "totalHours": "3hrs($96)",
+        "description": "Urgent babysitting required while guardian attends an emergency meeting.",
+        "platformFee": "$2.00",
+        "lifecycleStatus": "Current",
+        "contractorLocation": "26 Ring Road, Ibadan, Nigeria",
+        "userLocation": "170 Ejigbo-Apomu Road, Osun, Nigeria",
+        "etaLabel": "4mins away",
+        "uploadedImages": [
+          { "id": "cooper-request-1-image-1", "label": "Room", "tone": "light" },
+          { "id": "cooper-request-1-image-2", "label": "Notes", "tone": "dark" }
+        ]
+      }
+    ]
+  },
+  "marcus-dias": {
+    "firstName": "Marcus",
+    "lastName": "Dias",
+    "gender": "Male",
+    "locations": [
+      {
+        "id": "marcus-dias-location-1",
+        "primaryLine": "178 Omu-Aran Township",
+        "secondaryLine": "Kwara, Nigeria",
+        "isCurrent": true
+      },
+      {
+        "id": "marcus-dias-location-2",
+        "primaryLine": "9 Allen Avenue",
+        "secondaryLine": "Ikeja, Nigeria"
+      }
+    ],
+    "requestHistory": [
+      {
+        "id": "marcus-request-1",
+        "requestCode": "KJH 123464",
+        "service": "Electrician",
+        "location": "178 Omu-Aran Township",
+        "date": "Apr 12, 2023",
+        "status": "Past",
+        "completedRequests": "48 requests completed",
+        "rating": "4.5",
+        "urgencyLabel": "Emergency",
+        "totalPayment": "$142.50",
+        "baseFee": "$55/hr",
+        "totalHours": "2hrs($110)",
+        "description": "Electrical diagnostics and minor repairs completed after a power surge.",
+        "platformFee": "$32.50",
+        "lifecycleStatus": "Completed",
+        "contractorLocation": "9 Allen Avenue, Ikeja, Nigeria",
+        "userLocation": "178 Omu-Aran Township, Kwara, Nigeria",
+        "etaLabel": "Completed",
+        "uploadedImages": [
+          { "id": "marcus-request-1-image-1", "label": "Switch", "tone": "light" },
+          { "id": "marcus-request-1-image-2", "label": "Cable", "tone": "dark" }
+        ]
+      }
+    ]
+  }
+}

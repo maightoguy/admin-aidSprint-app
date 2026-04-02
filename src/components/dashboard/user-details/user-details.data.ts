@@ -1,164 +1,25 @@
+import mockUserDetailsMetadata from "./user-details.mock.json";
 import { userRecords } from "../users/users.data";
 import type { UserDetailsRecord } from "./user-details.types";
 
-const userDetailsMetadata: Record<
-  string,
-  Pick<
-    UserDetailsRecord,
-    "firstName" | "lastName" | "gender" | "locations" | "requestHistory"
-  >
-> = {
-  "emery-torff": {
-    firstName: "Emery",
-    lastName: "Torff",
-    gender: "Male",
-    locations: [
-      {
-        id: "emery-torff-location-1",
-        primaryLine: "163 Owode-Sango Road",
-        secondaryLine: "Ogun, Nigeria",
-        isCurrent: true,
-      },
-      {
-        id: "emery-torff-location-2",
-        primaryLine: "42 Raymond Avenue",
-        secondaryLine: "Lagos, Nigeria",
-      },
-      {
-        id: "emery-torff-location-3",
-        primaryLine: "18 Admiralty Way",
-        secondaryLine: "Lekki, Nigeria",
-      },
-    ],
-    requestHistory: [
-      {
-        id: "emery-request-1",
-        service: "Plumbing",
-        location: "163 Owode-Sango Road",
-        date: "Apr 12, 2023",
-        status: "Active",
-      },
-      {
-        id: "emery-request-2",
-        service: "Cleaning",
-        location: "34 Awgu-Mgbidi Road",
-        date: "Apr 12, 2023",
-        status: "Pending",
-      },
-      {
-        id: "emery-request-3",
-        service: "Baby sitting",
-        location: "170 Ejigbo-Apomu Road",
-        date: "Apr 12, 2023",
-        status: "Active",
-      },
-      {
-        id: "emery-request-4",
-        service: "Electrician",
-        location: "178 Omu-Aran Township",
-        date: "Apr 12, 2023",
-        status: "Past",
-      },
-      {
-        id: "emery-request-5",
-        service: "Plumbing",
-        location: "113 Gashua-Bursari Road",
-        date: "Apr 12, 2023",
-        status: "Active",
-      },
-    ],
-  },
-  "maren-dokidis": {
-    firstName: "Maren",
-    lastName: "Dokidis",
-    gender: "Female",
-    locations: [
-      {
-        id: "maren-dokidis-location-1",
-        primaryLine: "34 Awgu-Mgbidi Road",
-        secondaryLine: "Enugu, Nigeria",
-        isCurrent: true,
-      },
-      {
-        id: "maren-dokidis-location-2",
-        primaryLine: "17 Airport Road",
-        secondaryLine: "Owerri, Nigeria",
-      },
-    ],
-    requestHistory: [
-      {
-        id: "maren-request-1",
-        service: "Cleaning",
-        location: "34 Awgu-Mgbidi Road",
-        date: "Apr 12, 2023",
-        status: "Past",
-      },
-      {
-        id: "maren-request-2",
-        service: "Laundry",
-        location: "17 Airport Road",
-        date: "Jun 08, 2023",
-        status: "Pending",
-      },
-    ],
-  },
-  "cooper-siphron": {
-    firstName: "Cooper",
-    lastName: "Siphron",
-    gender: "Male",
-    locations: [
-      {
-        id: "cooper-siphron-location-1",
-        primaryLine: "170 Ejigbo-Apomu Road",
-        secondaryLine: "Osun, Nigeria",
-        isCurrent: true,
-      },
-      {
-        id: "cooper-siphron-location-2",
-        primaryLine: "26 Ring Road",
-        secondaryLine: "Ibadan, Nigeria",
-      },
-    ],
-    requestHistory: [
-      {
-        id: "cooper-request-1",
-        service: "Baby sitting",
-        location: "170 Ejigbo-Apomu Road",
-        date: "Apr 12, 2023",
-        status: "Active",
-      },
-    ],
-  },
-  "marcus-dias": {
-    firstName: "Marcus",
-    lastName: "Dias",
-    gender: "Male",
-    locations: [
-      {
-        id: "marcus-dias-location-1",
-        primaryLine: "178 Omu-Aran Township",
-        secondaryLine: "Kwara, Nigeria",
-        isCurrent: true,
-      },
-      {
-        id: "marcus-dias-location-2",
-        primaryLine: "9 Allen Avenue",
-        secondaryLine: "Ikeja, Nigeria",
-      },
-    ],
-    requestHistory: [
-      {
-        id: "marcus-request-1",
-        service: "Electrician",
-        location: "178 Omu-Aran Township",
-        date: "Apr 12, 2023",
-        status: "Past",
-      },
-    ],
-  },
-};
+type UserDetailsMetadata = Pick<
+  UserDetailsRecord,
+  "firstName" | "lastName" | "gender" | "locations" | "requestHistory"
+>;
 
-function buildFallbackRecord(id: string, name: string, location: string) {
+const userDetailsMetadata = mockUserDetailsMetadata as Record<
+  string,
+  UserDetailsMetadata
+>;
+
+function buildFallbackRecord(
+  id: string,
+  name: string,
+  location: string,
+): Pick<
+  UserDetailsRecord,
+  "firstName" | "lastName" | "gender" | "locations" | "requestHistory"
+> {
   const [firstName = name, ...rest] = name.split(" ");
   const lastName = rest.join(" ") || "User";
 
@@ -177,22 +38,44 @@ function buildFallbackRecord(id: string, name: string, location: string) {
     requestHistory: [
       {
         id: `${id}-request-1`,
+        requestCode: "KJH 000000",
         service: "General assistance",
         location,
         date: "Apr 12, 2023",
         status: "Pending" as const,
+        completedRequests: "0 requests completed",
+        rating: "0.0",
+        urgencyLabel: "Emergency",
+        totalPayment: "$0.00",
+        baseFee: "$0/hr",
+        totalHours: "0hrs($0)",
+        description: "Request details are not available yet.",
+        platformFee: "$0.00",
+        lifecycleStatus: "Assigned" as const,
+        contractorLocation: location,
+        userLocation: location,
+        etaLabel: "Awaiting assignment",
+        uploadedImages: [
+          { id: `${id}-request-image-1`, label: "Pending", tone: "light" },
+          { id: `${id}-request-image-2`, label: "Pending", tone: "dark" },
+        ],
       },
     ],
   };
 }
 
-export const userDetailsRecords: UserDetailsRecord[] = userRecords.map((user) => {
-  const metadata =
-    userDetailsMetadata[user.id] ??
-    buildFallbackRecord(user.id, user.name, user.location);
+export function getMockUserDetailsRecords(): UserDetailsRecord[] {
+  // TODO: Replace this mock loader with GET /api/users/:userId/details once the backend contract is available.
+  return userRecords.map((user) => {
+    const metadata =
+      userDetailsMetadata[user.id] ??
+      buildFallbackRecord(user.id, user.name, user.location);
 
-  return {
-    ...user,
-    ...metadata,
-  };
-});
+    return {
+      ...user,
+      ...metadata,
+    };
+  });
+}
+
+export const userDetailsRecords: UserDetailsRecord[] = getMockUserDetailsRecords();

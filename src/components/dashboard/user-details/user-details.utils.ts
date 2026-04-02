@@ -34,6 +34,10 @@ export function getRequestStatusClasses(status: UserRequestStatus) {
     return "bg-[#FEF3E6] text-[#F59E0B]";
   }
 
+  if (status === "Completed" || status === "Past") {
+    return "bg-[#E0F2FE] text-[#0369A1]";
+  }
+
   return "bg-[#FEE4E2] text-[#F04438]";
 }
 
