@@ -2,6 +2,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -10,7 +11,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Ban, CheckCircle2, Clock3, CircleAlert, MapPinned } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  Clock3,
+  CircleAlert,
+  MapPinned,
+} from "lucide-react";
 import {
   RequestDetailsChevronDownIcon,
   RequestDetailsCloseIcon,
@@ -67,9 +74,11 @@ const requestStateCopy: Record<
     stepClassName: "bg-[#22C55E]",
     mutedStepClassName: "bg-[#D1FAE5]",
     infoTitle: "Provider is on the way",
-    infoDescription: "Live tracking is enabled and the customer can receive progress updates in real time.",
+    infoDescription:
+      "Live tracking is enabled and the customer can receive progress updates in real time.",
     supportLabel: "Customer assets ready",
-    supportDescription: "Uploaded images and service notes are ready for the assigned provider.",
+    supportDescription:
+      "Uploaded images and service notes are ready for the assigned provider.",
   },
   pending: {
     badgeLabel: "Pending review",
@@ -77,9 +86,11 @@ const requestStateCopy: Record<
     stepClassName: "bg-[#F59E0B]",
     mutedStepClassName: "bg-[#FDE7B3]",
     infoTitle: "Waiting for confirmation",
-    infoDescription: "This request is paused while the operations team reviews the next assignment step.",
+    infoDescription:
+      "This request is paused while the operations team reviews the next assignment step.",
     supportLabel: "Tracking on hold",
-    supportDescription: "Open the tracker again after the provider confirms availability.",
+    supportDescription:
+      "Open the tracker again after the provider confirms availability.",
   },
   completed: {
     badgeLabel: "Completed order",
@@ -87,9 +98,11 @@ const requestStateCopy: Record<
     stepClassName: "bg-[#0284C7]",
     mutedStepClassName: "bg-[#BAE6FD]",
     infoTitle: "Order delivered successfully",
-    infoDescription: "The job is complete and the final payment snapshot is available for review.",
+    infoDescription:
+      "The job is complete and the final payment snapshot is available for review.",
     supportLabel: "Tracking snapshot available",
-    supportDescription: "The latest route and destination details remain available in the map overlay.",
+    supportDescription:
+      "The latest route and destination details remain available in the map overlay.",
   },
   cancelled: {
     badgeLabel: "Cancelled order",
@@ -97,9 +110,11 @@ const requestStateCopy: Record<
     stepClassName: "bg-[#F04438]",
     mutedStepClassName: "bg-[#FECACA]",
     infoTitle: "Order has been cancelled",
-    infoDescription: "The request is no longer active. Operations can still update the final request outcome if needed.",
+    infoDescription:
+      "The request is no longer active. Operations can still update the final request outcome if needed.",
     supportLabel: "Tracking unavailable",
-    supportDescription: "Live tracking is disabled after cancellation to avoid showing stale provider movement.",
+    supportDescription:
+      "Live tracking is disabled after cancellation to avoid showing stale provider movement.",
   },
 };
 
@@ -207,9 +222,11 @@ function RequestStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        side="top"
+        avoidCollisions={false}
         sideOffset={8}
         collisionPadding={16}
-        className="w-[260px] rounded-[14px] border border-[#EAECF0] bg-white p-2 shadow-[0_24px_40px_rgba(15,23,42,0.14)]"
+        className="z-[90] w-[260px] rounded-[14px] border border-[#EAECF0] bg-white p-2 shadow-[0_24px_40px_rgba(15,23,42,0.14)]"
       >
         {requestStatusActions.map((item) => (
           <DropdownMenuItem
@@ -285,9 +302,9 @@ export function RequestDetailsCore({
           )}
         </div>
         <RequestStatusSteps state={panelState} />
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
               <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-[#6B7280] bg-[radial-gradient(circle_at_top,#B7A6B1_0%,#5B6A80_100%)] text-[12px] font-semibold text-white">
                 {customerName
                   .split(" ")
@@ -316,7 +333,7 @@ export function RequestDetailsCore({
               </span>
             </div>
           </div>
-          <div className="rounded-[10px] border border-[#F0F1F2] bg-white px-[7px] py-[7px]">
+          <div className="w-full shrink-0 rounded-[10px] border border-[#F0F1F2] bg-white px-[7px] py-[7px] sm:w-auto">
             <p className="text-[10px] leading-[13px] text-[#6B7280]">
               Request ID:
             </p>
@@ -417,14 +434,14 @@ export function RequestDetailsCore({
               <div
                 key={label}
                 className={[
-                  "flex items-start justify-between gap-4 border border-[#F0F1F2] bg-[#FAFAFA] px-[9px] py-[13px]",
+                  "flex flex-col gap-2 border border-[#F0F1F2] bg-[#FAFAFA] px-[9px] py-[13px] sm:flex-row sm:items-start sm:justify-between sm:gap-4",
                   index === rows.length - 1 ? "rounded-b-[10px]" : "",
                 ].join(" ")}
               >
                 <span className="text-[14px] text-[#6B7280]">{label}</span>
                 <span
                   className={[
-                    "max-w-[60%] text-right text-[14px] font-medium text-black",
+                    "max-w-full text-left text-[14px] font-medium text-black sm:max-w-[60%] sm:text-right",
                     label === "Status" ? getStatusRowClassName(panelState) : "",
                   ].join(" ")}
                 >
@@ -438,7 +455,7 @@ export function RequestDetailsCore({
           <p className="text-[12px] font-medium text-[#98A2B3]">
             Uploaded images
           </p>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {request.uploadedImages.map((image) => (
               <UploadedImageCard key={image.id} {...image} />
             ))}
@@ -493,9 +510,12 @@ export function RequestDetailsSidebar({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="left-0 right-0 top-auto z-[60] grid h-[92vh] w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-t-[28px] rounded-b-none border-0 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)] duration-300 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:left-auto sm:right-0 sm:top-0 sm:h-screen sm:w-[523px] sm:rounded-none sm:rounded-l-[10px] sm:data-[state=closed]:slide-out-to-right sm:data-[state=open]:slide-in-from-right [&>button]:hidden">
+      <DialogContent className="inset-x-0 bottom-0 top-auto z-[60] grid h-[92dvh] max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-t-[28px] rounded-b-none border-0 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)] duration-300 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:inset-x-auto sm:left-auto sm:right-0 sm:top-0 sm:h-screen sm:max-h-screen sm:w-[523px] sm:rounded-none sm:rounded-l-[10px] sm:data-[state=closed]:slide-out-to-right sm:data-[state=open]:slide-in-from-right [&>button]:hidden">
         <DialogTitle className="sr-only">Request details</DialogTitle>
-        <div className="h-full overflow-y-auto px-[14px] pb-[14px] pt-[18px] sm:px-[14px] sm:pb-[14px]">
+        <DialogDescription className="sr-only">
+          Request details panel with status actions and live tracker access.
+        </DialogDescription>
+        <div className="h-full overflow-y-auto overscroll-contain px-[14px] pb-[max(14px,env(safe-area-inset-bottom))] pt-[18px] sm:px-[14px] sm:pb-[14px]">
           {request ? (
             <RequestDetailsCore
               request={request}
