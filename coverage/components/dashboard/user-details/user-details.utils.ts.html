@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">78.57% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>11/14</span>
+                <span class='fraction'>0/14</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>12/18</span>
+                <span class='fraction'>0/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">83.33% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>5/6</span>
+                <span class='fraction'>0/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">76.92% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>10/13</span>
+                <span class='fraction'>0/13</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -121,15 +121,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">18x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -137,23 +133,27 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">100x</span>
-<span class="cline-any cline-yes">58x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">42x</span>
-<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">22x</span>
-<span class="cline-any cline-yes">22x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">50x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type { UserStatus } from "../users/users.types";
 import type {
@@ -163,43 +163,43 @@ import type {
   UserDetailsTabValue,
 } from "./user-details.types";
 &nbsp;
-export function getUserDetailsById(
+export function <span class="fstat-no" title="function not covered" >getUserDetailsById(</span>
   users: UserDetailsRecord[],
   userId: string | undefined,
 ) {
-  <span class="missing-if-branch" title="if path not taken" >I</span>if (!userId) {
+<span class="cstat-no" title="statement not covered" >  if (!userId) {</span>
 <span class="cstat-no" title="statement not covered" >    return null;</span>
   }
 &nbsp;
-  return users.find((user) =&gt; user.id === userId) ?? null;
+<span class="cstat-no" title="statement not covered" >  return users.<span class="fstat-no" title="function not covered" >find((u</span>ser) =&gt; <span class="cstat-no" title="statement not covered" >user.id === userId) </span>?? null;</span>
 }
 &nbsp;
-export function getStatusFromAccountAction(action: UpdateAccountAction): UserStatus {
-  return action === "Activate Account" ? "Active" : "Deactivated";
+export function <span class="fstat-no" title="function not covered" >getStatusFromAccountAction(a</span>ction: UpdateAccountAction): UserStatus {
+<span class="cstat-no" title="statement not covered" >  return action === "Activate Account" ? "Active" : "Deactivated";</span>
 }
 &nbsp;
 export function <span class="fstat-no" title="function not covered" >getTabLabel(v</span>alue: UserDetailsTabValue) {
 <span class="cstat-no" title="statement not covered" >  return value === "personal-details" ? "Personal details" : "Request history";</span>
 }
 &nbsp;
-export function getRequestStatusClasses(status: UserRequestStatus) {
-  if (status === "Active") {
-    return "bg-[#DCFCE7] text-[#22A75A]";
+export function <span class="fstat-no" title="function not covered" >getRequestStatusClasses(s</span>tatus: UserRequestStatus) {
+<span class="cstat-no" title="statement not covered" >  if (status === "Active") {</span>
+<span class="cstat-no" title="statement not covered" >    return "bg-[#DCFCE7] text-[#22A75A]";</span>
   }
 &nbsp;
-  if (status === "Pending") {
-    return "bg-[#FEF3E6] text-[#F59E0B]";
+<span class="cstat-no" title="statement not covered" >  if (status === "Pending") {</span>
+<span class="cstat-no" title="statement not covered" >    return "bg-[#FEF3E6] text-[#F59E0B]";</span>
   }
 &nbsp;
-  <span class="missing-if-branch" title="else path not taken" >E</span>if (status === "Completed" || <span class="branch-1 cbranch-no" title="branch not covered" >status === "Past") {</span>
-    return "bg-[#E0F2FE] text-[#0369A1]";
+<span class="cstat-no" title="statement not covered" >  if (status === "Completed" || status === "Past") {</span>
+<span class="cstat-no" title="statement not covered" >    return "bg-[#E0F2FE] text-[#0369A1]";</span>
   }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  return "bg-[#FEE4E2] text-[#F04438]";</span>
 }
 &nbsp;
-export function truncateRequestLocation(location: string) {
-  return location.length &gt; 18 ? `${location.slice(0, 18)}...` : <span class="branch-1 cbranch-no" title="branch not covered" >location;</span>
+export function <span class="fstat-no" title="function not covered" >truncateRequestLocation(l</span>ocation: string) {
+<span class="cstat-no" title="statement not covered" >  return location.length &gt; 18 ? `${location.slice(0, 18)}...` : location;</span>
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -208,7 +208,7 @@ export function truncateRequestLocation(location: string) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-02T14:55:02.096Z
+                at 2026-04-06T15:37:11.541Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

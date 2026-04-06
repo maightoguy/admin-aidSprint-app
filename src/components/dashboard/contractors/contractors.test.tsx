@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
+import ContractorDetailsPage from "./contractor-details-page";
 import ContractorsPage from "./contractors";
 
 function renderContractors() {
@@ -17,6 +18,10 @@ function renderContractors() {
     <MemoryRouter initialEntries={["/contractors"]}>
       <Routes>
         <Route path="/contractors" element={<ContractorsPage />} />
+        <Route
+          path="/contractors/:contractorId"
+          element={<ContractorDetailsPage />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -39,7 +44,7 @@ describe("ContractorsPage", () => {
     expect(screen.queryByText("Cooper Siphron")).toBeNull();
   });
 
-  it("opens the action menu and triggers edit modal from view profile", async () => {
+  it("navigates to contractor details from view profile", async () => {
     const user = userEvent.setup();
     renderContractors();
 
@@ -50,9 +55,41 @@ describe("ContractorsPage", () => {
     );
     await user.click(screen.getByRole("menuitem", { name: "View profile" }));
 
-    expect(await screen.findByText("Edit contractor")).toBeTruthy();
-    expect(screen.getByLabelText("Full name")).toBeTruthy();
-  });
+    expect(
+      await screen.findByRole("tab", { name: "Personal details" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Contractor’s information")).toBeTruthy();
+    expect(screen.getByText("Service Provided")).toBeTruthy();
+  }, 10000);
+
+  it("opens the contractor update account modal from the details page", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/contractors/emery-torff"]}>
+        <Routes>
+          <Route path="/contractors" element={<ContractorsPage />} />
+          <Route
+            path="/contractors/:contractorId"
+            element={<ContractorDetailsPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Update account/i }));
+    expect(
+      await screen.findByRole("dialog", { name: "Update account" }),
+    ).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", { name: "Deactivate Account" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Deactivated").length).toBeGreaterThan(0);
+    });
+  }, 10000);
 
   it("adds a contractor with validation", async () => {
     const user = userEvent.setup();
@@ -94,5 +131,5 @@ describe("ContractorsPage", () => {
         screen.queryByRole("dialog", { name: "Add contractor" }),
       ).toBeNull();
     });
-  });
+  }, 15000);
 });

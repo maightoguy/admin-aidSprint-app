@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Filter, Plus, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -91,6 +92,7 @@ function mapFormValuesToRecord(
   values: ContractorFormValues,
   existing: ContractorRecord | null,
 ) {
+  const [firstName = "", lastName = ""] = values.name.trim().split(/\s+/, 2);
   const id =
     existing?.id ??
     values.name.trim().toLowerCase().replace(/\s+/g, "-") +
@@ -100,6 +102,18 @@ function mapFormValuesToRecord(
   return {
     id,
     ...values,
+    firstName: existing?.firstName ?? firstName,
+    lastName: existing?.lastName ?? lastName,
+    gender: existing?.gender ?? "Male",
+    servicesProvided: existing?.servicesProvided ?? [values.serviceCategory],
+    locations: existing?.locations ?? [
+      {
+        id: `${id}-location-1`,
+        primaryLine: values.location,
+        secondaryLine: "Nigeria",
+        isCurrent: true,
+      },
+    ],
   } satisfies ContractorRecord;
 }
 
@@ -114,6 +128,7 @@ export default function ContractorsPage({
   isLoading = false,
   errorMessage = null,
 }: ContractorsPageProps) {
+  const navigate = useNavigate();
   const [contractors, setContractors] = useState<ContractorRecord[]>(
     initialContractors ?? contractorRecords,
   );
@@ -141,9 +156,7 @@ export default function ContractorsPage({
     contractor: ContractorRecord,
   ) => {
     if (action === "View profile") {
-      setFormMode("edit");
-      setFormContractor(contractor);
-      setIsFormOpen(true);
+      navigate(`/contractors/${contractor.id}`);
       return;
     }
 

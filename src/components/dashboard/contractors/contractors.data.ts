@@ -11,7 +11,48 @@ const contractorsIconSvg = `
 export const contractorsSummaryPattern = summaryCardPattern;
 export const contractorsSummaryIconSvg = contractorsIconSvg;
 
-export const contractorRecords: ContractorRecord[] = [
+type ContractorRecordSeed = Omit<
+  ContractorRecord,
+  "firstName" | "lastName" | "gender" | "servicesProvided" | "locations"
+> &
+  Partial<
+    Pick<
+      ContractorRecord,
+      "firstName" | "lastName" | "gender" | "servicesProvided" | "locations"
+    >
+  >;
+
+function enrichContractorRecord(record: ContractorRecordSeed): ContractorRecord {
+  const [firstName = "", lastName = ""] = record.name.split(" ");
+
+  return {
+    ...record,
+    firstName: record.firstName ?? firstName,
+    lastName: record.lastName ?? lastName,
+    gender: record.gender ?? "Male",
+    servicesProvided: record.servicesProvided ?? [record.serviceCategory],
+    locations: record.locations ?? [
+      {
+        id: `${record.id}-location-1`,
+        primaryLine: record.location,
+        secondaryLine: "Nigeria",
+        isCurrent: true,
+      },
+      {
+        id: `${record.id}-location-2`,
+        primaryLine: "Plot 42, Las Vegas, USA",
+        secondaryLine: "LA, USA.",
+      },
+      {
+        id: `${record.id}-location-3`,
+        primaryLine: "12 Allen Avenue",
+        secondaryLine: "Ikeja, Nigeria",
+      },
+    ],
+  };
+}
+
+const contractorRecordSeeds: ContractorRecordSeed[] = [
   {
     id: "emery-torff",
     name: "Emery Torff",
@@ -24,6 +65,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Plumbing",
     bio: "Emergency plumbing specialist focused on rapid on-site diagnostics and urgent repairs.",
+    gender: "Male",
+    servicesProvided: ["Plumbing", "Electrician", "Carpentry"],
   },
   {
     id: "maren-dokidis",
@@ -37,6 +80,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Deactivated",
     serviceCategory: "Cleaning",
     bio: "Commercial and residential cleaning contractor with deep-cleaning and flood response experience.",
+    gender: "Female",
+    servicesProvided: ["Cleaning", "Laundry"],
   },
   {
     id: "cooper-siphron",
@@ -50,6 +95,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Baby sitting",
     bio: "Child-care provider available for urgent family support and verified overnight assignments.",
+    gender: "Male",
+    servicesProvided: ["Baby sitting", "Cleaning"],
   },
   {
     id: "marcus-dias",
@@ -63,6 +110,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Deactivated",
     serviceCategory: "Electrician",
     bio: "Licensed electrician supporting diagnostics, rewiring, and same-day emergency callouts.",
+    gender: "Male",
+    servicesProvided: ["Electrician", "Carpentry"],
   },
   {
     id: "ahmad-stanton-1",
@@ -76,6 +125,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Plumbing",
     bio: "Field plumber with experience in burst-pipe response and apartment maintenance requests.",
+    gender: "Male",
+    servicesProvided: ["Plumbing", "Cleaning"],
   },
   {
     id: "ahmad-stanton-2",
@@ -89,6 +140,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Laundry",
     bio: "Laundry contractor handling express garment collection, folding, and same-day return requests.",
+    gender: "Male",
+    servicesProvided: ["Laundry", "Cleaning"],
   },
   {
     id: "ahmad-stanton-3",
@@ -102,6 +155,8 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Carpentry",
     bio: "On-demand carpenter handling small repairs, custom shelving, and fixture adjustments.",
+    gender: "Male",
+    servicesProvided: ["Carpentry", "Electrician"],
   },
   {
     id: "ahmad-stanton-4",
@@ -115,5 +170,10 @@ export const contractorRecords: ContractorRecord[] = [
     accountStatus: "Active",
     serviceCategory: "Cleaning",
     bio: "Multi-site cleaning contractor currently assigned to recurring commercial maintenance jobs.",
+    gender: "Male",
+    servicesProvided: ["Cleaning", "Laundry", "Plumbing"],
   },
 ];
+
+export const contractorRecords: ContractorRecord[] =
+  contractorRecordSeeds.map(enrichContractorRecord);

@@ -1,9 +1,21 @@
 import type {
   ContractorAccountStatus,
   ContractorCurrentStatus,
+  ContractorDetailsTabValue,
   ContractorFilters,
   ContractorRecord,
 } from "./contractors.types";
+
+export function getContractorDetailsById(
+  contractors: ContractorRecord[],
+  contractorId: string | undefined,
+) {
+  if (!contractorId) {
+    return null;
+  }
+
+  return contractors.find((contractor) => contractor.id === contractorId) ?? null;
+}
 
 export function getContractorAccountStatusClasses(
   status: ContractorAccountStatus,
@@ -73,4 +85,20 @@ export function getContractorInitials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+export function getContractorDetailsTabLabel(value: ContractorDetailsTabValue) {
+  if (value === "personal-details") {
+    return "Personal details";
+  }
+
+  if (value === "kyc-verification") {
+    return "KYC verification(0/3)";
+  }
+
+  if (value === "request-history") {
+    return "Request history";
+  }
+
+  return "Transaction history";
 }
