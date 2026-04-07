@@ -188,16 +188,18 @@ describe("ContractorKycTab", () => {
     const user = userEvent.setup();
     renderKycTab({
       activeCategory: "serviceProvider",
-      serviceProviderDoc: {
-        file: createFile("service-licence.pdf"),
-        fileName: "service-licence.pdf",
-        fileSize: 1024 * 1024,
-        fileSizeLabel: "1.0 MB",
-        mimeType: "application/pdf",
-        uploadedAtIso: new Date().toISOString(),
-        uploadedAtLabel: "Apr 10, 2026, 9:20 AM",
-        objectUrl: "blob:service-licence",
-      },
+      serviceProviderDocs: [
+        {
+          file: createFile("service-licence.pdf"),
+          fileName: "service-licence.pdf",
+          fileSize: 1024 * 1024,
+          fileSizeLabel: "1.0 MB",
+          mimeType: "application/pdf",
+          uploadedAtIso: new Date().toISOString(),
+          uploadedAtLabel: "Apr 10, 2026, 9:20 AM",
+          objectUrl: "blob:service-licence",
+        },
+      ],
       serviceProviderStatus: "pending",
     });
 
@@ -291,16 +293,18 @@ describe("ContractorKycTab", () => {
       policeStatus: "accepted",
       policeReviewedAt: "Apr 11, 2026, 11:00 AM",
       policeReviewedBy: "Alison Eyo",
-      serviceProviderDoc: {
-        file: createFile("service-approved.pdf"),
-        fileName: "service-approved.pdf",
-        fileSize: 1024 * 1024,
-        fileSizeLabel: "1.0 MB",
-        mimeType: "application/pdf",
-        uploadedAtIso: new Date().toISOString(),
-        uploadedAtLabel: "Apr 11, 2026, 10:40 AM",
-        objectUrl: "blob:service-approved",
-      },
+      serviceProviderDocs: [
+        {
+          file: createFile("service-approved.pdf"),
+          fileName: "service-approved.pdf",
+          fileSize: 1024 * 1024,
+          fileSizeLabel: "1.0 MB",
+          mimeType: "application/pdf",
+          uploadedAtIso: new Date().toISOString(),
+          uploadedAtLabel: "Apr 11, 2026, 10:40 AM",
+          objectUrl: "blob:service-approved",
+        },
+      ],
       serviceProviderStatus: "accepted",
       serviceProviderReviewedAt: "Apr 11, 2026, 11:10 AM",
       serviceProviderReviewedBy: "Alison Eyo",
@@ -323,7 +327,7 @@ describe("ContractorKycTab", () => {
       screen.getAllByText(/Accepted · Alison Eyo/i).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByRole("link", { name: /Download document/i }).length,
+      screen.getAllByRole("link", { name: /service-approved.pdf/i }).length,
     ).toBeGreaterThan(0);
   });
 
@@ -383,27 +387,24 @@ describe("ContractorKycTab", () => {
 
     renderKycTab({
       activeCategory: "serviceProvider",
-      serviceProviderDoc: {
-        file: createFile("service-pending.pdf"),
-        fileName: "service-pending.pdf",
-        fileSize: 1024 * 1024,
-        fileSizeLabel: "1.0 MB",
-        mimeType: "application/pdf",
-        uploadedAtIso: new Date().toISOString(),
-        uploadedAtLabel: "Apr 11, 2026, 10:40 AM",
-        objectUrl: "blob:service-pending",
-      },
+      serviceProviderDocs: [
+        {
+          file: createFile("service-pending.pdf"),
+          fileName: "service-pending.pdf",
+          fileSize: 1024 * 1024,
+          fileSizeLabel: "1.0 MB",
+          mimeType: "application/pdf",
+          uploadedAtIso: new Date().toISOString(),
+          uploadedAtLabel: "Apr 11, 2026, 10:40 AM",
+          objectUrl: "blob:service-pending",
+        },
+      ],
       serviceProviderStatus: "pending",
     });
 
-    await user.click(
-      screen.getByRole("button", { name: /View service-pending.pdf/i }),
-    );
-    expect(window.open).toHaveBeenCalledWith(
-      "blob:service-pending",
-      "_blank",
-      "noopener,noreferrer",
-    );
+    expect(
+      screen.getByRole("link", { name: /service-pending.pdf 1.0 MB/i }),
+    ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Reject" }));
     await user.type(screen.getByLabelText("Rejection reason"), "Needs update");
@@ -416,6 +417,37 @@ describe("ContractorKycTab", () => {
         "No service provider licence has been uploaded yet.",
       ),
     ).toBeTruthy();
+  }, 10000);
+
+  it("supports up to four service provider licences in a two-by-two grid", async () => {
+    const user = userEvent.setup();
+    renderKycTab();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Document missing Service provider licences",
+      }),
+    );
+
+    await user.upload(
+      screen.getByLabelText("Upload Service provider licence"),
+      [
+        createFile("service-1.pdf"),
+        createFile("service-2.pdf"),
+        createFile("service-3.pdf"),
+        createFile("service-4.pdf"),
+      ],
+    );
+
+    expect(await screen.findByText("service-1.pdf")).toBeTruthy();
+    expect(screen.getByText("service-2.pdf")).toBeTruthy();
+    expect(screen.getByText("service-3.pdf")).toBeTruthy();
+    expect(screen.getByText("service-4.pdf")).toBeTruthy();
+    expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(4);
+    expect(
+      screen.queryByLabelText("Upload Service provider licence"),
+    ).toBeNull();
+    expect(screen.queryByText("service-5.pdf")).toBeNull();
   }, 10000);
 
   it("closes review dialogs without changing document state", async () => {

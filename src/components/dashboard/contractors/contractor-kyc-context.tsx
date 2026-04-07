@@ -28,10 +28,14 @@ type ContractorKycContextValue = {
     reason: string,
   ) => UploadResult;
   resetDocument: (category: ContractorKycCategory) => void;
-  openDocument: (category: ContractorKycCategory) => void;
+  openDocument: (
+    category: ContractorKycCategory,
+    documentIndex?: number,
+  ) => void;
 };
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
+const MAX_SERVICE_PROVIDER_DOCUMENTS = 4;
 const ACCEPTED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const ACCEPTED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 const REVIEW_ADMIN_NAME = "Alison Eyo";
@@ -48,7 +52,7 @@ const defaultState: ContractorKycState = {
   policeReason: undefined,
   policeReviewedAt: undefined,
   policeReviewedBy: undefined,
-  serviceProviderDoc: null,
+  serviceProviderDocs: [],
   serviceProviderStatus: null,
   serviceProviderReason: undefined,
   serviceProviderReviewedAt: undefined,
@@ -124,7 +128,7 @@ function getDocKey(category: ContractorKycCategory) {
     return "policeDoc";
   }
 
-  return "serviceProviderDoc";
+  return null;
 }
 
 function getReasonKey(category: ContractorKycCategory) {
@@ -199,14 +203,14 @@ export function ContractorKycProvider({
   }, []);
 
   useEffect(() => {
-    [state.idDoc, state.policeDoc, state.serviceProviderDoc].forEach(
+    [state.idDoc, state.policeDoc, ...state.serviceProviderDocs].forEach(
       (document) => {
         if (document?.objectUrl) {
           objectUrlsRef.current.add(document.objectUrl);
         }
       },
     );
-  }, [state.idDoc, state.policeDoc, state.serviceProviderDoc]);
+  }, [state.idDoc, state.policeDoc, state.serviceProviderDocs]);
 
   const setActiveCategory = useCallback((category: ContractorKycCategory) => {
     setState((previous) => ({
@@ -235,12 +239,35 @@ export function ContractorKycProvider({
       trackObjectUrl(nextDocument.objectUrl);
 
       setState((previous) => {
-        const docKey = getDocKey(category);
         const statusKey = getStatusKey(category);
         const reasonKey = getReasonKey(category);
         const reviewedAtKey = getReviewedAtKey(category);
         const reviewedByKey = getReviewedByKey(category);
-        const previousDocument = previous[docKey];
+
+        if (category === "serviceProvider") {
+          if (
+            previous.serviceProviderDocs.length >=
+            MAX_SERVICE_PROVIDER_DOCUMENTS
+          ) {
+            revokeObjectUrl(nextDocument.objectUrl);
+            return previous;
+          }
+
+          return {
+            ...previous,
+            serviceProviderDocs: [
+              ...previous.serviceProviderDocs,
+              nextDocument,
+            ],
+            [statusKey]: "pending" satisfies ContractorKycStatus,
+            [reasonKey]: undefined,
+            [reviewedAtKey]: undefined,
+            [reviewedByKey]: undefined,
+          };
+        }
+
+        const docKey = getDocKey(category);
+        const previousDocument = docKey ? previous[docKey] : null;
 
         if (previousDocument) {
           revokeObjectUrl(previousDocument.objectUrl);
@@ -248,7 +275,7 @@ export function ContractorKycProvider({
 
         return {
           ...previous,
-          [docKey]: nextDocument,
+          ...(docKey ? { [docKey]: nextDocument } : {}),
           [statusKey]: "pending" satisfies ContractorKycStatus,
           [reasonKey]: undefined,
           [reviewedAtKey]: undefined,
@@ -256,9 +283,19 @@ export function ContractorKycProvider({
         };
       });
 
+      if (
+        category === "serviceProvider" &&
+        state.serviceProviderDocs.length >= MAX_SERVICE_PROVIDER_DOCUMENTS
+      ) {
+        return {
+          ok: false,
+          error: "You can upload up to 4 service provider licences.",
+        };
+      }
+
       return { ok: true };
     },
-    [revokeObjectUrl, trackObjectUrl],
+    [revokeObjectUrl, state.serviceProviderDocs.length, trackObjectUrl],
   );
 
   const acceptDocument = useCallback((category: ContractorKycCategory) => {
@@ -310,12 +347,28 @@ export function ContractorKycProvider({
   const resetDocument = useCallback(
     (category: ContractorKycCategory) => {
       setState((previous) => {
-        const docKey = getDocKey(category);
         const statusKey = getStatusKey(category);
         const reasonKey = getReasonKey(category);
         const reviewedAtKey = getReviewedAtKey(category);
         const reviewedByKey = getReviewedByKey(category);
-        const previousDocument = previous[docKey];
+
+        if (category === "serviceProvider") {
+          previous.serviceProviderDocs.forEach((document) => {
+            revokeObjectUrl(document.objectUrl);
+          });
+
+          return {
+            ...previous,
+            serviceProviderDocs: [],
+            [statusKey]: null,
+            [reasonKey]: undefined,
+            [reviewedAtKey]: undefined,
+            [reviewedByKey]: undefined,
+          };
+        }
+
+        const docKey = getDocKey(category);
+        const previousDocument = docKey ? previous[docKey] : null;
 
         if (previousDocument) {
           revokeObjectUrl(previousDocument.objectUrl);
@@ -323,7 +376,7 @@ export function ContractorKycProvider({
 
         return {
           ...previous,
-          [docKey]: null,
+          ...(docKey ? { [docKey]: null } : {}),
           [statusKey]: null,
           [reasonKey]: undefined,
           [reviewedAtKey]: undefined,
@@ -335,9 +388,14 @@ export function ContractorKycProvider({
   );
 
   const openDocument = useCallback(
-    (category: ContractorKycCategory) => {
-      const docKey = getDocKey(category);
-      const document = state[docKey];
+    (category: ContractorKycCategory, documentIndex = 0) => {
+      const document =
+        category === "serviceProvider"
+          ? (state.serviceProviderDocs[documentIndex] ?? null)
+          : (() => {
+              const docKey = getDocKey(category);
+              return docKey ? state[docKey] : null;
+            })();
 
       if (!document) {
         return;
@@ -350,9 +408,12 @@ export function ContractorKycProvider({
 
   const completedCount = useMemo(
     () =>
-      [state.idDoc, state.policeDoc, state.serviceProviderDoc].filter(Boolean)
-        .length,
-    [state.idDoc, state.policeDoc, state.serviceProviderDoc],
+      [
+        state.idDoc,
+        state.policeDoc,
+        state.serviceProviderDocs.length > 0 ? state.serviceProviderDocs : null,
+      ].filter(Boolean).length,
+    [state.idDoc, state.policeDoc, state.serviceProviderDocs],
   );
 
   const value = useMemo(

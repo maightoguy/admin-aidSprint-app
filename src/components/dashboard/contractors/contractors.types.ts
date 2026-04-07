@@ -43,7 +43,7 @@ export type ContractorKycState = {
   policeReason?: string;
   policeReviewedAt?: string;
   policeReviewedBy?: string;
-  serviceProviderDoc: ContractorKycDocumentRecord | null;
+  serviceProviderDocs: ContractorKycDocumentRecord[];
   serviceProviderStatus: ContractorKycStatus | null;
   serviceProviderReason?: string;
   serviceProviderReviewedAt?: string;
