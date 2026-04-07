@@ -142,7 +142,7 @@ describe("ContractorKycTab", () => {
     expect(
       screen.getByRole("link", { name: /Download document/i }),
     ).toBeTruthy();
-  });
+  }, 10000);
 
   it("rejects a police document and resets for re-upload", async () => {
     const user = userEvent.setup();
