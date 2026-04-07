@@ -115,10 +115,7 @@ export default function Users({
                     </p>
                   </div>
                   <div className="relative flex h-[26px] w-[26px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-[#F0F1F2] bg-white p-[3px] [&_svg]:h-5 [&_svg]:w-5">
-                    <span
-                      aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: card.iconSvg }}
-                    />
+                    <card.Icon size={20} aria-hidden="true" />
                   </div>
                 </div>
               </article>

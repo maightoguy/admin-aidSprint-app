@@ -1,10 +1,12 @@
+import type { IconComponent } from "@/ui/icons";
+
 export type UserStatus = "Active" | "Deactivated";
 
 export type UsersSummaryCard = {
   title: string;
   value: string;
   trend: string;
-  iconSvg: string;
+  Icon: IconComponent;
 };
 
 export type UserRecord = {

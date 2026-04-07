@@ -1,8 +1,8 @@
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "@/ui/icons";
 
 export type DashboardNavigationItem = {
   label: string;
-  icon: LucideIcon;
+  Icon: IconComponent;
   path?: string;
 };
 

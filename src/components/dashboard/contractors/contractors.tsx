@@ -17,7 +17,7 @@ import { ContractorFormModal } from "./contractor-form-modal";
 import { ContractorSummaryCard } from "./contractor-summary-card";
 import {
   contractorRecords,
-  contractorsSummaryIconSvg,
+  contractorsSummaryIcon,
   contractorsSummaryPattern,
 } from "./contractors.data";
 import type {
@@ -57,25 +57,25 @@ function getSummaryCards(
       title: "Total Contractors",
       value: formatCount(total),
       trend: "+ 2.3% vs Yesterday",
-      iconSvg: contractorsSummaryIconSvg,
+      Icon: contractorsSummaryIcon,
     },
     {
       title: "Active contractors",
       value: formatCount(active),
       trend: "+ 2.3% vs Yesterday",
-      iconSvg: contractorsSummaryIconSvg,
+      Icon: contractorsSummaryIcon,
     },
     {
       title: "Pending contractors",
       value: formatCount(Math.max(0, total - online)),
       trend: "+ 2.3% vs Yesterday",
-      iconSvg: contractorsSummaryIconSvg,
+      Icon: contractorsSummaryIcon,
     },
     {
       title: "Deactivated contractors",
       value: formatCount(deactivated),
       trend: "+ 2.3% vs Yesterday",
-      iconSvg: contractorsSummaryIconSvg,
+      Icon: contractorsSummaryIcon,
     },
   ];
 }

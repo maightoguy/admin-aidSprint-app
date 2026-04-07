@@ -1,26 +1,9 @@
 import {
-  FileText,
-  LayoutDashboard,
   LogOut,
-  MessageCircleMore,
-  Settings,
-  UserSquare2,
-  Users,
-  WalletCards,
   X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import type { DashboardNavigationItem } from "./dashboard-types";
-
-const navigationItems: DashboardNavigationItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, path: "/overview" },
-  { label: "Users", icon: Users, path: "/users" },
-  { label: "Contractors", icon: UserSquare2, path: "/contractors" },
-  { label: "Requests", icon: FileText },
-  { label: "Transaction", icon: WalletCards },
-  { label: "Support", icon: MessageCircleMore },
-  { label: "Settings", icon: Settings },
-];
+import { dashboardNavigationItems } from "./dashboard-navigation";
 
 function AidSprintLogo() {
   return (
@@ -67,10 +50,18 @@ export function DashboardSidebar({
         ) : null}
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-4">
-        {navigationItems.map((item) => {
-          const Icon = item.icon;
+        {dashboardNavigationItems.map((item) => {
           const baseClassName =
             "flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition";
+          const Icon = item.Icon;
+          const iconMarkup = (
+            <Icon
+              size={16}
+              color="currentColor"
+              className="h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
+          );
 
           if (item.path) {
             return (
@@ -87,7 +78,7 @@ export function DashboardSidebar({
                   ].join(" ")
                 }
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                {iconMarkup}
                 <span>{item.label}</span>
               </NavLink>
             );
@@ -103,7 +94,7 @@ export function DashboardSidebar({
                 "cursor-not-allowed text-white/45",
               ].join(" ")}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              {iconMarkup}
               <span>{item.label}</span>
             </button>
           );

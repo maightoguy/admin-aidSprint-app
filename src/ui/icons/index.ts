@@ -1,0 +1,12 @@
+export { ContractorsIcon } from "./ContractorsIcon";
+export { DashboardIcon } from "./DashboardIcon";
+export { RequestsIcon } from "./RequestsIcon";
+export { RevenueIcon } from "./RevenueIcon";
+export { SettingsIcon } from "./SettingsIcon";
+export { SupportIcon } from "./SupportIcon";
+export { TotalContractorsIcon } from "./TotalContractorsIcon";
+export { TotalRequestsIcon } from "./TotalRequestsIcon";
+export { TotalRevenueIcon } from "./TotalRevenueIcon";
+export { TotalUsersIcon } from "./TotalUsersIcon";
+export { UsersIcon } from "./UsersIcon";
+export type { IconComponent, IconProps } from "./types";

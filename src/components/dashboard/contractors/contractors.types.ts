@@ -1,3 +1,5 @@
+import type { IconComponent } from "@/ui/icons";
+
 export type ContractorAccountStatus = "Active" | "Deactivated";
 
 export type ContractorCurrentStatus = "Online" | "Offline" | "Busy";
@@ -61,7 +63,7 @@ export type ContractorsSummaryCard = {
   title: string;
   value: string;
   trend: string;
-  iconSvg: string;
+  Icon: IconComponent;
 };
 
 export type ContractorRecord = {
