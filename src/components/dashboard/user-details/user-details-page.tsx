@@ -8,7 +8,7 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { RequestDetailsLiveTrackerOverlay } from "../request-details/request-details-overlay";
@@ -308,6 +308,7 @@ export default function UserDetailsPage({
   onStatusChange,
 }: UserDetailsPageProps) {
   const { userId: routeUserId } = useParams();
+  const [searchParams] = useSearchParams();
   const resolvedUserId = initialUserId ?? routeUserId;
   const matchedUser = useMemo(
     () => getUserDetailsById(userDetailsRecords, resolvedUserId),
@@ -339,6 +340,14 @@ export default function UserDetailsPage({
     closeAll();
   }, [closeAll, matchedUser]);
 
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+
+    if (requestedTab === "request-history") {
+      setActiveTab("request-history");
+    }
+  }, [matchedUser?.id, searchParams]);
+
   const currentUserWithRequestOverrides = useMemo(() => {
     if (!currentUser) {
       return null;
@@ -359,6 +368,22 @@ export default function UserDetailsPage({
       ) ?? null,
     [currentUserWithRequestOverrides, selectedRequestId],
   );
+
+  useEffect(() => {
+    const requestId = searchParams.get("requestId");
+
+    if (!requestId || !currentUserWithRequestOverrides) {
+      return;
+    }
+
+    if (
+      currentUserWithRequestOverrides.requestHistory.some(
+        (request) => request.id === requestId,
+      )
+    ) {
+      openRequest(requestId);
+    }
+  }, [currentUserWithRequestOverrides, openRequest, searchParams]);
 
   const handleStatusAction = async (action: UpdateAccountAction) => {
     if (!currentUser) {

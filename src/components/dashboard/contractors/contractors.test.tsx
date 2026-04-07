@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import ContractorDetailsPage from "./contractor-details-page";
 import ContractorsPage from "./contractors";
+import UserDetailsPage from "../user-details/user-details-page";
 
 function renderContractors() {
   return render(
@@ -22,6 +23,7 @@ function renderContractors() {
           path="/contractors/:contractorId"
           element={<ContractorDetailsPage />}
         />
+        <Route path="/users/:userId" element={<UserDetailsPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -89,6 +91,39 @@ describe("ContractorsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Deactivated").length).toBeGreaterThan(0);
     });
+  }, 10000);
+
+  it("navigates from contractor request history to the existing request details view", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/contractors/emery-torff"]}>
+        <Routes>
+          <Route path="/contractors" element={<ContractorsPage />} />
+          <Route
+            path="/contractors/:contractorId"
+            element={<ContractorDetailsPage />}
+          />
+          <Route path="/users/:userId" element={<UserDetailsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Request history" }));
+    expect(await screen.findByText("All requests")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open request actions for emery-request-1",
+      }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "View Details" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Request details" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Emery Torff").length).toBeGreaterThan(0);
+    expect(screen.getByText("KJH 123456")).toBeTruthy();
   }, 10000);
 
   it("adds a contractor with validation", async () => {

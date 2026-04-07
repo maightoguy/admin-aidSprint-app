@@ -12,6 +12,7 @@ import {
   useContractorKyc,
 } from "./contractor-kyc-context";
 import { ContractorKycTab } from "./contractor-kyc-tab";
+import { ContractorRequestHistoryTab } from "./contractor-request-history-tab";
 import { contractorRecords } from "./contractors.data";
 import { ContractorDetailsTabs } from "./contractor-details-tabs";
 import type {
@@ -234,7 +235,9 @@ function ContractorDetailsContent({
         <TabsContent value="kyc-verification" className="mt-0">
           <ContractorKycTab contractor={contractor} />
         </TabsContent>
-        <TabsContent value="request-history" className="mt-0" />
+        <TabsContent value="request-history" className="mt-0">
+          <ContractorRequestHistoryTab contractor={contractor} />
+        </TabsContent>
         <TabsContent value="transaction-history" className="mt-0" />
       </Tabs>
       <UpdateAccountModal
