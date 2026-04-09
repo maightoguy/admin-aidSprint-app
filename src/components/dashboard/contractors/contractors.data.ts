@@ -1,6 +1,9 @@
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
 import { TotalContractorsIcon } from "@/ui/icons";
-import type { ContractorRecord } from "./contractors.types";
+import type {
+  ContractorRecord,
+  ContractorTransactionRecord,
+} from "./contractors.types";
 
 export const contractorsSummaryPattern = summaryCardPattern;
 export const contractorsSummaryIcon = TotalContractorsIcon;
@@ -171,3 +174,119 @@ const contractorRecordSeeds: ContractorRecordSeed[] = [
 
 export const contractorRecords: ContractorRecord[] =
   contractorRecordSeeds.map(enrichContractorRecord);
+
+const fallbackContractorTransactions: ContractorTransactionRecord[] = [
+  {
+    id: "transaction-1",
+    transactionCode: "#1234567",
+    type: "Withdrawal",
+    amount: -500,
+    dateTime: "Apr 12, 2023",
+    status: "Completed",
+    accountNumber: "001234567890",
+    accountName: "John Doe",
+    bankName: "United Bank for Africa",
+    fee: 4.99,
+  },
+  {
+    id: "transaction-2",
+    transactionCode: "#1234568",
+    type: "Service payment",
+    amount: 500,
+    dateTime: "Apr 12, 2023",
+    status: "Pending",
+    accountNumber: "001234567890",
+    accountName: "John Doe",
+    bankName: "United Bank for Africa",
+    fee: 4.99,
+  },
+  {
+    id: "transaction-3",
+    transactionCode: "#1234569",
+    type: "Withdrawal",
+    amount: -500,
+    dateTime: "Apr 12, 2023",
+    status: "Failed",
+    accountNumber: "001234567890",
+    accountName: "John Doe",
+    bankName: "United Bank for Africa",
+    fee: 4.99,
+  },
+  {
+    id: "transaction-4",
+    transactionCode: "#1234570",
+    type: "Service payment",
+    amount: 500,
+    dateTime: "Apr 12, 2023",
+    status: "Completed",
+    accountNumber: "001234567890",
+    accountName: "John Doe",
+    bankName: "United Bank for Africa",
+    fee: 4.99,
+  },
+  {
+    id: "transaction-5",
+    transactionCode: "#1234571",
+    type: "Withdrawal",
+    amount: -500,
+    dateTime: "Apr 12, 2023",
+    status: "Completed",
+    accountNumber: "001234567890",
+    accountName: "John Doe",
+    bankName: "United Bank for Africa",
+    fee: 4.99,
+  },
+];
+
+const contractorTransactionRecordsById: Record<
+  string,
+  ContractorTransactionRecord[]
+> = {
+  "emery-torff": fallbackContractorTransactions,
+  "maren-dokidis": [
+    {
+      id: "transaction-6",
+      transactionCode: "#2234567",
+      type: "Service payment",
+      amount: 1250,
+      dateTime: "May 03, 2023",
+      status: "Completed",
+      accountNumber: "002345678901",
+      accountName: "Maren Dokidis",
+      bankName: "Access Bank",
+      fee: 6.25,
+    },
+    {
+      id: "transaction-7",
+      transactionCode: "#2234568",
+      type: "Withdrawal",
+      amount: -800,
+      dateTime: "May 06, 2023",
+      status: "Pending",
+      accountNumber: "002345678901",
+      accountName: "Maren Dokidis",
+      bankName: "Access Bank",
+      fee: 5.1,
+    },
+    {
+      id: "transaction-8",
+      transactionCode: "#2234569",
+      type: "Service payment",
+      amount: 900,
+      dateTime: "May 08, 2023",
+      status: "Completed",
+      accountNumber: "002345678901",
+      accountName: "Maren Dokidis",
+      bankName: "Access Bank",
+      fee: 4.5,
+    },
+  ],
+};
+
+export function getContractorTransactionRecords(contractorId: string) {
+  const transactions =
+    contractorTransactionRecordsById[contractorId] ??
+    fallbackContractorTransactions;
+
+  return transactions.map((transaction) => ({ ...transaction }));
+}

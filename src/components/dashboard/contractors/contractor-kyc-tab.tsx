@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   CircleAlert,
   Eye,
-  FileText,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -30,6 +29,7 @@ import type {
   ContractorKycStatus,
   ContractorRecord,
 } from "./contractors.types";
+import { TotalRequestsIcon } from "@/ui/icons";
 
 type CategoryDetails = {
   title: string;
@@ -507,10 +507,7 @@ function PoliceVerificationPanel({
           <div className="rounded-[16px] border border-[#EAECF0] bg-[#FCFCFD] p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
               <div className="flex h-[110px] w-full items-center justify-center rounded-[14px] border border-dashed border-[#D0D5DD] bg-white lg:w-[180px]">
-                <FileText
-                  className="h-8 w-8 text-[#071B58]"
-                  aria-hidden="true"
-                />
+                <TotalRequestsIcon />
               </div>
               <div className="min-w-0 flex-1 space-y-4">
                 <KycDocumentCard document={document} onView={onView} />
@@ -875,7 +872,7 @@ export function ContractorKycTab({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EAECF0] bg-white text-[#071B58]">
-                      <FileText className="h-4 w-4" aria-hidden="true" />
+                      <TotalRequestsIcon />
                     </span>
                     <KycStatusIcon
                       status={snapshot.status}

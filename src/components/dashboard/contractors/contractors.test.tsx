@@ -126,6 +126,52 @@ describe("ContractorsPage", () => {
     expect(screen.getByText("KJH 123456")).toBeTruthy();
   }, 10000);
 
+  it("opens contractor transaction details and updates the selected transaction status", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/contractors/emery-torff"]}>
+        <Routes>
+          <Route path="/contractors" element={<ContractorsPage />} />
+          <Route
+            path="/contractors/:contractorId"
+            element={<ContractorDetailsPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Transaction history" }));
+    expect(await screen.findByText("All Transactions")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open transaction details for #1234568",
+      }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Transaction details",
+    });
+    const dialogScope = within(dialog);
+
+    expect(dialogScope.getByText("001234567890")).toBeTruthy();
+    expect(dialogScope.getByText("• Pending")).toBeTruthy();
+
+    await user.click(
+      dialogScope.getByRole("button", { name: /Update Status/i }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Approve Transaction" }),
+    );
+
+    await waitFor(() => {
+      expect(dialogScope.getByText("• Completed")).toBeTruthy();
+    });
+
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
+  }, 10000);
+
   it("adds a contractor with validation", async () => {
     const user = userEvent.setup();
     renderContractors();

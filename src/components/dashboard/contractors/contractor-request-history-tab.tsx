@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import type { ContractorRecord } from "./contractors.types";
 import { userDetailsRecords } from "../user-details/user-details.data";
+import { TotalRequestsIcon } from "@/ui/icons";
 
 type ContractorRequestHistoryTabProps = {
   contractor: ContractorRecord;
@@ -63,7 +64,7 @@ function SummaryCard({ title, value }: { title: string; value: string }) {
           </p>
         </div>
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#EAECF0] bg-white text-[#071B58]">
-          <FileText className="h-5 w-5" />
+          <TotalRequestsIcon />
         </span>
       </div>
     </article>

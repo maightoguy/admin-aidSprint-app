@@ -2,12 +2,12 @@
 
 A production-ready full-stack React application template with integrated Express server, featuring React Router 6 SPA mode, TypeScript, Vitest, Zod and modern tooling.
 
-While the starter comes with a express server, only create endpoint when strictly neccesary, for example to encapsulate logic that must leave in the server, such as private keys handling, or certain DB operations, db...
+While the starter comes with a express server, only create endpoint when strictly neccesary, for example to encapsulate logic that must leave in the server, such as private keys handling, or certain DB operations, db...TypeScript&#x20;
 
 ## Tech Stack
 
 - **PNPM**: Prefer pnpm
-- **Frontend**: React 18 + React Router 6 (spa) + TypeScript + Vite + TailwindCSS 3
+- **Frontend**: React 18 + React Router 6 (spa) + + Vite + TailwindCSS 3
 - **Backend**: Express server integrated with Vite dev server
 - **Testing**: Vitest
 - **UI**: Radix UI + TailwindCSS 3 + Lucide React icons
@@ -118,7 +118,7 @@ export interface MyRouteResponse {
 }
 ```
 
-2. Create a new route handler in `server/routes/my-route.ts`:
+1. Create a new route handler in `server/routes/my-route.ts`:
 
 ```typescript
 import { RequestHandler } from "express";
@@ -132,7 +132,7 @@ export const handleMyRoute: RequestHandler = (req, res) => {
 };
 ```
 
-3. Register the route in `server/index.ts`:
+1. Register the route in `server/index.ts`:
 
 ```typescript
 import { handleMyRoute } from "./routes/my-route";
@@ -141,7 +141,7 @@ import { handleMyRoute } from "./routes/my-route";
 app.get("/api/my-endpoint", handleMyRoute);
 ```
 
-4. Use in React components with type safety:
+1. Use in React components with type safety:
 
 ```typescript
 import { MyRouteResponse } from "@shared/api"; // Optional: for type safety
@@ -173,3 +173,4 @@ const data: MyRouteResponse = await response.json();
 - Production-ready with multiple deployment options
 - Comprehensive UI component library included
 - Type-safe API communication via shared interfaces
+

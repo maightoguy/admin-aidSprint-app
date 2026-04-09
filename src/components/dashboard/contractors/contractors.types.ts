@@ -59,6 +59,23 @@ export type ContractorLocationHistoryItem = {
   isCurrent?: boolean;
 };
 
+export type ContractorTransactionType = "Withdrawal" | "Service payment";
+
+export type ContractorTransactionStatus = "Completed" | "Pending" | "Failed";
+
+export type ContractorTransactionRecord = {
+  id: string;
+  transactionCode: string;
+  type: ContractorTransactionType;
+  amount: number;
+  dateTime: string;
+  status: ContractorTransactionStatus;
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
+  fee: number;
+};
+
 export type ContractorsSummaryCard = {
   title: string;
   value: string;
