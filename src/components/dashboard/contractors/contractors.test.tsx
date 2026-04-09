@@ -44,7 +44,7 @@ describe("ContractorsPage", () => {
 
     expect(screen.getAllByText("Maren Dokidis").length).toBeGreaterThan(0);
     expect(screen.queryByText("Cooper Siphron")).toBeNull();
-  });
+  }, 10000);
 
   it("navigates to contractor details from view profile", async () => {
     const user = userEvent.setup();

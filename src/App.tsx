@@ -11,6 +11,7 @@ import Login from "./login/login";
 import NotFound from "./not-found/not-found";
 import ContractorsPage from "./components/dashboard/contractors/contractors";
 import Overview from "./components/dashboard/overview/overview";
+import RequestsPage from "./components/dashboard/request-details/requests";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/overview" element={<Overview />} />
           <Route path="/contractors" element={<ContractorsPage />} />
           <Route path="/contractors/:contractorId" element={<ContractorDetailsPage />} />
+          <Route path="/requests" element={<RequestsPage />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/:userId" element={<UserDetailsPage />} />
           <Route path="*" element={<NotFound />} />

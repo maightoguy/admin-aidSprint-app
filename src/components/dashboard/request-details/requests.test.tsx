@@ -1,0 +1,46 @@
+// @vitest-environment jsdom
+
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, describe, expect, it } from "vitest";
+import RequestsPage from "./requests";
+import { useRequestDetailsStore } from "./request-details.store";
+
+afterEach(() => {
+  useRequestDetailsStore.getState().closeAll();
+  cleanup();
+});
+
+describe("RequestsPage", () => {
+  it("renders the requests table and opens request details from the row action menu", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/requests"]}>
+        <Routes>
+          <Route path="/requests" element={<RequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("All Requests")).toBeTruthy();
+    expect(screen.getByText("Total Requests")).toBeTruthy();
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /Open request actions for/i,
+      })[0],
+    );
+
+    const menu = await screen.findByRole("menu");
+    await user.click(
+      within(menu).getByRole("menuitem", { name: "View request" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Request details",
+    });
+    expect(within(dialog).getByText(/Request ID:/i)).toBeTruthy();
+  }, 10000);
+});
