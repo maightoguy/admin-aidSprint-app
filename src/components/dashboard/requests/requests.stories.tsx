@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
-import { RequestDetailsLiveTrackerOverlay } from "./request-details-overlay";
-import { RequestDetailsCore } from "./request-details-sidebar";
-import { useRequestDetailsStore } from "./request-details.store";
+import { RequestsLiveTrackerOverlay } from "./requests-overlay";
+import { RequestsCore } from "./requests-sidebar";
+import { useRequestsStore } from "./requests.store";
 import { userDetailsRecords } from "../user-details/user-details.data";
 
 const storyUser = userDetailsRecords[0];
@@ -30,20 +30,20 @@ function StoryFrame({ children }: { children: ReactNode }) {
 
 function OverlayStory() {
   useEffect(() => {
-    useRequestDetailsStore.setState({
+    useRequestsStore.setState({
       isMapOpen: true,
       selectedRequestId: activeRequest.id,
     });
 
     return () => {
-      useRequestDetailsStore.setState({
+      useRequestsStore.setState({
         isMapOpen: false,
         selectedRequestId: null,
       });
     };
   }, []);
 
-  return <RequestDetailsLiveTrackerOverlay requestId={activeRequest.id} />;
+  return <RequestsLiveTrackerOverlay requestId={activeRequest.id} />;
 }
 
 export default {
@@ -53,7 +53,7 @@ export default {
 export function ActiveState() {
   return (
     <StoryFrame>
-      <RequestDetailsCore
+      <RequestsCore
         request={activeRequest}
         customerName={storyUser.name}
         onOpenLiveTracker={() => undefined}
@@ -66,7 +66,7 @@ export function ActiveState() {
 export function PendingState() {
   return (
     <StoryFrame>
-      <RequestDetailsCore
+      <RequestsCore
         request={pendingRequest}
         customerName={storyUser.name}
         onOpenLiveTracker={() => undefined}
@@ -79,7 +79,7 @@ export function PendingState() {
 export function CompletedState() {
   return (
     <StoryFrame>
-      <RequestDetailsCore
+      <RequestsCore
         request={completedRequest}
         customerName={storyUser.name}
         onOpenLiveTracker={() => undefined}
@@ -92,7 +92,7 @@ export function CompletedState() {
 export function CancelledState() {
   return (
     <StoryFrame>
-      <RequestDetailsCore
+      <RequestsCore
         request={cancelledRequest}
         customerName={storyUser.name}
         onOpenLiveTracker={() => undefined}

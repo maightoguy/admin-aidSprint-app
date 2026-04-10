@@ -18,7 +18,7 @@ type StoredRequestStatus = Pick<
   "status" | "lifecycleStatus" | "etaLabel"
 >;
 
-type RequestDetailsState = {
+type RequestsState = {
   selectedRequestId: string | null;
   isSidebarOpen: boolean;
   isMapOpen: boolean;
@@ -87,7 +87,7 @@ export function getRequestHistoryStatus(request: UserRequestHistoryItem): UserRe
   return request.status;
 }
 
-export const useRequestDetailsStore = create<RequestDetailsState>()(
+export const useRequestsStore = create<RequestsState>()(
   persist(
     (set) => ({
       selectedRequestId: null,
@@ -125,7 +125,7 @@ export const useRequestDetailsStore = create<RequestDetailsState>()(
         })),
     }),
     {
-      name: "request-details-session",
+      name: "requests-session",
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         selectedRequestId: state.selectedRequestId,

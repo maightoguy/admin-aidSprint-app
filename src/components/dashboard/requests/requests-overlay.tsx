@@ -6,20 +6,20 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useRequestDetailsStore } from "./request-details.store";
+import { useRequestsStore } from "./requests.store";
 import { liveTrackerJobs } from "../live-tracker/live-tracker.data";
 import {
   LiveTrackerMap,
   LiveTrackerSummaryCard,
 } from "../live-tracker/live-tracker-shared";
 
-export function RequestDetailsLiveTrackerOverlay({
+export function RequestsLiveTrackerOverlay({
   requestId,
 }: {
   requestId: string | null;
 }) {
-  const isMapOpen = useRequestDetailsStore((state) => state.isMapOpen);
-  const closeMap = useRequestDetailsStore((state) => state.closeMap);
+  const isMapOpen = useRequestsStore((state) => state.isMapOpen);
+  const closeMap = useRequestsStore((state) => state.closeMap);
 
   const job = requestId
     ? (liveTrackerJobs.find((item) => item.requestId === requestId) ?? null)

@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useRequestDetailsStore } from "../request-details/request-details.store";
+import { useRequestsStore } from "../requests/requests.store";
 import Users from "../users/users";
 import UserDetailsPage from "./user-details-page";
 
@@ -18,7 +18,7 @@ vi.mock("sonner", () => ({
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
-  useRequestDetailsStore.setState({
+  useRequestsStore.setState({
     selectedRequestId: null,
     isSidebarOpen: false,
     isMapOpen: false,

@@ -4,9 +4,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  RequestDetailsCore,
-  RequestDetailsSidebar,
-} from "./request-details-sidebar";
+  RequestsCore,
+  RequestsSidebar,
+} from "./requests-sidebar";
 import { userDetailsRecords } from "../user-details/user-details.data";
 
 const storyUser = userDetailsRecords[0];
@@ -32,7 +32,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("RequestDetailsSidebar", () => {
+describe("RequestsSidebar", () => {
   it("renders the adaptive request details panel for mobile, tablet, and desktop widths", () => {
     for (const viewport of [
       { width: 375, height: 812 },
@@ -42,7 +42,7 @@ describe("RequestDetailsSidebar", () => {
       setViewport(viewport.width, viewport.height);
 
       const view = render(
-        <RequestDetailsSidebar
+        <RequestsSidebar
           open
           request={request}
           customerName={storyUser.name}
@@ -68,7 +68,7 @@ describe("RequestDetailsSidebar", () => {
 
     setViewport(375, 640);
     render(
-      <RequestDetailsCore
+      <RequestsCore
         request={request}
         customerName={storyUser.name}
         onClose={() => undefined}
@@ -106,7 +106,7 @@ describe("RequestDetailsSidebar", () => {
 
     setViewport(1280, 900);
     render(
-      <RequestDetailsCore
+      <RequestsCore
         request={request}
         customerName={storyUser.name}
         onClose={() => undefined}

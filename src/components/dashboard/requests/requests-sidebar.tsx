@@ -19,19 +19,19 @@ import {
   MapPinned,
 } from "lucide-react";
 import {
-  RequestDetailsChevronDownIcon,
-  RequestDetailsCloseIcon,
-  RequestDetailsLocationIcon,
-  RequestDetailsServiceIcon,
-  RequestDetailsStarIcon,
-  RequestDetailsStepperIcon,
-} from "./request-details-icons";
+  RequestsChevronDownIcon,
+  RequestsCloseIcon,
+  RequestsLocationIcon,
+  RequestsServiceIcon,
+  RequestsStarIcon,
+  RequestsStepperIcon,
+} from "./requests-icons";
 import type { UserRequestHistoryItem } from "../user-details/user-details.types";
 import {
   getRequestPanelState,
   type RequestPanelState,
   type RequestStatusAction,
-} from "./request-details.store";
+} from "./requests.store";
 
 const requestStatusActions: Array<{
   action: RequestStatusAction;
@@ -185,7 +185,7 @@ function RequestStatusSteps({ state }: { state: RequestPanelState }) {
                 : stateCopy.mutedStepClassName,
             ].join(" ")}
           >
-            <RequestDetailsStepperIcon className="h-[14px] w-[14px]" />
+            <RequestsStepperIcon className="h-[14px] w-[14px]" />
           </span>
           {step < 2 ? (
             <span
@@ -217,7 +217,7 @@ function RequestStatusMenu({
           aria-label="Update request status"
         >
           Update status
-          <RequestDetailsChevronDownIcon className="h-[14px] w-[14px]" />
+          <RequestsChevronDownIcon className="h-[14px] w-[14px]" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -258,7 +258,7 @@ function RequestStatusMenu({
   );
 }
 
-export function RequestDetailsCore({
+export function RequestsCore({
   request,
   customerName,
   onClose,
@@ -287,7 +287,7 @@ export function RequestDetailsCore({
               className="inline-flex h-10 w-10 items-center justify-center rounded-full text-black transition hover:bg-[#F5F5F5]"
               aria-label="Close request details"
             >
-              <RequestDetailsCloseIcon className="h-6 w-6" />
+              <RequestsCloseIcon className="h-6 w-6" />
             </button>
           ) : (
             <DialogClose asChild>
@@ -296,7 +296,7 @@ export function RequestDetailsCore({
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full text-black transition hover:bg-[#F5F5F5]"
                 aria-label="Close request details"
               >
-                <RequestDetailsCloseIcon className="h-6 w-6" />
+                <RequestsCloseIcon className="h-6 w-6" />
               </button>
             </DialogClose>
           )}
@@ -327,7 +327,7 @@ export function RequestDetailsCore({
               </div>
             </div>
             <div className="mt-3 inline-flex items-center gap-1 rounded-[47px] bg-[#E9F9EF] px-[6px] py-1">
-              <RequestDetailsStepperIcon className="h-4 w-4" />
+              <RequestsStepperIcon className="h-4 w-4" />
               <span className="text-[10px] font-medium text-[#22C55E]">
                 {request.completedRequests}
               </span>
@@ -370,7 +370,7 @@ export function RequestDetailsCore({
           <div className="flex min-w-0 flex-1 items-center gap-[10px] rounded-[10px] border border-[#B1B5C0] bg-[#E6E7EB] p-[3px]">
             <div className="flex min-w-0 flex-1 items-center justify-between rounded-[10px] bg-white px-[10px] py-1">
               <div className="inline-flex min-w-0 items-center gap-1">
-                <RequestDetailsStarIcon className="h-4 w-4 shrink-0" />
+                <RequestsStarIcon className="h-4 w-4 shrink-0" />
                 <span className="truncate text-[12px] font-medium text-[#020715]">
                   Ratings
                 </span>
@@ -392,14 +392,14 @@ export function RequestDetailsCore({
                 : "Open live tracker"
             }
           >
-            <RequestDetailsLocationIcon className="h-5 w-5" />
+            <RequestsLocationIcon className="h-5 w-5" />
           </button>
         </div>
         <div className="rounded-[10px] border border-[#B1B5C0] bg-[#E6E7EB] p-[3px]">
           <div className="space-y-1 rounded-[10px] bg-white p-[10px]">
             <div className="flex items-center justify-between gap-3">
               <div className="inline-flex items-center gap-1">
-                <RequestDetailsServiceIcon className="h-6 w-6" />
+                <RequestsServiceIcon className="h-6 w-6" />
                 <span className="text-[12px] font-medium text-[#020715]">
                   {request.service} Service
                 </span>
@@ -493,7 +493,7 @@ export function RequestDetailsCore({
   );
 }
 
-export function RequestDetailsSidebar({
+export function RequestsSidebar({
   open,
   request,
   customerName,
@@ -517,7 +517,7 @@ export function RequestDetailsSidebar({
         </DialogDescription>
         <div className="h-full overflow-y-auto overscroll-contain px-[14px] pb-[max(14px,env(safe-area-inset-bottom))] pt-[18px] sm:px-[14px] sm:pb-[14px]">
           {request ? (
-            <RequestDetailsCore
+            <RequestsCore
               request={request}
               customerName={customerName}
               onOpenLiveTracker={onOpenLiveTracker}

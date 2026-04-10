@@ -17,26 +17,24 @@ import {
 import { Input } from "@/components/ui/input";
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
 import { TotalRequestsIcon } from "@/ui/icons";
-import { RequestDetailsLiveTrackerOverlay } from "./request-details-overlay";
-import { RequestDetailsSidebar } from "./request-details-sidebar";
+import { RequestsLiveTrackerOverlay } from "./requests-overlay";
+import { RequestsSidebar } from "./requests-sidebar";
 import {
   applyRequestStatusOverride,
-  useRequestDetailsStore,
+  useRequestsStore,
   type RequestStatusAction,
-} from "./request-details.store";
+} from "./requests.store";
 import { userDetailsRecords } from "../user-details/user-details.data";
 import {
   getRequestStatusClasses,
   truncateRequestLocation,
 } from "../user-details/user-details.utils";
 import type {
-  UserDetailsRecord,
   UserRequestHistoryItem,
 } from "../user-details/user-details.types";
 
 type RequestListRow = {
   id: string;
-  userId: string;
   userName: string;
   userEmail: string;
   request: UserRequestHistoryItem;
@@ -121,20 +119,20 @@ export default function RequestsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
 
-  const selectedRequestId = useRequestDetailsStore(
+  const selectedRequestId = useRequestsStore(
     (state) => state.selectedRequestId,
   );
-  const isRequestDetailsOpen = useRequestDetailsStore(
+  const isRequestsOpen = useRequestsStore(
     (state) => state.isSidebarOpen,
   );
-  const openRequest = useRequestDetailsStore((state) => state.openRequest);
-  const closeSidebar = useRequestDetailsStore((state) => state.closeSidebar);
-  const openMap = useRequestDetailsStore((state) => state.openMap);
-  const closeAll = useRequestDetailsStore((state) => state.closeAll);
-  const updateRequestStatus = useRequestDetailsStore(
+  const openRequest = useRequestsStore((state) => state.openRequest);
+  const closeSidebar = useRequestsStore((state) => state.closeSidebar);
+  const openMap = useRequestsStore((state) => state.openMap);
+  const closeAll = useRequestsStore((state) => state.closeAll);
+  const updateRequestStatus = useRequestsStore(
     (state) => state.updateRequestStatus,
   );
-  const requestStatusById = useRequestDetailsStore(
+  const requestStatusById = useRequestsStore(
     (state) => state.requestStatusById,
   );
 
@@ -146,7 +144,6 @@ export default function RequestsPage() {
     return userDetailsRecords.flatMap((user) =>
       user.requestHistory.map((request) => ({
         id: request.id,
-        userId: user.id,
         userName: user.name,
         userEmail: user.email,
         request: applyRequestStatusOverride(
@@ -384,15 +381,15 @@ export default function RequestsPage() {
           </div>
         </section>
 
-        <RequestDetailsSidebar
-          open={isRequestDetailsOpen}
+        <RequestsSidebar
+          open={isRequestsOpen}
           request={selectedRow?.request ?? null}
           customerName={selectedRow?.userName ?? ""}
           onOpenChange={(open) => (open ? null : closeSidebar())}
           onOpenLiveTracker={handleOpenLiveTracker}
           onUpdateStatus={handleUpdateRequestStatus}
         />
-        <RequestDetailsLiveTrackerOverlay requestId={selectedRow?.id ?? null} />
+        <RequestsLiveTrackerOverlay requestId={selectedRow?.id ?? null} />
       </div>
     </DashboardLayout>
   );

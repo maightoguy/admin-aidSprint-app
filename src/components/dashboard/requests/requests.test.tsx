@@ -5,10 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import RequestsPage from "./requests";
-import { useRequestDetailsStore } from "./request-details.store";
+import { useRequestsStore } from "./requests.store";
 
 afterEach(() => {
-  useRequestDetailsStore.getState().closeAll();
+  useRequestsStore.getState().closeAll();
   cleanup();
 });
 

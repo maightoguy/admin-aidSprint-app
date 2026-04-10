@@ -11,7 +11,7 @@ This feature renders the user profile details view that opens from the Users act
 - `update-account-modal.tsx` renders the activate/deactivate account dialog
 - `update-account-action-item.tsx` renders each actionable row inside the dialog
 - the Request History tab is route-driven from the selected user id and reads per-user request records from `user-details.data.ts`
-- `request-details.store.ts` keeps the selected request, per-request status overrides, map-overlay visibility, and the last-viewed request id in session storage
+- `requests.store.ts` keeps the selected request, per-request status overrides, map-overlay visibility, and the last-viewed request id in session storage
 - request row actions open the Request Details sidebar and the embedded live-tracker overlay from the same page
 
 ## Route Usage

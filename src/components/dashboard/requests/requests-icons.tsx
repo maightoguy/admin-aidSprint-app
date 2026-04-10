@@ -1,4 +1,4 @@
-export function RequestDetailsCloseIcon({
+export function RequestsCloseIcon({
   className,
 }: {
   className?: string;
@@ -23,7 +23,7 @@ export function RequestDetailsCloseIcon({
   );
 }
 
-export function RequestDetailsStepperIcon({
+export function RequestsStepperIcon({
   className,
 }: {
   className?: string;
@@ -48,7 +48,7 @@ export function RequestDetailsStepperIcon({
   );
 }
 
-export function RequestDetailsStarIcon({
+export function RequestsStarIcon({
   className,
 }: {
   className?: string;
@@ -71,7 +71,7 @@ export function RequestDetailsStarIcon({
   );
 }
 
-export function RequestDetailsServiceIcon({
+export function RequestsServiceIcon({
   className,
 }: {
   className?: string;
@@ -94,7 +94,7 @@ export function RequestDetailsServiceIcon({
   );
 }
 
-export function RequestDetailsLocationIcon({
+export function RequestsLocationIcon({
   className,
 }: {
   className?: string;
@@ -119,7 +119,7 @@ export function RequestDetailsLocationIcon({
   );
 }
 
-export function RequestDetailsChevronDownIcon({
+export function RequestsChevronDownIcon({
   className,
 }: {
   className?: string;

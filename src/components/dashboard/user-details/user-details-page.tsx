@@ -11,14 +11,14 @@ import {
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { RequestDetailsLiveTrackerOverlay } from "../request-details/request-details-overlay";
-import { RequestDetailsSidebar } from "../request-details/request-details-sidebar";
+import { RequestsLiveTrackerOverlay } from "../requests/requests-overlay";
+import { RequestsSidebar } from "../requests/requests-sidebar";
 import {
   applyRequestStatusOverride,
   getRequestHistoryStatus,
-  useRequestDetailsStore,
+  useRequestsStore,
   type RequestStatusAction,
-} from "../request-details/request-details.store";
+} from "../requests/requests.store";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import { getStatusPillClasses } from "../users/users.utils";
 import { usersStyles } from "../users/users.styles";
@@ -164,10 +164,10 @@ function RequestHistoryStatusPill({
 
 function RequestHistoryPanel({
   requests,
-  onOpenRequestDetails,
+  onOpenRequests,
 }: {
   requests: UserRequestHistoryItem[];
-  onOpenRequestDetails: (requestId: string) => void;
+  onOpenRequests: (requestId: string) => void;
 }) {
   return (
     <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
@@ -224,7 +224,7 @@ function RequestHistoryPanel({
                 <td className="px-5 py-4 text-right">
                   <button
                     type="button"
-                    onClick={() => onOpenRequestDetails(request.id)}
+                    onClick={() => onOpenRequests(request.id)}
                     className="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-white text-[#667085] transition hover:bg-[#F8FAFC]"
                     aria-label={`Open request details for ${request.service}`}
                   >
@@ -253,7 +253,7 @@ function RequestHistoryPanel({
               </div>
               <button
                 type="button"
-                onClick={() => onOpenRequestDetails(request.id)}
+                onClick={() => onOpenRequests(request.id)}
                 className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-white text-[#667085]"
                 aria-label={`Open request details for ${request.service}`}
               >
@@ -324,14 +324,14 @@ export default function UserDetailsPage({
   const [currentUser, setCurrentUser] = useState<UserDetailsRecord | null>(
     matchedUser,
   );
-  const selectedRequestId = useRequestDetailsStore((state) => state.selectedRequestId);
-  const isRequestDetailsOpen = useRequestDetailsStore((state) => state.isSidebarOpen);
-  const openRequest = useRequestDetailsStore((state) => state.openRequest);
-  const closeSidebar = useRequestDetailsStore((state) => state.closeSidebar);
-  const openMap = useRequestDetailsStore((state) => state.openMap);
-  const closeAll = useRequestDetailsStore((state) => state.closeAll);
-  const updateRequestStatus = useRequestDetailsStore((state) => state.updateRequestStatus);
-  const requestStatusById = useRequestDetailsStore((state) => state.requestStatusById);
+  const selectedRequestId = useRequestsStore((state) => state.selectedRequestId);
+  const isRequestsOpen = useRequestsStore((state) => state.isSidebarOpen);
+  const openRequest = useRequestsStore((state) => state.openRequest);
+  const closeSidebar = useRequestsStore((state) => state.closeSidebar);
+  const openMap = useRequestsStore((state) => state.openMap);
+  const closeAll = useRequestsStore((state) => state.closeAll);
+  const updateRequestStatus = useRequestsStore((state) => state.updateRequestStatus);
+  const requestStatusById = useRequestsStore((state) => state.requestStatusById);
 
   useEffect(() => {
     setCurrentUser(matchedUser);
@@ -422,7 +422,7 @@ export default function UserDetailsPage({
     }
   };
 
-  const handleOpenRequestDetails = (requestId: string) => {
+  const handleOpenRequests = (requestId: string) => {
     const request = currentUserWithRequestOverrides?.requestHistory.find(
       (item) => item.id === requestId,
     );
@@ -535,7 +535,7 @@ export default function UserDetailsPage({
               <TabsContent value="request-history" className="mt-0">
                 <RequestHistoryPanel
                   requests={currentUserWithRequestOverrides.requestHistory}
-                  onOpenRequestDetails={handleOpenRequestDetails}
+                  onOpenRequests={handleOpenRequests}
                 />
               </TabsContent>
             </Tabs>
@@ -546,15 +546,15 @@ export default function UserDetailsPage({
               onOpenChange={setIsUpdateAccountOpen}
               onSelectAction={handleStatusAction}
             />
-            <RequestDetailsSidebar
-              open={isRequestDetailsOpen}
+            <RequestsSidebar
+              open={isRequestsOpen}
               request={selectedRequest}
               customerName={currentUserWithRequestOverrides.name}
               onOpenChange={(open) => (open ? null : closeSidebar())}
               onOpenLiveTracker={handleOpenLiveTracker}
               onUpdateStatus={handleUpdateRequestStatus}
             />
-            <RequestDetailsLiveTrackerOverlay requestId={selectedRequest?.id ?? null} />
+            <RequestsLiveTrackerOverlay requestId={selectedRequest?.id ?? null} />
           </>
         ) : null}
       </div>

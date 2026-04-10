@@ -11,7 +11,7 @@ import Login from "./login/login";
 import NotFound from "./not-found/not-found";
 import ContractorsPage from "./components/dashboard/contractors/contractors";
 import Overview from "./components/dashboard/overview/overview";
-import RequestsPage from "./components/dashboard/request-details/requests";
+import RequestsPage from "./components/dashboard/requests/requests";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
