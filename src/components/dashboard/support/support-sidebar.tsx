@@ -1,13 +1,11 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X, ChevronDown, User, FileText, Clock, AlertCircle } from "lucide-react";
+import { X, ChevronDown, FileText, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
   DialogPortal,
   DialogOverlay,
@@ -18,19 +16,119 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SupportTicket, SupportTicketStatus } from "./support.data";
+import type { SupportTicket, SupportTicketStatus } from "./support.data";
 
 interface SupportDetailsSidebarProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ticket: SupportTicket | null;
-  onUpdateStatus?: (ticketId: string, status: SupportTicketStatus) => void;
+  isUpdating?: boolean;
+  onUpdateStatus?: (status: SupportTicketStatus) => Promise<void> | void;
+}
+
+function getTicketStatusTextClass(status: SupportTicketStatus) {
+  if (status === "Open") {
+    return "text-[#22C55E]";
+  }
+
+  if (status === "Pending") {
+    return "text-[#F79009]";
+  }
+
+  return "text-[#0088FF]";
+}
+
+function getStatusOptionClasses(
+  option: Extract<SupportTicketStatus, "Pending" | "Resolved">,
+  currentStatus: SupportTicketStatus,
+) {
+  const isActive = currentStatus === option;
+
+  if (option === "Pending") {
+    return isActive
+      ? "bg-[#FFF7ED] text-[#F79009]"
+      : "text-[#344054] hover:text-[#F79009] focus:text-[#F79009]";
+  }
+
+  return isActive
+    ? "bg-[#EFF8FF] text-[#0088FF]"
+    : "text-[#344054] hover:text-[#0088FF] focus:text-[#0088FF]";
+}
+
+function SupportStatusMenu({
+  currentStatus,
+  isUpdating,
+  onSelectStatus,
+}: {
+  currentStatus: SupportTicketStatus;
+  isUpdating: boolean;
+  onSelectStatus: (
+    status: Extract<SupportTicketStatus, "Pending" | "Resolved">,
+  ) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={isUpdating}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 py-[13px] text-[14px] font-medium text-white transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25 disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label="Update ticket status"
+        >
+          {isUpdating ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Updating...
+            </>
+          ) : (
+            <>
+              Update Ticket
+              <ChevronDown className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="center"
+        side="top"
+        avoidCollisions={false}
+        sideOffset={8}
+        collisionPadding={16}
+        className="z-[90] w-[339px] max-w-[calc(100vw-40px)] rounded-[14px] border border-[#EAECF0] bg-white p-2 shadow-[0_24px_40px_rgba(15,23,42,0.14)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+      >
+        {(["Pending", "Resolved"] as const).map((status) => (
+          <DropdownMenuItem
+            key={status}
+            disabled={isUpdating}
+            onClick={() => onSelectStatus(status)}
+            className={cn(
+              "rounded-[10px] px-4 py-3 text-[14px] font-medium outline-none transition focus:bg-[#F8FAFC]",
+              getStatusOptionClasses(status, currentStatus),
+            )}
+          >
+            <div className="flex w-full items-center justify-between">
+              <span>{`Set as ${status}`}</span>
+              {currentStatus === status ? (
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    status === "Pending" ? "bg-[#F79009]" : "bg-[#0088FF]",
+                  )}
+                />
+              ) : null}
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function SupportDetailsSidebar({
   open,
   onOpenChange,
   ticket,
+  isUpdating = false,
   onUpdateStatus,
 }: SupportDetailsSidebarProps) {
   if (!ticket) return null;
@@ -43,7 +141,7 @@ export function SupportDetailsSidebar({
           className={cn(
             "fixed inset-y-0 right-0 z-[70] h-full w-full bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] outline-none duration-300 sm:w-[363px]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right"
+            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           )}
         >
           <div className="flex h-full flex-col overflow-y-auto px-3 pb-3 pt-[14px]">
@@ -92,7 +190,7 @@ export function SupportDetailsSidebar({
             <div className="mt-[16px] overflow-hidden rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD]">
               <DetailRow label="Ticket ID" value={ticket.ticketId} />
               <DetailRow label="Subject" value={ticket.subject} />
-              
+
               {ticket.description && (
                 <div className="flex flex-col gap-1 border-b border-[#EAECF0] px-[10px] py-[11px]">
                   <span className="text-[14px] font-normal leading-5 text-[#98A2B3]">
@@ -105,13 +203,13 @@ export function SupportDetailsSidebar({
               )}
 
               {ticket.requestId && (
-                <DetailRow 
-                  label="Request ID" 
-                  value={ticket.requestId} 
+                <DetailRow
+                  label="Request ID"
+                  value={ticket.requestId}
                   valueClassName="text-[#0088FF] underline"
                 />
               )}
-              
+
               <div className="flex items-center justify-between gap-4 px-[10px] py-[11px]">
                 <span className="text-[14px] font-normal leading-5 text-[#98A2B3]">
                   Status
@@ -119,8 +217,7 @@ export function SupportDetailsSidebar({
                 <span
                   className={cn(
                     "text-right text-[14px] font-semibold leading-5",
-                    ticket.status === "Open" ? "text-[#22C55E]" : 
-                    ticket.status === "Pending" ? "text-[#F79009]" : "text-[#0088FF]"
+                    getTicketStatusTextClass(ticket.status),
                   )}
                 >
                   • {ticket.status}
@@ -136,12 +233,16 @@ export function SupportDetailsSidebar({
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {ticket.attachments.map((att) => (
-                    <div 
+                    <div
                       key={att.id}
                       className="h-[44px] w-[44px] rounded-[10px] border border-[#EAECF0] bg-[#F9FAFB] flex items-center justify-center overflow-hidden"
                     >
-                      {att.type.startsWith('image/') ? (
-                        <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
+                      {att.type.startsWith("image/") ? (
+                        <img
+                          src={att.url}
+                          alt={att.name}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <FileText className="h-5 w-5 text-[#98A2B3]" />
                       )}
@@ -151,39 +252,12 @@ export function SupportDetailsSidebar({
               </div>
             )}
 
-            {/* Update Status Button */}
             <div className="mt-auto pt-6">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 py-[13px] text-[14px] font-medium text-white transition hover:bg-[#0A1C4E]"
-                  >
-                    Update Ticket
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" side="top" className="w-[352px] rounded-[14px] p-0 shadow-lg">
-                  <DropdownMenuItem 
-                    onClick={() => onUpdateStatus?.(ticket.id, "Open")}
-                    className="px-4 py-3 text-[14px] font-medium text-[#22C55E] focus:bg-[#F8FAFC]"
-                  >
-                    Set as Open
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onUpdateStatus?.(ticket.id, "Pending")}
-                    className="px-4 py-3 text-[14px] font-medium text-[#F79009] border-t border-[#EAECF0] focus:bg-[#F8FAFC]"
-                  >
-                    Set as Pending
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onUpdateStatus?.(ticket.id, "Resolved")}
-                    className="px-4 py-3 text-[14px] font-medium text-[#0088FF] border-t border-[#EAECF0] focus:bg-[#F8FAFC]"
-                  >
-                    Set as Resolved
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <SupportStatusMenu
+                currentStatus={ticket.status}
+                isUpdating={isUpdating}
+                onSelectStatus={(status) => onUpdateStatus?.(status)}
+              />
             </div>
           </div>
         </DialogPrimitive.Content>
@@ -192,21 +266,26 @@ export function SupportDetailsSidebar({
   );
 }
 
-function DetailRow({ 
-  label, 
-  value, 
-  valueClassName 
-}: { 
-  label: string; 
-  value: string; 
-  valueClassName?: string 
+function DetailRow({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-[#EAECF0] px-[10px] py-[11px] last:border-b-0">
       <span className="text-[14px] font-normal leading-5 text-[#98A2B3]">
         {label}
       </span>
-      <span className={cn("text-right text-[14px] font-semibold leading-5 text-[#2D2D2D]", valueClassName)}>
+      <span
+        className={cn(
+          "text-right text-[14px] font-semibold leading-5 text-[#2D2D2D]",
+          valueClassName,
+        )}
+      >
         {value}
       </span>
     </div>

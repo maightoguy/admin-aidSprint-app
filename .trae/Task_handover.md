@@ -3,30 +3,28 @@
 ## Status: Completed
 
 ## Latest Changes:
+- **Support Section Enhancements:**
+  - Refined the "Update Ticket" functionality in [support-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support-sidebar.tsx).
+  - Implemented a **drop-up** menu for status updates, strictly providing "Pending" and "Resolved" options.
+  - Added simulated backend API integration with loading states (`Loader2` spinner) and error handling.
+  - Improved visual feedback by highlighting the active status with color-coded indicators (dots) and background states.
+  - Integrated `sonner` toast notifications for success/error confirmations.
 - **Support Section Implementation:**
   - Created a new [support](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support) folder.
-  - Implemented [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx) with a responsive table, search, filtering, and pagination based on Figma `Desktop - 51`.
-  - Added an interactive action menu ("three dots") for each support ticket row with a "View details" option.
-  - Implemented [support-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support-sidebar.tsx) for ticket details based on Figma `Desktop - 52`.
-  - Integrated status update logic (Open/Pending/Resolved) with toast notifications.
+  - Implemented [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx) with responsive table, search, and pagination.
+  - Implemented [support-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support-sidebar.tsx) for detailed ticket view.
 - **Transactions Feature Implementation:**
-  - Created a new [transactions](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions) folder.
-  - Implemented [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx) based on Figma `Desktop - 53`.
+  - Implemented [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx) based on Figma designs.
 - **Routing & Navigation:**
-  - Added `/support` and `/transactions` routes to [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx).
-  - Updated [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts) to include "Support" and "Transaction" links.
-- **Testing & Quality:**
-  - Created [support.test.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.test.tsx) and [transactions.test.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.test.tsx).
-  - Verified all tests pass with `npm test`.
+  - Configured `/support` and `/transactions` routes in [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx).
+  - Updated [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts).
 
 ## Current Context:
-- **Support Module:** Standalone module in `src/components/dashboard/support`. Uses local state for ticket management and status updates.
-- **Transactions Module:** Standalone module in `src/components/dashboard/transactions`.
-- Both modules use `DashboardLayout` and follow the design system tokens for spacing, typography, and colors.
-- Data is currently mocked using seed files within each module.
+- **Support Module:** Now includes a robust "Update Ticket" workflow. The drop-up menu is designed for bottom-anchored buttons to avoid viewport clipping.
+- **API Simulation:** Status updates include a simulated 1s delay to demonstrate UX handling for asynchronous operations.
+- **UI State:** Uses Radix UI for accessible dropdowns and sidebars, with Tailwind CSS for animations and custom styling.
 
 ## Next Steps:
-- **Authentication:** Implement actual login logic in `login.tsx`.
-- **Backend Integration:** Replace mock data in `support.data.ts` and `transactions.tsx` with actual API calls to the Express backend.
-- **Enhanced Filtering:** Add more granular filters (e.g., priority, date range) to the Support table.
-- **Permissions:** Implement role-based access control (RBAC) for status updates.
+- **Real Backend Integration:** Replace the `setTimeout` in `handleStatusUpdate` with actual fetch calls to the Express server once endpoints are ready.
+- **Audit Logs:** Consider adding an "Activity History" section to the support sidebar to track who changed statuses and when.
+- **Authentication:** Finalize the login flow to secure these administrative actions.

@@ -114,6 +114,25 @@ function RequestRowActions({
   );
 }
 
+function RequestRowUser({
+  userName,
+  userEmail,
+}: Pick<RequestListRow, "userName" | "userEmail">) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EAECF0] text-base font-semibold text-[#344054]">
+        {getInitials(userName)}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-[14px] font-semibold text-[#101828]">
+          {userName}
+        </p>
+        <p className="truncate text-[14px] text-[#98A2B3]">{userEmail}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -277,7 +296,7 @@ export default function RequestsPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full">
               <thead className="bg-[#F9FAFB]">
                 <tr className="text-left text-sm font-semibold text-[#475467]">
@@ -293,19 +312,10 @@ export default function RequestsPage() {
                 {currentRows.map((row) => (
                   <tr key={row.id}>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EAECF0] text-base font-semibold text-[#344054]">
-                          {getInitials(row.userName)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-[14px] font-semibold text-[#101828]">
-                            {row.userName}
-                          </p>
-                          <p className="truncate text-[14px] text-[#98A2B3]">
-                            {row.userEmail}
-                          </p>
-                        </div>
-                      </div>
+                      <RequestRowUser
+                        userName={row.userName}
+                        userEmail={row.userEmail}
+                      />
                     </td>
                     <td className="px-5 py-4 text-[14px] text-[#667085]">
                       <p title={row.request.location}>
@@ -338,6 +348,83 @@ export default function RequestsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="space-y-3 p-4 md:hidden">
+            {currentRows.length ? (
+              currentRows.map((row) => (
+                <article
+                  key={row.id}
+                  className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[14px] font-semibold leading-5 text-[#101828]">
+                        {row.request.requestCode}
+                      </p>
+                      <p className="mt-1 text-[13px] leading-5 text-[#98A2B3]">
+                        {row.request.date}
+                      </p>
+                    </div>
+                    <RequestRowActions
+                      requestCode={row.request.requestCode}
+                      onViewRequest={() => handleOpenRequest(row)}
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <RequestRowUser
+                      userName={row.userName}
+                      userEmail={row.userEmail}
+                    />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[12px] font-medium leading-4 text-[#98A2B3]">
+                        Service
+                      </p>
+                      <p className="mt-1 text-[14px] font-semibold leading-5 text-[#101828]">
+                        {row.request.service}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-medium leading-4 text-[#98A2B3]">
+                        Status
+                      </p>
+                      <div className="mt-1">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold",
+                            getRequestStatusClasses(row.request.status),
+                          ].join(" ")}
+                        >
+                          {row.request.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <p className="text-[12px] font-medium leading-4 text-[#98A2B3]">
+                        Location
+                      </p>
+                      <p
+                        className="mt-1 text-[14px] leading-5 text-[#667085]"
+                        title={row.request.location}
+                      >
+                        {truncateRequestLocation(row.request.location)}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="rounded-[14px] border border-dashed border-[#D0D5DD] px-4 py-10 text-center text-sm font-medium text-[#98A2B3]">
+                No requests match the current search.
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2 border-t border-[#EAECF0] px-4 py-4 sm:px-5">

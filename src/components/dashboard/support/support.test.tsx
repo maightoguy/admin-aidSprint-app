@@ -6,6 +6,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import SupportPage from "./support";
 
+function setViewport(width: number, height: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    writable: true,
+    value: height,
+  });
+
+  window.dispatchEvent(new Event("resize"));
+}
+
 afterEach(() => {
   cleanup();
 });
@@ -38,8 +54,9 @@ describe("SupportPage", () => {
     expect(within(dialog).getByText("Withdrawal delay")).toBeTruthy();
   });
 
-  it("updates the ticket status from the sidebar", async () => {
+  it("opens the status menu upward and updates the ticket status from the sidebar", async () => {
     const user = userEvent.setup();
+    setViewport(375, 640);
 
     render(
       <MemoryRouter>
@@ -61,11 +78,18 @@ describe("SupportPage", () => {
     });
     await user.click(updateButton);
 
+    const menu = await screen.findByRole("menu");
+    expect(menu.getAttribute("data-side")).toBe("top");
+
     // Select "Set as Resolved"
     const resolvedOption = await screen.findByText(/set as resolved/i);
     await user.click(resolvedOption);
 
-    // Verify status update in the sidebar (Resolved status has "Resolved" text)
-    expect(within(dialog).getByText(/Resolved/i)).toBeTruthy();
+    expect(await screen.findByText("Updating...")).toBeTruthy();
+    expect(
+      await within(dialog).findByText(
+        (_, element) => element?.textContent === "• Resolved",
+      ),
+    ).toBeTruthy();
   });
 });
