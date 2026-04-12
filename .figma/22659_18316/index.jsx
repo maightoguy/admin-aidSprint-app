@@ -14,48 +14,30 @@ const Component = () => {
           </div>
           <div className={styles.frame5}>
             <div className={styles.frame4}>
-              <img
-                src="https://via.placeholder.com/6x8"
-                className={styles.curveL}
-              />
+              <img src="../image/mnvn1div-aowpu78.svg" className={styles.curveL} />
               <div className={styles.frame41}>
                 <p className={styles.aTabName}>AidSprint</p>
                 <img
-                  src="https://via.placeholder.com/18x18"
+                  src="../image/mnvn1div-fq0afpl.svg"
                   className={styles.iconClose}
                 />
               </div>
               <div className={styles.autoWrapper}>
                 <img
-                  src="https://via.placeholder.com/6x8"
+                  src="../image/mnvn1div-xlwana0.png"
                   className={styles.curveR}
                 />
               </div>
             </div>
-            <img
-              src="https://via.placeholder.com/20x20"
-              className={styles.iconPlus}
-            />
+            <img src="../image/mnvn1div-gc5di0s.svg" className={styles.iconPlus} />
           </div>
         </div>
         <div className={styles.uRlControlsBg}>
           <div className={styles.leftLockedIcons}>
-            <img
-              src="https://via.placeholder.com/16x16"
-              className={styles.iconBack}
-            />
-            <img
-              src="https://via.placeholder.com/16x16"
-              className={styles.iconBack}
-            />
-            <img
-              src="https://via.placeholder.com/16x16"
-              className={styles.iconBack}
-            />
-            <img
-              src="https://via.placeholder.com/16x16"
-              className={styles.iconBack}
-            />
+            <img src="../image/mnvn1div-geo1gge.svg" className={styles.iconBack} />
+            <img src="../image/mnvn1div-pxlfs6r.svg" className={styles.iconBack} />
+            <img src="../image/mnvn1div-65uxnz3.svg" className={styles.iconBack} />
+            <img src="../image/mnvn1div-cbifwyl.svg" className={styles.iconBack} />
           </div>
           <div className={styles.uRlFillBg}>
             <img
@@ -75,7 +57,7 @@ const Component = () => {
           </div>
           <div className={styles.rightLockedIcons}>
             <img
-              src="https://via.placeholder.com/22x22"
+              src="../image/mnvn1dlb-anq4m3o.png"
               className={styles.imageUserProfile}
             />
             <img
@@ -92,10 +74,7 @@ const Component = () => {
               src="https://via.placeholder.com/16x17"
               className={styles.vector}
             />
-            <img
-              src="https://via.placeholder.com/3x18"
-              className={styles.vector2}
-            />
+            <img src="../image/mnvn1div-db4no0o.svg" className={styles.vector2} />
             <img
               src="https://via.placeholder.com/12x18"
               className={styles.vector3}
@@ -213,10 +192,7 @@ const Component = () => {
                 />
               </div>
             </div>
-            <img
-              src="https://via.placeholder.com/317x156"
-              className={styles.group}
-            />
+            <img src="../image/mnvn1diw-sqxrmu6.png" className={styles.group} />
           </div>
           <div className={styles.dashboardSummaryCard}>
             <div className={styles.summaryContainer}>
@@ -232,10 +208,7 @@ const Component = () => {
                 />
               </div>
             </div>
-            <img
-              src="https://via.placeholder.com/317x156"
-              className={styles.group}
-            />
+            <img src="../image/mnvn1diw-sqxrmu6.png" className={styles.group} />
           </div>
           <div className={styles.dashboardSummaryCard2}>
             <div className={styles.frame16188679252}>
@@ -243,10 +216,7 @@ const Component = () => {
               <p className={styles.a100000}>100,000</p>
               <p className={styles.a23VsYesterday}>+ 2.3% vs Yesterday</p>
             </div>
-            <img
-              src="https://via.placeholder.com/317x156"
-              className={styles.group}
-            />
+            <img src="../image/mnvn1diw-sqxrmu6.png" className={styles.group} />
           </div>
         </div>
         <div className={styles.frame10000075382}>
@@ -430,7 +400,7 @@ const Component = () => {
             <div className={styles.paginationList}>
               <div className={styles.container2}>
                 <img
-                  src="https://via.placeholder.com/20x20"
+                  src="../image/mnvn1dix-97nqk64.svg"
                   className={styles.component30}
                 />
               </div>
@@ -456,7 +426,7 @@ const Component = () => {
               </div>
               <div className={styles.container2}>
                 <img
-                  src="https://via.placeholder.com/20x20"
+                  src="../image/mnvn1dix-kpfilk8.svg"
                   className={styles.component30}
                 />
               </div>
@@ -469,17 +439,14 @@ const Component = () => {
           <div className={styles.frame2147224498}>
             <div className={styles.frame2147224465}>
               <p className={styles.transactionDetails}>Transaction details</p>
-              <img
-                src="https://via.placeholder.com/24x24"
-                className={styles.frame2}
-              />
+              <img src="../image/mnvn1dix-jmrvc07.svg" className={styles.frame2} />
             </div>
             <div className={styles.frame2147224473}>
               <p className={styles.user}>User</p>
               <div className={styles.frame2147224655}>
                 <div className={styles.frame2147224467}>
                   <img
-                    src="https://via.placeholder.com/30x30"
+                    src="../image/mnvn1dlc-zyn0beg.png"
                     className={styles.ellipse66}
                   />
                   <p className={styles.johnDoe}>John Doe&nbsp;</p>
@@ -529,10 +496,7 @@ const Component = () => {
           </div>
           <div className={styles.frame48096600}>
             <p className={styles.updateStatus}>Update Status</p>
-            <img
-              src="https://via.placeholder.com/14x14"
-              className={styles.frame3}
-            />
+            <img src="../image/mnvn1diy-zchtiv8.svg" className={styles.frame3} />
           </div>
         </div>
       </div>

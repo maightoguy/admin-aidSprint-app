@@ -10,8 +10,9 @@ import ContractorDetailsPage from "./components/dashboard/contractors/contractor
 import Login from "./login/login";
 import NotFound from "./not-found/not-found";
 import ContractorsPage from "./components/dashboard/contractors/contractors";
-import Overview from "./components/dashboard/overview/overview";
+import Overview from "./components/overview/overview";
 import RequestsPage from "./components/dashboard/requests/requests";
+import TransactionsPage from "./components/dashboard/transactions/transactions";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
@@ -27,8 +28,12 @@ const App = () => (
           <Route path="/" element={<Login />} />
           <Route path="/overview" element={<Overview />} />
           <Route path="/contractors" element={<ContractorsPage />} />
-          <Route path="/contractors/:contractorId" element={<ContractorDetailsPage />} />
+          <Route
+            path="/contractors/:contractorId"
+            element={<ContractorDetailsPage />}
+          />
           <Route path="/requests" element={<RequestsPage />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/:userId" element={<UserDetailsPage />} />
           <Route path="*" element={<NotFound />} />

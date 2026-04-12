@@ -4,7 +4,7 @@ import styles from './index.module.scss';
 
 const Component = () => {
   return (
-    <div className={styles.desktop37}>
+    <div className={styles.desktop53}>
       <div className={styles.browserUrlControls}>
         <div className={styles.broswerControlBarBg}>
           <div className={styles.browserControls}>
@@ -14,34 +14,34 @@ const Component = () => {
           </div>
           <div className={styles.frame5}>
             <div className={styles.frame4}>
-              <img src="../image/mnsrp6o9-k9sg7rk.svg" className={styles.curveL} />
+              <img src="../image/mnvmydco-yalkc50.svg" className={styles.curveL} />
               <div className={styles.frame41}>
                 <p className={styles.aTabName}>AidSprint</p>
                 <img
-                  src="../image/mnsrp6o9-7nie1w2.svg"
+                  src="../image/mnvmydco-elkthun.svg"
                   className={styles.iconClose}
                 />
               </div>
               <div className={styles.autoWrapper}>
                 <img
-                  src="../image/mnsrp6o9-0v3z2pg.png"
+                  src="../image/mnvmydco-qxdz0mo.png"
                   className={styles.curveR}
                 />
               </div>
             </div>
-            <img src="../image/mnsrp6o9-s5pcc7y.svg" className={styles.iconPlus} />
+            <img src="../image/mnvmydco-o2aomtu.svg" className={styles.iconPlus} />
           </div>
         </div>
         <div className={styles.uRlControlsBg}>
           <div className={styles.leftLockedIcons}>
-            <img src="../image/mnsrp6o9-vxoy8cg.svg" className={styles.iconBack} />
-            <img src="../image/mnsrp6o9-45eh5js.svg" className={styles.iconBack} />
-            <img src="../image/mnsrp6o9-gr2ear8.svg" className={styles.iconBack} />
-            <img src="../image/mnsrp6o9-1bc3dhn.svg" className={styles.iconBack} />
+            <img src="../image/mnvmydco-1he97zx.svg" className={styles.iconBack} />
+            <img src="../image/mnvmydco-ibebbnt.svg" className={styles.iconBack} />
+            <img src="../image/mnvmydco-bh85rt2.svg" className={styles.iconBack} />
+            <img src="../image/mnvmydco-9u9vwdn.svg" className={styles.iconBack} />
           </div>
           <div className={styles.uRlFillBg}>
             <img
-              src="../image/mnsrp6o9-rhjnpeq.svg"
+              src="../image/mnvmydco-bgjqwyw.svg"
               className={styles.iconSecure}
             />
             <div className={styles.uRlText}>
@@ -51,16 +51,16 @@ const Component = () => {
               </div>
             </div>
             <img
-              src="../image/mnsrp6o9-wgzlegu.svg"
+              src="../image/mnvmydcn-yaojvv6.svg"
               className={styles.iconFavorite}
             />
           </div>
           <div className={styles.rightLockedIcons}>
             <img
-              src="../image/mnsrp6pk-7akszzz.png"
+              src="../image/mnvmydf0-is30d5t.png"
               className={styles.imageUserProfile}
             />
-            <img src="../image/mnsrp6o8-int18cf.svg" className={styles.iconBack} />
+            <img src="../image/mnvmydcn-y70mgl2.svg" className={styles.iconBack} />
           </div>
         </div>
       </div>
@@ -68,66 +68,66 @@ const Component = () => {
         <div className={styles.sidebar}>
           <div className={styles.topSection}>
             <div className={styles.frame2147224406}>
-              <img src="../image/mnsrp6o9-ttyqc29.svg" className={styles.vector} />
-              <img src="../image/mnsrp6o9-2bn8a19.svg" className={styles.vector2} />
-              <img src="../image/mnsrp6o9-f2kgen1.svg" className={styles.vector3} />
-              <img src="../image/mnsrp6o9-aspcxhf.svg" className={styles.vector4} />
-              <img src="../image/mnsrp6o9-zbrym2b.svg" className={styles.vector5} />
-              <img src="../image/mnsrp6oa-ckskxs4.svg" className={styles.vector6} />
-              <img src="../image/mnsrp6oa-pn7eo9i.svg" className={styles.vector2} />
-              <img src="../image/mnsrp6oa-lx84l0f.svg" className={styles.vector7} />
-              <img src="../image/mnsrp6oa-0obs8ah.svg" className={styles.vector8} />
+              <img src="../image/mnvmydco-zphrejx.svg" className={styles.vector} />
+              <img src="../image/mnvmydcp-0ihx6ib.svg" className={styles.vector2} />
+              <img src="../image/mnvmydcp-k795ch6.svg" className={styles.vector3} />
+              <img src="../image/mnvmydcp-y1f7voz.svg" className={styles.vector4} />
+              <img src="../image/mnvmydcp-prh1vkw.svg" className={styles.vector5} />
+              <img src="../image/mnvmydcp-fwnqmnl.svg" className={styles.vector6} />
+              <img src="../image/mnvmydcp-o2gp41l.svg" className={styles.vector2} />
+              <img src="../image/mnvmydcq-d05jgn7.svg" className={styles.vector7} />
+              <img src="../image/mnvmydcq-bk74fj5.svg" className={styles.vector8} />
               <img
-                src="../image/mnsrp6o9-9v7mdhc.svg"
+                src="../image/mnvmydco-zbuo8ks.svg"
                 className={styles.frame2147224492}
               />
             </div>
             <div className={styles.sidebarMenulist}>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-ik2u4jr.svg"
+                  src="../image/mnvmydcq-o1d6dy2.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Dashboard</p>
               </div>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-kaadt58.svg"
+                  src="../image/mnvmydcq-14h0kku.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Users</p>
               </div>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-v1p6v3x.svg"
+                  src="../image/mnvmydcq-jhiluyo.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Contractors</p>
               </div>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-0bz4ds4.svg"
+                  src="../image/mnvmydcq-z9dqlru.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Requests</p>
               </div>
               <div className={styles.leftContent2}>
                 <img
-                  src="../image/mnsrp6oa-bfwjrfz.svg"
+                  src="../image/mnvmydcq-wprq7gc.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text2}>Transaction</p>
               </div>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-9sdb3se.svg"
+                  src="../image/mnvmydcq-4jksybg.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Support</p>
               </div>
               <div className={styles.leftContent}>
                 <img
-                  src="../image/mnsrp6oa-9v91t1j.svg"
+                  src="../image/mnvmydcq-fs646z7.svg"
                   className={styles.component30}
                 />
                 <p className={styles.text}>Settings</p>
@@ -147,7 +147,7 @@ const Component = () => {
                   </div>
                 </div>
                 <img
-                  src="../image/mnsrp6oa-kmvaht9.svg"
+                  src="../image/mnvmydcq-dl84v68.svg"
                   className={styles.component30}
                 />
               </div>
@@ -160,7 +160,7 @@ const Component = () => {
             <div className={styles.container3}>
               <div className={styles.frame2147223804}>
                 <img
-                  src="../image/mnsrp6oa-x5xikl9.svg"
+                  src="../image/mnvmydcq-v7yti2s.svg"
                   className={styles.component30}
                 />
                 <p className={styles.allTime}>All time</p>
@@ -168,7 +168,7 @@ const Component = () => {
               <div className={styles.verticalDivider} />
               <div className={styles.button}>
                 <img
-                  src="../image/mnsrp6oa-vyfm0zd.svg"
+                  src="../image/mnvmydcq-irbed91.svg"
                   className={styles.container}
                 />
                 <div className={styles.backgroundBorder} />
@@ -194,12 +194,12 @@ const Component = () => {
                   </div>
                   <div className={styles.frame1618867923}>
                     <img
-                      src="../image/mnsrp6oa-34dw216.svg"
+                      src="../image/mnvmydcq-0o7s4a0.svg"
                       className={styles.component30}
                     />
                   </div>
                 </div>
-                <img src="../image/mnsrp6oa-adysbt2.png" className={styles.group} />
+                <img src="../image/mnvmydcq-vgzbqqg.png" className={styles.group} />
               </div>
               <div className={styles.dashboardSummaryCard2}>
                 <div className={styles.summaryContainer2}>
@@ -210,12 +210,12 @@ const Component = () => {
                   </div>
                   <div className={styles.frame16188679232}>
                     <img
-                      src="../image/mnsrp6oa-9vy3f34.svg"
+                      src="../image/mnvmydcq-jr96z20.svg"
                       className={styles.component30}
                     />
                   </div>
                 </div>
-                <img src="../image/mnsrp6oa-adysbt2.png" className={styles.group} />
+                <img src="../image/mnvmydcq-vgzbqqg.png" className={styles.group} />
               </div>
               <div className={styles.dashboardSummaryCard2}>
                 <div className={styles.summaryContainer2}>
@@ -226,12 +226,12 @@ const Component = () => {
                   </div>
                   <div className={styles.frame16188679232}>
                     <img
-                      src="../image/mnsrp6oa-9vy3f34.svg"
+                      src="../image/mnvmydcq-jr96z20.svg"
                       className={styles.component30}
                     />
                   </div>
                 </div>
-                <img src="../image/mnsrp6oa-adysbt2.png" className={styles.group} />
+                <img src="../image/mnvmydcq-vgzbqqg.png" className={styles.group} />
               </div>
               <div className={styles.dashboardSummaryCard3}>
                 <div className={styles.summaryContainer3}>
@@ -242,13 +242,13 @@ const Component = () => {
                   </div>
                   <div className={styles.frame16188679232}>
                     <img
-                      src="../image/mnsrp6oa-nbmac9p.svg"
+                      src="../image/mnvmydcq-j167qc6.svg"
                       className={styles.component30}
                     />
                   </div>
                 </div>
                 <img
-                  src="../image/mnsrp6oa-adysbt2.png"
+                  src="../image/mnvmydcq-vgzbqqg.png"
                   className={styles.group2}
                 />
               </div>
@@ -260,7 +260,7 @@ const Component = () => {
                   <div className={styles.frame1000004146}>
                     <div className={styles.frame1000004096}>
                       <img
-                        src="../image/mnsrp6oa-hr4zhu3.svg"
+                        src="../image/mnvmydcq-spp80i1.svg"
                         className={styles.frame2}
                       />
                       <p className={styles.searchContractors}>
@@ -269,7 +269,7 @@ const Component = () => {
                     </div>
                     <div className={styles.frame1000004075}>
                       <img
-                        src="../image/mnsrp6oa-tefdene.svg"
+                        src="../image/mnvmydcr-1287tg6.svg"
                         className={styles.frame3}
                       />
                     </div>
@@ -616,7 +616,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -626,7 +626,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -636,7 +636,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -646,7 +646,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -656,7 +656,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -666,7 +666,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -676,7 +676,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -686,7 +686,7 @@ const Component = () => {
                     <div className={styles.content10}>
                       <div className={styles.featuredIcon}>
                         <img
-                          src="../image/mnsrp6ob-bshb2qd.svg"
+                          src="../image/mnvmydcs-0ze7b2c.svg"
                           className={styles.iconDotsV}
                         />
                       </div>
@@ -698,7 +698,7 @@ const Component = () => {
                 <div className={styles.paginationList}>
                   <div className={styles.container8}>
                     <img
-                      src="../image/mnsrp6ob-mi54mn3.svg"
+                      src="../image/mnvmydcs-qz0rdw4.svg"
                       className={styles.component30}
                     />
                   </div>
@@ -724,7 +724,7 @@ const Component = () => {
                   </div>
                   <div className={styles.container8}>
                     <img
-                      src="../image/mnsrp6ob-9s250i7.svg"
+                      src="../image/mnvmydcs-70i3nai.svg"
                       className={styles.component30}
                     />
                   </div>
