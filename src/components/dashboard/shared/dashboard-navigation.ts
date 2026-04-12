@@ -15,6 +15,6 @@ export const dashboardNavigationItems: DashboardNavigationItem[] = [
   { label: "Contractors", Icon: ContractorsIcon, path: "/contractors" },
   { label: "Requests", Icon: RequestsIcon, path: "/requests" },
   { label: "Transaction", Icon: RevenueIcon, path: "/transactions" },
-  { label: "Support", Icon: SupportIcon },
+  { label: "Support", Icon: SupportIcon, path: "/support" },
   { label: "Settings", Icon: SettingsIcon },
 ];
