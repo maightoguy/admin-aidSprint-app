@@ -16,5 +16,5 @@ export const dashboardNavigationItems: DashboardNavigationItem[] = [
   { label: "Requests", Icon: RequestsIcon, path: "/requests" },
   { label: "Transaction", Icon: RevenueIcon, path: "/transactions" },
   { label: "Support", Icon: SupportIcon, path: "/support" },
-  { label: "Settings", Icon: SettingsIcon },
+  { label: "Settings", Icon: SettingsIcon, path: "/settings" },
 ];

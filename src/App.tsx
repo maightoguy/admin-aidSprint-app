@@ -14,6 +14,7 @@ import Overview from "./components/overview/overview";
 import RequestsPage from "./components/dashboard/requests/requests";
 import SupportPage from "./components/dashboard/support/support";
 import TransactionsPage from "./components/dashboard/transactions/transactions";
+import SettingsPage from "./components/dashboard/setting/settings";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/requests" element={<RequestsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/:userId" element={<UserDetailsPage />} />
           <Route path="*" element={<NotFound />} />
