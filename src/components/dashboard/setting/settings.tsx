@@ -1,17 +1,5 @@
 import { toast } from "sonner";
-import {
-  Baby,
-  Brush,
-  Hammer,
-  HeartPulse,
-  Info,
-  Lock,
-  PawPrint,
-  Search,
-  PlugZap,
-  Wrench,
-  LogOut,
-} from "lucide-react";
+import { Info, Search, LogOut } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";

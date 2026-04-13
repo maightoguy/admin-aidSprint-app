@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  FileText,
   MoreVertical,
   Search,
   SlidersHorizontal,
