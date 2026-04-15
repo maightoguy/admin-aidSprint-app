@@ -11,6 +11,8 @@
 - **Transaction Management:** Tracking and management of financial transactions, with status update functionality.
 - **Authentication:** Secure user login and session management.
 - **Responsive UI:** Built with Tailwind CSS and Radix UI for a consistent and adaptive user experience.
+- **Branding Update:** Replaced all CSS/SVG-based AidSprint logos with the official `sec-logo.png` across the sidebar and login pages.
+- **Overview Navigation:** Implemented functional "View profile" buttons in the "Recent requests" section of the dashboard, allowing navigation to individual user detail pages.
 
 ### Tech Stack
 - **Package Manager:** PNPM / NPM (preferred)
@@ -146,6 +148,17 @@ Currently, the application supports an `admin` role.
     - Opens when the "3 dots" icon of a request is clicked.
     - Displays detailed information about the selected request.
     - (Further details on request status updates or actions would be specified here.)
+
+### User Management Section
+- **Functionality:**
+    - Displays summary cards for total, active, and deactivated users.
+    - Presents a paginated table of all users with search and filter capabilities.
+    - Each user row includes a three-dot action menu.
+- **User Actions Menu:**
+    - "View profile": Navigates to the detailed user profile page.
+    - "Activate account": Updates user status to "Active" with real-time feedback.
+    - "Deactivate account": Updates user status to "Deactivated" with real-time feedback.
+    - Implemented in both the main Users page and the Recent Requests section of the Overview dashboard.
 
 ### Codebase Cleanup and Refactoring
 - **Global Rename:** Systematically renamed all references from "request-details" to "requests" across the entire codebase. This included file and folder names, import/export statements, variable/function/class/interface names, configuration files, documentation comments, and string literals.

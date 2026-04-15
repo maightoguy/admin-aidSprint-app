@@ -1,5 +1,6 @@
 import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import secLogo from "@/assets/overview/sec-logo.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -73,8 +74,9 @@ export default function Login() {
               }}
             />
             {/* AidSprint Logo */}
+
             <svg
-              width="131"
+              width="120"
               height="30"
               viewBox="0 0 131 30"
               fill="none"

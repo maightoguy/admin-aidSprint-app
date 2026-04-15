@@ -57,12 +57,13 @@ export default function Users({
   isLoading?: boolean;
   errorMessage?: string | null;
 }) {
+  const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
   const filteredUsers = useMemo(
-    () => filterUsers(initialUsers, searchQuery),
-    [initialUsers, searchQuery],
+    () => filterUsers(users, searchQuery),
+    [users, searchQuery],
   );
 
   const handleUserAction = (action: UserMenuAction, user: UserRecord) => {
@@ -71,9 +72,27 @@ export default function Users({
       return;
     }
 
-    toast.success(action, {
-      description: `${action} selected for ${user.name}`,
-    });
+    if (action === "Activate account" || action === "Deactivate account") {
+      const nextStatus: UserRecord["status"] =
+        action === "Activate account" ? "Active" : "Deactivated";
+
+      if (user.status === nextStatus) {
+        toast.info("No change", {
+          description: `${user.name} is already ${nextStatus.toLowerCase()}.`,
+        });
+        return;
+      }
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id ? { ...item, status: nextStatus } : item,
+        ),
+      );
+
+      toast.success(action, {
+        description: `${user.name} has been ${nextStatus.toLowerCase()}.`,
+      });
+    }
   };
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
   ChevronLeft,
@@ -164,6 +165,7 @@ function clamp(value: number, min: number, max: number) {
 
 const requests = [
   {
+    id: "emery-torff",
     name: "Emery Torff",
     email: "thekdfisher@email.com",
     service: "Plumbing",
@@ -172,6 +174,7 @@ const requests = [
     status: "Active",
   },
   {
+    id: "maren-dokidis",
     name: "Maren Dokidis",
     email: "thekdfisher@email.com",
     service: "Cleaning",
@@ -180,6 +183,7 @@ const requests = [
     status: "Pending",
   },
   {
+    id: "cooper-siphron",
     name: "Cooper Siphron",
     email: "thekdfisher@email.com",
     service: "Baby sitting",
@@ -188,6 +192,7 @@ const requests = [
     status: "Active",
   },
   {
+    id: "marcus-dias",
     name: "Marcus Dias",
     email: "thekdfisher@email.com",
     service: "Electrician",
@@ -196,6 +201,7 @@ const requests = [
     status: "Pending",
   },
   {
+    id: "ahmad-stanton-1",
     name: "Ahmad Stanton",
     email: "thekdfisher@email.com",
     service: "Plumbing",
@@ -222,14 +228,20 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function RequestActionsMenu({ name }: { name: string }) {
+function RequestActionsMenu({
+  request,
+  onAction,
+}: {
+  request: (typeof requests)[0];
+  onAction: (action: string, id: string) => void;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="inline-flex h-11 min-h-11 w-11 min-w-11 touch-manipulation items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] active:bg-[#EEF2F6] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
-          aria-label={`More actions for ${name}`}
+          aria-label={`More actions for ${request.name}`}
         >
           <MoreVertical className="h-4 w-4" />
         </button>
@@ -241,33 +253,21 @@ function RequestActionsMenu({ name }: { name: string }) {
         className="w-[190px] rounded-[10px] border border-[#EAECF0] bg-white p-[10px] shadow-[0_18px_38px_rgba(15,23,42,0.14)]"
       >
         <DropdownMenuItem
-          onClick={() =>
-            toast.success("View profile", {
-              description: `View profile selected for ${name}`,
-            })
-          }
+          onClick={() => onAction("View profile", request.id)}
           className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#2D3036] focus:bg-transparent focus:text-[#2D3036]"
         >
           View profile
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
         <DropdownMenuItem
-          onClick={() =>
-            toast.success("Activate account", {
-              description: `Activate account selected for ${name}`,
-            })
-          }
+          onClick={() => onAction("Activate account", request.id)}
           className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#22C55E] focus:bg-transparent focus:text-[#22C55E]"
         >
           Activate account
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
         <DropdownMenuItem
-          onClick={() =>
-            toast.success("Deactivate account", {
-              description: `Deactivate account selected for ${name}`,
-            })
-          }
+          onClick={() => onAction("Deactivate account", request.id)}
           className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#EF4444] focus:bg-transparent focus:text-[#EF4444]"
         >
           Deactivate account
@@ -278,9 +278,41 @@ function RequestActionsMenu({ name }: { name: string }) {
 }
 
 export default function Overview() {
+  const navigate = useNavigate();
+  const [requestList, setRequestList] = useState(requests);
   const [hoveredServiceLabel, setHoveredServiceLabel] = useState<string | null>(
     null,
   );
+
+  const handleAction = (action: string, id: string) => {
+    const request = requestList.find((r) => r.id === id);
+    if (!request) return;
+
+    if (action === "View profile") {
+      navigate(`/users/${id}`);
+      return;
+    }
+
+    if (action === "Activate account" || action === "Deactivate account") {
+      const nextStatus =
+        action === "Activate account" ? "Active" : "Deactivated";
+
+      if (request.status === nextStatus) {
+        toast.info("No change", {
+          description: `${request.name} is already ${nextStatus.toLowerCase()}.`,
+        });
+        return;
+      }
+
+      setRequestList((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: nextStatus } : r)),
+      );
+
+      toast.success(action, {
+        description: `${request.name} has been ${nextStatus.toLowerCase()}.`,
+      });
+    }
+  };
 
   const totalTopServicesAmount = topServices.reduce(
     (total, service) => total + service.amount,
@@ -596,8 +628,8 @@ export default function Overview() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAECF0]">
-              {requests.map((request) => (
-                <tr key={request.name}>
+              {requestList.map((request) => (
+                <tr key={request.id}>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
@@ -626,7 +658,10 @@ export default function Overview() {
                     <StatusPill status={request.status} />
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <RequestActionsMenu name={request.name} />
+                    <RequestActionsMenu
+                      request={request}
+                      onAction={handleAction}
+                    />
                   </td>
                 </tr>
               ))}
@@ -634,13 +669,13 @@ export default function Overview() {
           </table>
         </div>
         <div className="grid gap-3 p-4 md:hidden">
-          {requests.map((request) => (
+          {requestList.map((request) => (
             <article
-              key={request.name}
+              key={request.id}
               className="relative rounded-2xl border border-[#EAECF0] p-4"
             >
               <div className="absolute right-4 top-4 z-10">
-                <RequestActionsMenu name={request.name} />
+                <RequestActionsMenu request={request} onAction={handleAction} />
               </div>
               <div className="flex min-w-0 items-start gap-3 pr-16">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
