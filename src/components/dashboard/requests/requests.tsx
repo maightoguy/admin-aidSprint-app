@@ -8,6 +8,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import type {
+  FilterField,
+  FiltersState,
+} from "../shared/filters/filter-schema";
+import { FilterButton } from "../shared/filters/filter-button";
+import { useUrlFilters } from "../shared/filters/use-url-filters";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,20 +30,67 @@ import {
   useRequestsStore,
   type RequestStatusAction,
 } from "./requests.store";
+import {
+  filterRequestRows,
+  type RequestFilterPriority,
+  type RequestFilterStatus,
+} from "./requests.utils";
 import { userDetailsRecords } from "../user-details/user-details.data";
 import {
   getRequestStatusClasses,
   truncateRequestLocation,
 } from "../user-details/user-details.utils";
-import type {
-  UserRequestHistoryItem,
-} from "../user-details/user-details.types";
+import type { UserRequestHistoryItem } from "../user-details/user-details.types";
+import { paginateItems } from "../shared/pagination-utils";
 
 type RequestListRow = {
   id: string;
   userName: string;
   userEmail: string;
   request: UserRequestHistoryItem;
+};
+
+const requestStatuses: RequestFilterStatus[] = [
+  "Active",
+  "Pending",
+  "Completed",
+  "Past",
+];
+const requestPriorities: RequestFilterPriority[] = ["Emergency", "Standard"];
+
+const requestsFiltersSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+  {
+    type: "select",
+    key: "status",
+    label: "Status",
+    options: requestStatuses.map((status) => ({
+      label: status,
+      value: status,
+    })),
+  },
+  {
+    type: "select",
+    key: "priority",
+    label: "Priority",
+    options: requestPriorities.map((priority) => ({
+      label: priority,
+      value: priority,
+    })),
+  },
+];
+
+const requestsFilterDefaults: FiltersState = {
+  status: null,
+  priority: null,
+  from: null,
+  to: null,
 };
 
 type RequestsSummaryCard = {
@@ -136,14 +189,32 @@ function RequestRowUser({
 export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
+  const [expanded, setExpanded] = useState(false);
+  const pageSize = expanded ? 10 : 5;
+  const { filters: urlFilters } = useUrlFilters({
+    schema: requestsFiltersSchema,
+    defaults: requestsFilterDefaults,
+  });
+  const statusFilter =
+    urlFilters.status && requestStatuses.includes(urlFilters.status as any)
+      ? String(urlFilters.status)
+      : null;
+  const priorityFilter =
+    urlFilters.priority &&
+    requestPriorities.includes(urlFilters.priority as any)
+      ? String(urlFilters.priority)
+      : null;
+  const fromFilter =
+    typeof urlFilters.from === "string" && urlFilters.from
+      ? urlFilters.from
+      : null;
+  const toFilter =
+    typeof urlFilters.to === "string" && urlFilters.to ? urlFilters.to : null;
 
   const selectedRequestId = useRequestsStore(
     (state) => state.selectedRequestId,
   );
-  const isRequestsOpen = useRequestsStore(
-    (state) => state.isSidebarOpen,
-  );
+  const isRequestsOpen = useRequestsStore((state) => state.isSidebarOpen);
   const openRequest = useRequestsStore((state) => state.openRequest);
   const closeSidebar = useRequestsStore((state) => state.closeSidebar);
   const openMap = useRequestsStore((state) => state.openMap);
@@ -159,6 +230,17 @@ export default function RequestsPage() {
     closeAll();
   }, [closeAll]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    expanded,
+    priorityFilter,
+    searchQuery,
+    statusFilter,
+    fromFilter,
+    toFilter,
+  ]);
+
   const rows = useMemo<RequestListRow[]>(() => {
     return userDetailsRecords.flatMap((user) =>
       user.requestHistory.map((request) => ({
@@ -173,34 +255,24 @@ export default function RequestsPage() {
     );
   }, [requestStatusById]);
 
-  const filteredRows = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return rows;
-    }
-
-    return rows.filter((row) =>
-      [
-        row.userName,
-        row.userEmail,
-        row.request.location,
-        row.request.service,
-        row.request.date,
-        row.request.status,
-        row.request.requestCode,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [rows, searchQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const currentRows = filteredRows.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
+  const filteredRows = useMemo(
+    () =>
+      filterRequestRows(rows, {
+        query: searchQuery,
+        status: statusFilter as RequestFilterStatus | null,
+        priority: priorityFilter as RequestFilterPriority | null,
+        from: fromFilter,
+        to: toFilter,
+      }),
+    [rows, searchQuery, statusFilter, priorityFilter, fromFilter, toFilter],
   );
+
+  const paginatedRows = useMemo(
+    () => paginateItems(filteredRows, currentPage, pageSize),
+    [filteredRows, currentPage, pageSize],
+  );
+  const totalPages = paginatedRows.totalPages;
+  const currentRows = paginatedRows.items;
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRequestId) ?? null,
@@ -288,11 +360,31 @@ export default function RequestsPage() {
               </label>
               <button
                 type="button"
-                className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085]"
-                aria-label="Filter requests"
+                onClick={() => setExpanded((prev) => !prev)}
+                className="inline-flex h-[42px] items-center justify-center rounded-[12px] border border-[#EAECF0] bg-[#FCFCFD] px-4 text-sm font-semibold text-[#667085] transition hover:bg-white"
+                aria-label={
+                  expanded
+                    ? "Show fewer requests per page"
+                    : "Show more requests per page"
+                }
               >
-                <SlidersHorizontal className="h-4 w-4" />
+                {expanded ? "See less" : "See all"}
               </button>
+              <FilterButton
+                title="Filter requests"
+                schema={requestsFiltersSchema}
+                defaults={requestsFilterDefaults}
+                trigger={({ onClick }) => (
+                  <button
+                    type="button"
+                    onClick={onClick}
+                    className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085] transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                    aria-label="Filter requests"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </button>
+                )}
+              />
             </div>
           </div>
 

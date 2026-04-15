@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,6 +8,13 @@ import {
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import type {
+  FilterField,
+  FiltersState,
+} from "../shared/filters/filter-schema";
+import { FilterButton } from "../shared/filters/filter-button";
+import { useUrlFilters } from "../shared/filters/use-url-filters";
+import { paginateItems } from "../shared/pagination-utils";
 import {
   userRecords,
   usersSummaryCards,
@@ -16,9 +23,47 @@ import {
 import { UsersActionsMenu } from "./users-actions-menu";
 import { usersStyles } from "./users.styles";
 import { filterUsers, getStatusPillClasses } from "./users.utils";
-import type { UserMenuAction, UserRecord } from "./users.types";
+import type {
+  UserFilters,
+  UserMenuAction,
+  UserRecord,
+  UserRole,
+  UserStatus,
+} from "./users.types";
 
-function StatusPill({ status }: Pick<UserRecord, "status">) {
+const userRoles: UserRole[] = ["Admin", "User"];
+const userStatuses: UserStatus[] = ["Active", "Deactivated"];
+
+const userFiltersSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+  {
+    type: "select",
+    key: "status",
+    label: "Status",
+    options: userStatuses.map((status) => ({ label: status, value: status })),
+  },
+  {
+    type: "select",
+    key: "role",
+    label: "Role",
+    options: userRoles.map((role) => ({ label: role, value: role })),
+  },
+];
+
+const userFilterDefaults: FiltersState = {
+  status: null,
+  role: null,
+  from: null,
+  to: null,
+};
+
+function StatusPill({ status }: { status: UserStatus }) {
   return (
     <span
       className={[usersStyles.statusPill, getStatusPillClasses(status)].join(
@@ -59,12 +104,51 @@ export default function Users({
 }) {
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
+  const pageSize = expanded ? 10 : 5;
   const navigate = useNavigate();
+  const { filters: urlFilters } = useUrlFilters({
+    schema: userFiltersSchema,
+    defaults: userFilterDefaults,
+  });
+
+  const appliedFilters = useMemo<UserFilters>(() => {
+    const status = urlFilters.status;
+    const role = urlFilters.role;
+    const from = urlFilters.from;
+    const to = urlFilters.to;
+
+    return {
+      query: searchQuery,
+      status: status === "Active" || status === "Deactivated" ? status : "all",
+      role: role === "Admin" || role === "User" ? role : "all",
+      from: typeof from === "string" && from ? from : null,
+      to: typeof to === "string" && to ? to : null,
+    };
+  }, [searchQuery, urlFilters]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchQuery,
+    urlFilters.status,
+    urlFilters.role,
+    urlFilters.from,
+    urlFilters.to,
+    expanded,
+  ]);
 
   const filteredUsers = useMemo(
-    () => filterUsers(users, searchQuery),
-    [users, searchQuery],
+    () => filterUsers(users, appliedFilters),
+    [users, appliedFilters],
   );
+  const paginatedUsers = useMemo(
+    () => paginateItems(filteredUsers, currentPage, pageSize),
+    [filteredUsers, currentPage, pageSize],
+  );
+  const totalPages = paginatedUsers.totalPages;
+  const currentRows = paginatedUsers.items;
 
   const handleUserAction = (action: UserMenuAction, user: UserRecord) => {
     if (action === "View profile") {
@@ -158,11 +242,29 @@ export default function Users({
                 </label>
                 <button
                   type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#EAECF0] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC]"
-                  aria-label="Filter users"
+                  onClick={() => setExpanded((prev) => !prev)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-[#EAECF0] bg-white px-4 text-sm font-semibold text-[#667085] shadow-sm transition hover:bg-[#F8FAFC]"
+                  aria-label={
+                    expanded ? "Show fewer users per page" : "Show more users per page"
+                  }
                 >
-                  <SlidersHorizontal className="h-4 w-4" />
+                  {expanded ? "See less" : "See all"}
                 </button>
+                <FilterButton
+                  title="Filter users"
+                  schema={userFiltersSchema}
+                  defaults={userFilterDefaults}
+                  trigger={({ onClick }) => (
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#EAECF0] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                      aria-label="Filter users"
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </button>
+                  )}
+                />
               </div>
             </div>
             {filteredUsers.length === 0 ? (
@@ -187,7 +289,7 @@ export default function Users({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#EAECF0]">
-                      {filteredUsers.map((user) => (
+                      {currentRows.map((user) => (
                         <tr key={user.id}>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
@@ -219,7 +321,10 @@ export default function Users({
                             <StatusPill status={user.status} />
                           </td>
                           <td className="px-5 py-4 text-right">
-                            <UsersActionsMenu user={user} onAction={handleUserAction} />
+                            <UsersActionsMenu
+                              user={user}
+                              onAction={handleUserAction}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -227,13 +332,16 @@ export default function Users({
                   </table>
                 </div>
                 <div className="grid gap-3 p-4 lg:hidden">
-                  {filteredUsers.map((user) => (
+                  {currentRows.map((user) => (
                     <article
                       key={user.id}
                       className="relative rounded-2xl border border-[#EAECF0] p-4"
                     >
                       <div className="absolute right-4 top-4 z-10">
-                        <UsersActionsMenu user={user} onAction={handleUserAction} />
+                        <UsersActionsMenu
+                          user={user}
+                          onAction={handleUserAction}
+                        />
                       </div>
                       <div className="flex min-w-0 items-start gap-3 pr-16">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
@@ -279,27 +387,36 @@ export default function Users({
             <div className="flex flex-wrap items-center justify-center gap-2 border-t border-[#EAECF0] px-4 py-4 sm:px-5">
               <button
                 type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#D0D5DD] text-[#667085] transition hover:bg-[#F8FAFC]"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              {[1, 2, 3, 4, 5, 6].map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  className={[
-                    "inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold transition",
-                    page === 3
-                      ? "border border-[#101828] bg-white text-[#101828]"
-                      : "text-[#98A2B3] hover:bg-[#F8FAFC] hover:text-[#344054]",
-                  ].join(" ")}
-                >
-                  {page}
-                </button>
-              ))}
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+                (page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={[
+                      "inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold transition",
+                      page === currentPage
+                        ? "border border-[#101828] bg-white text-[#101828]"
+                        : "text-[#98A2B3] hover:bg-[#F8FAFC] hover:text-[#344054]",
+                    ].join(" ")}
+                  >
+                    {page}
+                  </button>
+                ),
+              )}
               <button
                 type="button"
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                }
+                disabled={currentPage === totalPages}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#D0D5DD] text-[#667085] transition hover:bg-[#F8FAFC]"
                 aria-label="Next page"
               >

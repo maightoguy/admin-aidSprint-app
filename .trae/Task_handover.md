@@ -3,60 +3,37 @@
 ## Status: Completed
 
 ## Latest Changes:
-- **Settings Section (Desktop - 49 / Desktop - 50):**
-  - Added `/settings` route in [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx) and enabled the Settings nav item in [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts).
-  - Implemented Settings module under [dashboard/setting](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting):
-    - [settings.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/settings.tsx) (page + tab shell)
-    - [integration-toggle.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/integration-toggle.tsx) (reusable toggle row)
-    - [security-form.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/security-form.tsx) (reusable password form)
-  - Implemented fully interactive UI with immediate `sonner` success toasts (no network calls): integration toggles, integration search, password update submit, and logout.
-  - Added tests in [settings.test.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/settings.test.tsx).
-- **Repository Architecture Review:**
-  - Audited the current frontend (Vite + React SPA under `src/`) and backend (Express under `server/`) wiring, including Netlify serverless integration via [netlify/functions/api.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/netlify/functions/api.ts).
-  - Verified that the Express server currently exposes only `/api/ping` and `/api/demo` in [server/index.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/server/index.ts), despite broader endpoint lists described in the root [Task_handover.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Task_handover.md).
-  - Identified that [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts) imports `zustand`, but `zustand` is not listed in [package.json](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/package.json) (risk: non-deterministic installs/CI failures depending on hoisting).
-- **Support Section Enhancements:**
-  - Refined the "Update Ticket" functionality in [support-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support-sidebar.tsx).
-  - Implemented a **drop-up** menu for status updates, strictly providing "Pending" and "Resolved" options.
-  - Added simulated backend API integration with loading states (`Loader2` spinner) and error handling.
-  - Improved visual feedback by highlighting the active status with color-coded indicators (dots) and background states.
-  - Integrated `sonner` toast notifications for success/error confirmations.
-- **Support Section Implementation:**
-  - Created a new [support](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support) folder.
-  - Implemented [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx) with responsive table, search, and pagination.
-  - Implemented [support-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support-sidebar.tsx) for detailed ticket view.
-- **Transactions Feature Implementation:**
-  - Implemented [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx) based on Figma designs.
-- **Routing & Navigation:**
-  - Configured `/support` and `/transactions` routes in [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx).
-  - Updated [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts).
+- Completed the interrupted dashboard filtering work by wiring the shared filter system into [dashboard-layout.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-layout.tsx), [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx), [contractors.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.tsx), [users.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.tsx), [requests.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.tsx), [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx), and [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx).
+- Preserved and completed the reusable shared filter infrastructure under [shared/filters](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/filters), including the calendar-based date-range modal, reusable filter button, and URL-backed filter state hook.
+- Fixed the interrupted `users` page refactor by rebuilding [users.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.tsx) around `useUrlFilters`, shared filter schemas, and consistent 5/10 row expansion.
+- Added reducer-style pure filter utilities and tests for each affected section:
+  - [contractors.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.utils.ts) + [contractors.utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.utils.test.ts)
+  - [users.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.utils.ts) + [users.utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.utils.test.ts)
+  - [requests.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.utils.ts) + [requests.utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.utils.test.ts)
+  - [transactions.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.utils.ts) + [transactions.utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.utils.test.ts)
+  - [support.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.utils.ts) + [support.utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.utils.test.ts)
+- Added shared pagination helpers and coverage in [pagination-utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/pagination-utils.ts) and [pagination-utils.test.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/pagination-utils.test.ts), then adopted those helpers in the major dashboard tables for consistent page math.
+- Expanded mock data where it was still too small for realistic pagination:
+  - overview recent requests in [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx)
+  - support tickets in [support.data.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.data.ts)
+- Added URL-sync coverage in [use-url-filters.test.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/filters/use-url-filters.test.tsx) to verify that filter state hydrates from and writes back to the query string.
 
 ## Current Context:
-- **Data Source Reality:** Most dashboard modules currently render from local mock data (`*.data.ts`, JSON mocks) and in-memory state; React Query is wired at the root in [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx) but is not yet used by feature modules.
-- **Settings State Management:**
-  - `SettingsPage` owns `activeTab`, `searchValue`, and `integrationState` (controlled switches).
-  - `SecurityForm` owns its internal form state and calls `onSubmit(values)` only when inputs are present and passwords match.
-- **Settings Component APIs:**
-  - `IntegrationToggle(props)` in [integration-toggle.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/integration-toggle.tsx):
-    - `id: IntegrationToggleId`, `label: string`, `icon: ReactNode`, `checked: boolean`, `onCheckedChange(checked)`, `disabled?: boolean`
-  - `SecurityForm(props)` in [security-form.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/security-form.tsx):
-    - `initialValues?: Partial<SecurityFormValues>`, `onSubmit(values)`, `className?: string`
-- **Support Module:** Now includes a robust "Update Ticket" workflow. The drop-up menu is designed for bottom-anchored buttons to avoid viewport clipping.
-- **API Simulation:** Status updates include a simulated 1s delay to demonstrate UX handling for asynchronous operations.
-- **UI State:** Uses Radix UI for accessible dropdowns and sidebars, with Tailwind CSS for animations and custom styling.
+- The date-range keys are intentionally shared as `from` / `to` across dashboard routes so the header “All time” control in [dashboard-layout.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-layout.tsx) can transparently affect the currently active page.
+- `overview` now uses the same URL-backed date range for revenue aggregation, the pie chart dataset, and the recent requests table. The revenue granularity toggle remains URL-synced through the `granularity` query param.
+- `transactions` now supports date range, type, status, and amount-range filtering through the shared filter modal; amount filtering is based on absolute amount so positive/negative signed values still match a user-entered numeric range.
+- `support` now supports date range, status, and priority filtering through the same shared modal/button pattern used by the other sections.
+- `requests` previously had a bug where filters were only applied when a search term existed; that logic now lives in [requests.utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.utils.ts) and runs regardless of search text.
+- Pagination expansion is now standardized to 5 rows by default and 10 rows after “See all” on the major dashboard tables in overview, contractors, users, requests, transactions, and support.
 
 ## Next Steps:
-- **Settings Follow-ups (when backend/auth is ready):**
-  - Replace toast-only handlers with real API mutations while keeping the same component boundaries (`IntegrationToggle` controlled by parent; `SecurityForm` submit callback).
-  - Connect logout to auth/session clearing (currently navigates to `/` and shows a success toast).
-- **Dependency Hygiene:** Add `zustand` as a direct dependency (and standardize on either pnpm or npm lockfile) to avoid environment-specific resolution issues.
-- **Handover Accuracy:** Update the root `Task_handover.md` endpoint list and auth narrative to match the implemented server (`/api/ping`, `/api/demo`) unless/until real endpoints are added.
-- **Real Backend Integration:** Replace the `setTimeout` in `handleStatusUpdate` with actual fetch calls to the Express server once endpoints are ready.
-- **Audit Logs:** Consider adding an "Activity History" section to the support sidebar to track who changed statuses and when.
-- **Authentication:** Finalize the login flow to secure these administrative actions.
+- Run the full `npm test` suite again in a stable local shell or CI runner. In this Trae session the full suite did not complete and appeared to hang after Vitest startup, although all targeted tests for the touched work passed.
+- If stricter regression coverage is desired, add page-level integration tests that assert query-string seeded filters render the expected visible rows in each section, not just the underlying reducer and URL hook behavior.
+- Consider adding `zustand` explicitly to `package.json`, since [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts) depends on it and earlier repository review already flagged that dependency hygiene issue.
+- If a lint command is later added to `package.json`, run it against this branch; there is currently no dedicated lint script to execute from the workspace.
 
 ## Testing Checklist:
-- `npm run typecheck`
-- `npm test`
-- Manual smoke:
-  - Open `/settings`, switch tabs, toggle integrations, search filtering, and submit Security form to verify immediate success toasts.
+- Passed: `npm run typecheck`
+- Passed: targeted Vitest run for touched areas
+  - `npx vitest run src/components/dashboard/shared/pagination-utils.test.ts src/components/dashboard/shared/filters/use-url-filters.test.tsx src/components/dashboard/contractors/contractors.utils.test.ts src/components/dashboard/users/users.utils.test.ts src/components/dashboard/requests/requests.utils.test.ts src/components/dashboard/transactions/transactions.utils.test.ts src/components/dashboard/support/support.utils.test.ts src/components/dashboard/requests/requests.test.tsx src/components/dashboard/transactions/transactions.test.tsx src/components/dashboard/support/support.test.tsx`
+- Incomplete in this environment: full `npm test` run appeared to hang after starting Vitest

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState, useTransition } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
   ChevronLeft,
@@ -15,6 +15,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { IconComponent } from "@/ui/icons";
 import { DashboardLayout } from "@/components/dashboard/shared/dashboard-layout";
+import type { FilterField } from "@/components/dashboard/shared/filters/filter-schema";
+import {
+  isWithinInclusiveRange,
+  parseDateForFilter,
+  toIsoDateString,
+} from "@/components/dashboard/shared/filters/filter-schema";
+import { FilterButton } from "@/components/dashboard/shared/filters/filter-button";
+import { useUrlFilters } from "@/components/dashboard/shared/filters/use-url-filters";
+import { cn } from "@/lib/utils";
 import {
   TotalContractorsIcon,
   TotalRequestsIcon,
@@ -23,6 +32,7 @@ import {
 } from "@/ui/icons";
 import { toast } from "sonner";
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const totalRevenuePattern = summaryCardPattern;
 const requestsCardPattern = summaryCardPattern;
@@ -77,39 +87,150 @@ const statistics: OverviewStatistic[] = [
   },
 ];
 
-const revenueBars = [
-  { month: "Jan", shortMonth: "J", fullMonth: "January", value: 82 },
-  { month: "Feb", shortMonth: "F", fullMonth: "February", value: 42 },
-  {
-    month: "Mar",
-    shortMonth: "M",
-    fullMonth: "March",
-    value: 68,
-    active: true,
-  },
-  { month: "Apr", shortMonth: "A", fullMonth: "April", value: 53 },
-  { month: "May", shortMonth: "M", fullMonth: "May", value: 74 },
-  { month: "Jun", shortMonth: "J", fullMonth: "June", value: 61 },
-  { month: "Jul", shortMonth: "J", fullMonth: "July", value: 80 },
-  { month: "Aug", shortMonth: "A", fullMonth: "August", value: 58 },
-  { month: "Sep", shortMonth: "S", fullMonth: "September", value: 47 },
-  { month: "Oct", shortMonth: "O", fullMonth: "October", value: 56 },
-  { month: "Nov", shortMonth: "N", fullMonth: "November", value: 66 },
-  { month: "Dec", shortMonth: "D", fullMonth: "December", value: 54 },
-];
+type RevenueGranularity = "daily" | "monthly" | "yearly";
+
+type RevenueRecord = {
+  id: string;
+  date: string;
+  amount: number;
+};
+
+function buildRevenueRecords(): RevenueRecord[] {
+  const start = new Date(2025, 0, 1);
+  const records: RevenueRecord[] = [];
+
+  for (let index = 0; index < 240; index += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const iso = toIsoDateString(date);
+    const base = 4200 + (index % 28) * 180;
+    const seasonal = Math.round(Math.sin(index / 9) * 650);
+    const amount = Math.max(600, base + seasonal);
+
+    records.push({
+      id: `revenue-${iso}`,
+      date: iso,
+      amount,
+    });
+  }
+
+  return records;
+}
+
+const revenueRecords = buildRevenueRecords();
+
+type RevenueBar = {
+  key: string;
+  label: string;
+  ariaLabel: string;
+  valuePercent: number;
+  amount: number;
+};
+
+function buildGranularityKey(granularity: RevenueGranularity, date: Date) {
+  const year = date.getFullYear();
+
+  if (granularity === "yearly") {
+    return `${year}`;
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  if (granularity === "monthly") {
+    return `${year}-${month}`;
+  }
+
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatGranularityLabel(granularity: RevenueGranularity, key: string) {
+  if (granularity === "yearly") {
+    return key;
+  }
+
+  if (granularity === "monthly") {
+    const [year, month] = key.split("-");
+    const monthIndex = Number(month) - 1;
+    const date = new Date(Number(year), Math.max(0, monthIndex), 1);
+    return date.toLocaleDateString(undefined, { month: "short" });
+  }
+
+  const parsed = parseDateForFilter(key);
+  return parsed
+    ? parsed.toLocaleDateString(undefined, { day: "2-digit", month: "short" })
+    : key;
+}
+
+function formatGranularityAria(granularity: RevenueGranularity, key: string) {
+  if (granularity === "yearly") {
+    return key;
+  }
+
+  if (granularity === "monthly") {
+    const [year, month] = key.split("-");
+    const monthIndex = Number(month) - 1;
+    const date = new Date(Number(year), Math.max(0, monthIndex), 1);
+    return date.toLocaleDateString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  const parsed = parseDateForFilter(key);
+  return parsed
+    ? parsed.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : key;
+}
 
 type TopService = {
   label: string;
-  amount: number;
   color: string;
 };
 
 const topServices: TopService[] = [
-  { label: "Plumber", amount: 6000000, color: "#22C55E" },
-  { label: "Electrician", amount: 5200000, color: "#22B8CF" },
-  { label: "Cleaning", amount: 3400000, color: "#8B5CF6" },
-  { label: "Title", amount: 4100000, color: "#EC4899" },
+  { label: "Plumber", color: "#22C55E" },
+  { label: "Electrician", color: "#22B8CF" },
+  { label: "Cleaning", color: "#8B5CF6" },
+  { label: "Carpentry", color: "#EC4899" },
 ];
+
+type TopServiceRecord = {
+  id: string;
+  date: string;
+  label: TopService["label"];
+  amount: number;
+};
+
+function buildTopServiceRecords(): TopServiceRecord[] {
+  const start = new Date(2025, 0, 1);
+  const records: TopServiceRecord[] = [];
+  const labels = topServices.map((service) => service.label);
+
+  for (let index = 0; index < 180; index += 1) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    const iso = toIsoDateString(day);
+    const label = labels[index % labels.length];
+    const amount =
+      120000 + (index % 19) * 27000 + Math.round(Math.cos(index / 7) * 9000);
+
+    records.push({
+      id: `service-${iso}-${label.toLowerCase()}`,
+      date: iso,
+      label,
+      amount: Math.max(10000, amount),
+    });
+  }
+
+  return records;
+}
+
+const topServiceRecords = buildTopServiceRecords();
 
 const pieChartSize = 168;
 const pieChartRadius = pieChartSize / 2;
@@ -121,6 +242,16 @@ const pieTooltipBounds = {
   minY: 24,
   maxY: pieChartSize - 24,
 };
+
+const dateRangeSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+];
 
 function formatCurrency(amount: number) {
   return `₦${amount.toLocaleString("en-US")}`;
@@ -279,10 +410,29 @@ function RequestActionsMenu({
 
 export default function Overview() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isGranularityPending, startGranularityTransition] = useTransition();
+  const granularity =
+    (searchParams.get("granularity") as RevenueGranularity | null) ?? "monthly";
+  const { filters: dateFilters } = useUrlFilters({ schema: dateRangeSchema });
+  const fromDate = useMemo(() => {
+    const value = dateFilters.from;
+    if (typeof value !== "string" || !value) return null;
+    return parseDateForFilter(value);
+  }, [dateFilters.from]);
+  const toDate = useMemo(() => {
+    const value = dateFilters.to;
+    if (typeof value !== "string" || !value) return null;
+    return parseDateForFilter(value);
+  }, [dateFilters.to]);
+
   const [requestList, setRequestList] = useState(requests);
   const [hoveredServiceLabel, setHoveredServiceLabel] = useState<string | null>(
     null,
   );
+  const [requestsExpanded, setRequestsExpanded] = useState(false);
+  const [requestPage, setRequestPage] = useState(1);
+  const requestPageSize = requestsExpanded ? 10 : 5;
 
   const handleAction = (action: string, id: string) => {
     const request = requestList.find((r) => r.id === id);
@@ -314,14 +464,70 @@ export default function Overview() {
     }
   };
 
-  const totalTopServicesAmount = topServices.reduce(
+  const filteredRevenueRecords = useMemo(() => {
+    if (!fromDate && !toDate) return revenueRecords;
+    return revenueRecords.filter((record) => {
+      const parsed = parseDateForFilter(record.date);
+      return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
+    });
+  }, [fromDate, toDate]);
+
+  const revenueBars = useMemo<RevenueBar[]>(() => {
+    const grouped = new Map<string, number>();
+    for (const record of filteredRevenueRecords) {
+      const parsed = parseDateForFilter(record.date);
+      if (!parsed) continue;
+      const key = buildGranularityKey(granularity, parsed);
+      grouped.set(key, (grouped.get(key) ?? 0) + record.amount);
+    }
+
+    const entries = Array.from(grouped.entries()).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    const amounts = entries.map(([, amount]) => amount);
+    const maxAmount = Math.max(1, ...amounts);
+
+    return entries.map(([key, amount]) => ({
+      key,
+      label: formatGranularityLabel(granularity, key),
+      ariaLabel: formatGranularityAria(granularity, key),
+      valuePercent: Math.round((amount / maxAmount) * 100),
+      amount,
+    }));
+  }, [filteredRevenueRecords, granularity]);
+
+  const filteredTopServiceRecords = useMemo(() => {
+    if (!fromDate && !toDate) return topServiceRecords;
+    return topServiceRecords.filter((record) => {
+      const parsed = parseDateForFilter(record.date);
+      return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
+    });
+  }, [fromDate, toDate]);
+
+  const pieSegmentsSource = useMemo(() => {
+    const totals = new Map<TopService["label"], number>();
+    for (const record of filteredTopServiceRecords) {
+      totals.set(record.label, (totals.get(record.label) ?? 0) + record.amount);
+    }
+
+    return topServices.map((service) => ({
+      label: service.label,
+      amount: totals.get(service.label) ?? 0,
+      color: service.color,
+    }));
+  }, [filteredTopServiceRecords]);
+
+  const totalTopServicesAmount = pieSegmentsSource.reduce(
     (total, service) => total + service.amount,
     0,
   );
 
   let currentAngle = 0;
-  const pieSegments = topServices.map((service) => {
-    const angle = (service.amount / totalTopServicesAmount) * 360;
+  const pieSegments = pieSegmentsSource.map((service) => {
+    const angle =
+      totalTopServicesAmount > 0
+        ? (service.amount / totalTopServicesAmount) * 360
+        : 0;
     const startAngle = currentAngle;
     const endAngle = startAngle + angle;
     const middleAngle = startAngle + angle / 2;
@@ -360,6 +566,24 @@ export default function Overview() {
   const hoveredService =
     pieSegments.find((segment) => segment.label === hoveredServiceLabel) ??
     null;
+
+  const filteredRequestsByDate = useMemo(() => {
+    if (!fromDate && !toDate) return requestList;
+    return requestList.filter((request) => {
+      const parsed = parseDateForFilter(request.date);
+      return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
+    });
+  }, [fromDate, requestList, toDate]);
+
+  const requestsTotalPages = Math.max(
+    1,
+    Math.ceil(filteredRequestsByDate.length / requestPageSize),
+  );
+
+  const currentRequestRows = filteredRequestsByDate.slice(
+    (requestPage - 1) * requestPageSize,
+    requestPage * requestPageSize,
+  );
 
   return (
     <DashboardLayout title="Dashboard">
@@ -427,13 +651,44 @@ export default function Overview() {
             <div>
               <h2 className="text-sm font-semibold text-[#667085]">Revenue</h2>
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-[#EAECF0] px-2.5 py-1.5 text-xs font-semibold text-[#667085]"
+            <ToggleGroup
+              type="single"
+              value={granularity}
+              onValueChange={(nextValue) => {
+                const next =
+                  (nextValue as RevenueGranularity | "") || granularity;
+                if (!next || next === granularity) return;
+                startGranularityTransition(() => {
+                  setSearchParams((prev) => {
+                    const params = new URLSearchParams(prev);
+                    if (next === "monthly") {
+                      params.delete("granularity");
+                    } else {
+                      params.set("granularity", next);
+                    }
+                    return params;
+                  });
+                });
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-[#EAECF0] bg-white p-1"
+              aria-label="Select revenue chart granularity"
             >
-              Monthly
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+              {(["daily", "monthly", "yearly"] as const).map((item) => (
+                <ToggleGroupItem
+                  key={item}
+                  value={item}
+                  className={cn(
+                    "h-7 rounded-md px-3 text-xs font-semibold capitalize",
+                    item === granularity
+                      ? "bg-[#041133] text-white"
+                      : "text-[#667085] hover:bg-[#F8FAFC]",
+                  )}
+                  aria-label={`${item} view`}
+                >
+                  {item}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
           <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 sm:gap-4">
             <div className="flex h-[250px] flex-col justify-between pb-6 text-[11px] font-medium text-[#98A2B3]">
@@ -453,42 +708,35 @@ export default function Overview() {
                   />
                 ))}
               </div>
-              <div className="relative flex h-[250px] items-end gap-1 pt-10 min-[420px]:gap-1.5 sm:gap-3">
+              <div
+                className={cn(
+                  "relative flex h-[250px] items-end gap-1 pt-10 min-[420px]:gap-1.5 sm:gap-3",
+                  isGranularityPending ? "opacity-60" : "",
+                )}
+                aria-busy={isGranularityPending}
+              >
                 {revenueBars.map((bar) => (
                   <div
-                    key={bar.month}
+                    key={bar.key}
                     className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-3"
                   >
-                    {bar.active ? (
-                      <div className="absolute left-1/2 top-[6px] -translate-x-1/2 rounded-xl bg-white px-3 py-2 text-center shadow-[0_16px_36px_rgba(15,23,42,0.12)]">
-                        <p className="whitespace-nowrap text-[11px] font-medium text-[#667085]">
-                          Mar. 7th 2025
-                        </p>
-                        <p className="whitespace-nowrap text-xs font-bold text-[#101828]">
-                          ₦6,0000
-                        </p>
-                      </div>
-                    ) : null}
                     <div className="flex h-[170px] items-end">
                       <div
                         className={[
                           "w-3 rounded-t-full sm:w-4",
-                          bar.active ? "bg-[#071B58]" : "bg-[#F2F4F7]",
+                          "bg-[#071B58]",
+                          isGranularityPending ? "animate-pulse" : "",
                         ].join(" ")}
-                        style={{ height: `${bar.value}%` }}
+                        style={{ height: `${bar.valuePercent}%` }}
+                        aria-label={`${bar.ariaLabel} ${formatCurrency(bar.amount)}`}
                       />
                     </div>
                     <span
                       className="text-[10px] font-medium tracking-[-0.01em] text-[#98A2B3] sm:text-[11px]"
-                      title={bar.fullMonth}
+                      title={bar.ariaLabel}
                     >
-                      <span className="sr-only">{bar.fullMonth}</span>
-                      <span aria-hidden="true" className="sm:hidden">
-                        {bar.shortMonth}
-                      </span>
-                      <span aria-hidden="true" className="hidden sm:inline">
-                        {bar.month}
-                      </span>
+                      <span className="sr-only">{bar.ariaLabel}</span>
+                      <span aria-hidden="true">{bar.label}</span>
                     </span>
                   </div>
                 ))}
@@ -501,13 +749,21 @@ export default function Overview() {
             <h2 className="text-sm font-semibold text-[#667085]">
               Top services
             </h2>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-[#EAECF0] px-2.5 py-1.5 text-xs font-semibold text-[#667085]"
-            >
-              All time
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            <FilterButton
+              title="Filter top services by date"
+              schema={dateRangeSchema}
+              trigger={({ onClick, activeLabel }) => (
+                <button
+                  type="button"
+                  onClick={onClick}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#EAECF0] px-2.5 py-1.5 text-xs font-semibold text-[#667085] transition hover:bg-[#F8FAFC]"
+                  aria-label="Open date range filter for top services"
+                >
+                  {activeLabel ?? "All time"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              )}
+            />
           </div>
           <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start">
             <div
@@ -610,9 +866,13 @@ export default function Overview() {
           </h2>
           <button
             type="button"
+            onClick={() => {
+              setRequestsExpanded((prev) => !prev);
+              setRequestPage(1);
+            }}
             className="text-xs font-semibold text-[#667085] transition hover:text-[#101828]"
           >
-            See all
+            {requestsExpanded ? "See less" : "See all"}
           </button>
         </div>
         <div className="hidden overflow-x-auto md:block">
@@ -628,7 +888,7 @@ export default function Overview() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAECF0]">
-              {requestList.map((request) => (
+              {currentRequestRows.map((request) => (
                 <tr key={request.id}>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
@@ -669,7 +929,7 @@ export default function Overview() {
           </table>
         </div>
         <div className="grid gap-3 p-4 md:hidden">
-          {requestList.map((request) => (
+          {currentRequestRows.map((request) => (
             <article
               key={request.id}
               className="relative rounded-2xl border border-[#EAECF0] p-4"
@@ -715,18 +975,24 @@ export default function Overview() {
         <div className="flex flex-wrap items-center justify-center gap-2 border-t border-[#EAECF0] px-4 py-4 sm:px-5">
           <button
             type="button"
+            onClick={() => setRequestPage((page) => Math.max(1, page - 1))}
+            disabled={requestPage === 1}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#D0D5DD] text-[#667085] transition hover:bg-[#F8FAFC]"
             aria-label="Previous page"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          {[1, 2, 3, 4, 5, 6].map((page) => (
+          {Array.from(
+            { length: requestsTotalPages },
+            (_, index) => index + 1,
+          ).map((page) => (
             <button
               key={page}
               type="button"
+              onClick={() => setRequestPage(page)}
               className={[
                 "inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold transition",
-                page === 3
+                page === requestPage
                   ? "border border-[#101828] bg-white text-[#101828]"
                   : "text-[#98A2B3] hover:bg-[#F8FAFC] hover:text-[#344054]",
               ].join(" ")}
@@ -736,6 +1002,10 @@ export default function Overview() {
           ))}
           <button
             type="button"
+            onClick={() =>
+              setRequestPage((page) => Math.min(requestsTotalPages, page + 1))
+            }
+            disabled={requestPage === requestsTotalPages}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#D0D5DD] text-[#667085] transition hover:bg-[#F8FAFC]"
             aria-label="Next page"
           >

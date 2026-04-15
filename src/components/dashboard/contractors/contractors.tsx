@@ -1,16 +1,15 @@
-import { useMemo, useState } from "react";
-import { Filter, Plus, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import type {
+  FilterField,
+  FiltersState,
+} from "../shared/filters/filter-schema";
+import { FilterButton } from "../shared/filters/filter-button";
+import { useUrlFilters } from "../shared/filters/use-url-filters";
+import { paginateItems } from "../shared/pagination-utils";
 import { ContractorsActionsMenu } from "./contractors-actions-menu";
 import { ContractorCard } from "./contractor-card";
 import { ContractorFormModal } from "./contractor-form-modal";
@@ -27,6 +26,7 @@ import type {
   ContractorFormValues,
   ContractorMenuAction,
   ContractorRecord,
+  ContractorServiceCategory,
   ContractorsSummaryCard,
 } from "./contractors.types";
 import {
@@ -35,6 +35,61 @@ import {
   getContractorCurrentStatusClasses,
   getContractorInitials,
 } from "./contractors.utils";
+
+const contractorServiceCategories: ContractorServiceCategory[] = [
+  "Plumbing",
+  "Cleaning",
+  "Baby sitting",
+  "Electrician",
+  "Laundry",
+  "Carpentry",
+];
+
+const contractorFiltersSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+  {
+    type: "select",
+    key: "currentStatus",
+    label: "Busy status",
+    options: [
+      { label: "Online", value: "Online" },
+      { label: "Offline", value: "Offline" },
+      { label: "Busy", value: "Busy" },
+    ],
+  },
+  {
+    type: "select",
+    key: "accountStatus",
+    label: "Account status",
+    options: [
+      { label: "Active", value: "Active" },
+      { label: "Deactivated", value: "Deactivated" },
+    ],
+  },
+  {
+    type: "select",
+    key: "specialty",
+    label: "Specialty",
+    options: contractorServiceCategories.map((category) => ({
+      label: category,
+      value: category,
+    })),
+  },
+];
+
+const contractorFilterDefaults: FiltersState = {
+  currentStatus: null,
+  accountStatus: null,
+  specialty: null,
+  from: null,
+  to: null,
+};
 
 function getSummaryCards(
   contractors: ContractorRecord[],
@@ -85,6 +140,9 @@ function buildDefaultFilters(): ContractorFilters {
     query: "",
     currentStatus: "all",
     accountStatus: "all",
+    specialty: "all",
+    from: null,
+    to: null,
   };
 }
 
@@ -132,8 +190,42 @@ export default function ContractorsPage({
   const [contractors, setContractors] = useState<ContractorRecord[]>(
     initialContractors ?? contractorRecords,
   );
-  const [filters, setFilters] =
-    useState<ContractorFilters>(buildDefaultFilters);
+  const [query, setQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
+  const pageSize = expanded ? 10 : 5;
+  const { filters: urlFilters } = useUrlFilters({
+    schema: contractorFiltersSchema,
+    defaults: contractorFilterDefaults,
+  });
+  const filters = useMemo<ContractorFilters>(() => {
+    const currentStatus = urlFilters.currentStatus;
+    const accountStatus = urlFilters.accountStatus;
+    const specialty = urlFilters.specialty;
+    const from = urlFilters.from;
+    const to = urlFilters.to;
+
+    return {
+      query,
+      currentStatus:
+        currentStatus === "Online" ||
+        currentStatus === "Offline" ||
+        currentStatus === "Busy"
+          ? currentStatus
+          : "all",
+      accountStatus:
+        accountStatus === "Active" || accountStatus === "Deactivated"
+          ? accountStatus
+          : "all",
+      specialty: contractorServiceCategories.includes(
+        specialty as ContractorServiceCategory,
+      )
+        ? (specialty as ContractorServiceCategory)
+        : "all",
+      from: typeof from === "string" && from ? from : null,
+      to: typeof to === "string" && to ? to : null,
+    };
+  }, [query, urlFilters]);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
   const [formContractor, setFormContractor] = useState<ContractorRecord | null>(
     null,
@@ -141,10 +233,29 @@ export default function ContractorsPage({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    query,
+    urlFilters.accountStatus,
+    urlFilters.currentStatus,
+    urlFilters.specialty,
+    urlFilters.from,
+    urlFilters.to,
+    expanded,
+  ]);
+
   const filteredContractors = useMemo(
     () => filterContractors(contractors, filters),
     [contractors, filters],
   );
+
+  const paginatedContractors = useMemo(
+    () => paginateItems(filteredContractors, currentPage, pageSize),
+    [filteredContractors, currentPage, pageSize],
+  );
+  const totalPages = paginatedContractors.totalPages;
+  const currentRows = paginatedContractors.items;
 
   const summaryCards = useMemo(
     () => getSummaryCards(contractors),
@@ -235,14 +346,6 @@ export default function ContractorsPage({
     }
   };
 
-  const handleFilterStatus = (value: ContractorCurrentStatus | "all") => {
-    setFilters((prev) => ({ ...prev, currentStatus: value }));
-  };
-
-  const handleFilterAccount = (value: ContractorAccountStatus | "all") => {
-    setFilters((prev) => ({ ...prev, accountStatus: value }));
-  };
-
   return (
     <DashboardLayout title="Contractor’s">
       <div className="space-y-8">
@@ -284,13 +387,8 @@ export default function ContractorsPage({
               <div className="relative w-full sm:w-[300px]">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
                 <input
-                  value={filters.query}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      query: event.target.value,
-                    }))
-                  }
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search Contractors ..."
                   className="w-full rounded-[10px] border border-[#D0D5DD] bg-white py-2.5 pl-10 pr-3 text-sm text-[#101828] placeholder:text-[#667085] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
                 />
@@ -305,64 +403,23 @@ export default function ContractorsPage({
                   <Plus className="h-4 w-4" />
                   Add contractor
                 </button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
-                      aria-label="Filter contractors"
-                    >
-                      <Filter className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    sideOffset={10}
-                    collisionPadding={16}
-                    className="w-[240px] rounded-[14px] border border-[#EAECF0] bg-white p-2 shadow-[0_24px_40px_rgba(15,23,42,0.14)]"
-                  >
-                    <DropdownMenuLabel className="px-2 py-2 text-xs font-semibold text-[#667085]">
-                      Current status
-                    </DropdownMenuLabel>
-                    {(["all", "Online", "Offline", "Busy"] as const).map(
-                      (status) => (
-                        <DropdownMenuCheckboxItem
-                          key={status}
-                          checked={filters.currentStatus === status}
-                          onCheckedChange={() => handleFilterStatus(status)}
-                          className="rounded-[10px] px-2 py-2 text-sm text-[#101828] focus:bg-[#F8FAFC]"
-                        >
-                          {status === "all" ? "All statuses" : status}
-                        </DropdownMenuCheckboxItem>
-                      ),
-                    )}
-                    <DropdownMenuSeparator className="my-2 bg-[#EAECF0]" />
-                    <DropdownMenuLabel className="px-2 py-2 text-xs font-semibold text-[#667085]">
-                      Account status
-                    </DropdownMenuLabel>
-                    {(["all", "Active", "Deactivated"] as const).map(
-                      (status) => (
-                        <DropdownMenuCheckboxItem
-                          key={status}
-                          checked={filters.accountStatus === status}
-                          onCheckedChange={() => handleFilterAccount(status)}
-                          className="rounded-[10px] px-2 py-2 text-sm text-[#101828] focus:bg-[#F8FAFC]"
-                        >
-                          {status === "all" ? "All accounts" : status}
-                        </DropdownMenuCheckboxItem>
-                      ),
-                    )}
-                    <DropdownMenuSeparator className="my-2 bg-[#EAECF0]" />
-                    <button
-                      type="button"
-                      onClick={() => setFilters(buildDefaultFilters())}
-                      className="w-full rounded-[10px] px-2 py-2 text-left text-sm font-semibold text-[#041133] hover:bg-[#F8FAFC]"
-                    >
-                      Clear filters
-                    </button>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <button
+                  type="button"
+                  onClick={() => setExpanded((prev) => !prev)}
+                  className="inline-flex h-11 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#667085] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                  aria-label={
+                    expanded
+                      ? "Show fewer contractors per page"
+                      : "Show more contractors per page"
+                  }
+                >
+                  {expanded ? "See less" : "See all"}
+                </button>
+                <FilterButton
+                  title="Filter contractors"
+                  schema={contractorFiltersSchema}
+                  defaults={contractorFilterDefaults}
+                />
               </div>
             </div>
           </div>
@@ -381,7 +438,7 @@ export default function ContractorsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAECF0]">
-                {filteredContractors.map((contractor) => (
+                {currentRows.map((contractor) => (
                   <tr key={contractor.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-5 py-4">
                       <div className="flex min-w-0 items-center gap-3">
@@ -453,7 +510,7 @@ export default function ContractorsPage({
           </div>
 
           <div className="grid gap-4 px-4 py-5 md:hidden">
-            {filteredContractors.map((contractor) => (
+            {currentRows.map((contractor) => (
               <ContractorCard
                 key={contractor.id}
                 contractor={contractor}
@@ -470,27 +527,36 @@ export default function ContractorsPage({
           <div className="flex items-center justify-center gap-2 border-t border-[#EAECF0] px-4 py-4">
             <button
               type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
               className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#475467] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
               aria-label="Previous page"
             >
               <span className="text-lg">‹</span>
             </button>
-            {["1", "2", "3", "4", "5", "6"].map((page) => (
-              <button
-                key={page}
-                type="button"
-                className={[
-                  "inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-sm font-semibold",
-                  page === "3"
-                    ? "border border-[#101828] bg-white text-[#101828]"
-                    : "border border-transparent text-[#98A2B3] hover:text-[#101828]",
-                ].join(" ")}
-              >
-                {page}
-              </button>
-            ))}
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+              (page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={[
+                    "inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-sm font-semibold",
+                    page === currentPage
+                      ? "border border-[#101828] bg-white text-[#101828]"
+                      : "border border-transparent text-[#98A2B3] hover:text-[#101828]",
+                  ].join(" ")}
+                >
+                  {page}
+                </button>
+              ),
+            )}
             <button
               type="button"
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
+              disabled={currentPage === totalPages}
               className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#475467] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
               aria-label="Next page"
             >

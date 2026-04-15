@@ -20,9 +20,58 @@ import { SupportDetailsSidebar } from "./support-sidebar";
 import {
   supportTicketSeeds,
   type SupportTicket,
+  type SupportTicketPriority,
   type SupportTicketStatus,
 } from "./support.data";
 import { toast } from "sonner";
+import type {
+  FilterField,
+  FiltersState,
+} from "../shared/filters/filter-schema";
+import { FilterButton } from "../shared/filters/filter-button";
+import { useUrlFilters } from "../shared/filters/use-url-filters";
+import { filterSupportTickets } from "./support.utils";
+import { paginateItems } from "../shared/pagination-utils";
+
+const supportStatuses: SupportTicketStatus[] = ["Open", "Pending", "Resolved"];
+const supportPriorities: SupportTicketPriority[] = [
+  "Low",
+  "Medium",
+  "High",
+  "Urgent",
+];
+
+const supportFiltersSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+  {
+    type: "select",
+    key: "status",
+    label: "Status",
+    options: supportStatuses.map((status) => ({ label: status, value: status })),
+  },
+  {
+    type: "select",
+    key: "priority",
+    label: "Priority",
+    options: supportPriorities.map((priority) => ({
+      label: priority,
+      value: priority,
+    })),
+  },
+];
+
+const supportFilterDefaults: FiltersState = {
+  status: null,
+  priority: null,
+  from: null,
+  to: null,
+};
 
 function getStatusPillClassName(status: SupportTicketStatus) {
   if (status === "Open") {
@@ -62,38 +111,51 @@ export default function SupportPage() {
   const [tickets, setTickets] = useState<SupportTicket[]>(supportTicketSeeds);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const pageSize = 8;
+  const pageSize = expanded ? 10 : 5;
+  const { filters: urlFilters } = useUrlFilters({
+    schema: supportFiltersSchema,
+    defaults: supportFilterDefaults,
+  });
+
+  const statusFilter =
+    urlFilters.status && supportStatuses.includes(urlFilters.status as SupportTicketStatus)
+      ? String(urlFilters.status)
+      : null;
+  const priorityFilter =
+    urlFilters.priority &&
+    supportPriorities.includes(urlFilters.priority as SupportTicketPriority)
+      ? String(urlFilters.priority)
+      : null;
+  const fromFilter =
+    typeof urlFilters.from === "string" && urlFilters.from ? urlFilters.from : null;
+  const toFilter =
+    typeof urlFilters.to === "string" && urlFilters.to ? urlFilters.to : null;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, expanded, statusFilter, priorityFilter, fromFilter, toFilter]);
 
-  const filteredTickets = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return tickets;
-
-    return tickets.filter((ticket) =>
-      [
-        ticket.ticketId,
-        ticket.userName,
-        ticket.userEmail,
-        ticket.category,
-        ticket.subject,
-        ticket.status,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [searchQuery, tickets]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));
-  const currentRows = filteredTickets.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+  const filteredTickets = useMemo(
+    () =>
+      filterSupportTickets(tickets, {
+        query: searchQuery,
+        status: statusFilter as SupportTicketStatus | null,
+        priority: priorityFilter as SupportTicketPriority | null,
+        from: fromFilter,
+        to: toFilter,
+      }),
+    [tickets, searchQuery, statusFilter, priorityFilter, fromFilter, toFilter],
   );
+
+  const paginatedTickets = useMemo(
+    () => paginateItems(filteredTickets, currentPage, pageSize),
+    [filteredTickets, currentPage, pageSize],
+  );
+  const totalPages = paginatedTickets.totalPages;
+  const currentRows = paginatedTickets.items;
 
   const selectedTicket = useMemo(
     () => tickets.find((t) => t.id === selectedTicketId) ?? null,
@@ -164,11 +226,31 @@ export default function SupportPage() {
               </div>
               <button
                 type="button"
-                className="inline-flex h-[42px] w-[46px] shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085] transition hover:bg-white"
-                aria-label="Filter tickets"
+                onClick={() => setExpanded((prev) => !prev)}
+                className="inline-flex h-[42px] items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] px-4 text-sm font-semibold text-[#667085] transition hover:bg-white"
+                aria-label={
+                  expanded
+                    ? "Show fewer support tickets per page"
+                    : "Show more support tickets per page"
+                }
               >
-                <SlidersHorizontal className="h-4 w-4" />
+                {expanded ? "See less" : "See all"}
               </button>
+              <FilterButton
+                title="Filter support tickets"
+                schema={supportFiltersSchema}
+                defaults={supportFilterDefaults}
+                trigger={({ onClick }) => (
+                  <button
+                    type="button"
+                    onClick={onClick}
+                    className="inline-flex h-[42px] w-[46px] shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085] transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                    aria-label="Filter tickets"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </button>
+                )}
+              />
             </div>
           </div>
 

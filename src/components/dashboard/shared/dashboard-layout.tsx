@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Bell, CalendarDays, ChevronDown, Menu, X } from "lucide-react";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import type { DashboardNotificationGroup } from "./dashboard-types";
+import type { FilterField } from "./filters/filter-schema";
+import { FilterButton } from "./filters/filter-button";
 
 const notificationGroups: DashboardNotificationGroup[] = [
   {
@@ -32,6 +34,16 @@ const notificationGroups: DashboardNotificationGroup[] = [
         time: "08:00am",
       },
     ],
+  },
+];
+
+const dashboardDateRangeSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
   },
 ];
 
@@ -155,14 +167,22 @@ export function DashboardLayout({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#EAECF0] bg-white px-4 py-2.5 text-sm font-medium text-[#667085] shadow-sm transition hover:bg-[#F8FAFC]"
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  <span>All time</span>
-                  <ChevronDown className="h-4 w-4" />
-                </button>
+                <FilterButton
+                  title="Filter by date"
+                  schema={dashboardDateRangeSchema}
+                  trigger={({ onClick, activeLabel }) => (
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#EAECF0] bg-white px-4 py-2.5 text-sm font-medium text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                      aria-label="Open date range filter"
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      <span>{activeLabel ?? "All time"}</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  )}
+                />
                 <button
                   type="button"
                   onClick={() => setIsNotificationsOpen(true)}

@@ -5,6 +5,10 @@ import type {
   ContractorFilters,
   ContractorRecord,
 } from "./contractors.types";
+import {
+  isWithinInclusiveRange,
+  parseDateForFilter,
+} from "@/components/dashboard/shared/filters/filter-schema";
 
 export function getContractorDetailsById(
   contractors: ContractorRecord[],
@@ -46,6 +50,8 @@ export function filterContractors(
   filters: ContractorFilters,
 ) {
   const normalizedQuery = filters.query.trim().toLowerCase();
+  const fromDate = filters.from ? parseDateForFilter(filters.from) : null;
+  const toDate = filters.to ? parseDateForFilter(filters.to) : null;
 
   return contractors.filter((contractor) => {
     if (filters.accountStatus !== "all" && contractor.accountStatus !== filters.accountStatus) {
@@ -54,6 +60,20 @@ export function filterContractors(
 
     if (filters.currentStatus !== "all" && contractor.currentStatus !== filters.currentStatus) {
       return false;
+    }
+
+    if (filters.specialty !== "all" && contractor.serviceCategory !== filters.specialty) {
+      return false;
+    }
+
+    if (fromDate || toDate) {
+      const joined = parseDateForFilter(contractor.dateJoined);
+      if (!joined) {
+        return false;
+      }
+      if (!isWithinInclusiveRange(joined, fromDate, toDate)) {
+        return false;
+      }
     }
 
     if (!normalizedQuery) {

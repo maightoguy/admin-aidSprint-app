@@ -111,6 +111,9 @@ export type ContractorFilters = {
   query: string;
   currentStatus: ContractorCurrentStatus | "all";
   accountStatus: ContractorAccountStatus | "all";
+  specialty: ContractorServiceCategory | "all";
+  from: string | null;
+  to: string | null;
 };
 
 export type ContractorFormValues = {

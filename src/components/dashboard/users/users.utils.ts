@@ -1,24 +1,51 @@
-import type { UserRecord, UserStatus } from "./users.types";
+import type { UserFilters, UserRecord, UserStatus } from "./users.types";
+import {
+  isWithinInclusiveRange,
+  parseDateForFilter,
+} from "../shared/filters/filter-schema";
 
-export function filterUsers(users: UserRecord[], query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-
-  if (!normalizedQuery) {
-    return users;
-  }
+export function filterUsers(users: UserRecord[], filters: UserFilters) {
+  const normalizedQuery = filters.query.trim().toLowerCase();
+  const fromDate = filters.from ? parseDateForFilter(filters.from) : null;
+  const toDate = filters.to ? parseDateForFilter(filters.to) : null;
 
   return users.filter((user) =>
-    [
-      user.name,
-      user.email,
-      user.location,
-      user.totalServicesRequested.toString(),
-      user.dateJoined,
-      user.status,
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery),
+    {
+      if (filters.status !== "all" && user.status !== filters.status) {
+        return false;
+      }
+
+      if (filters.role !== "all" && user.role !== filters.role) {
+        return false;
+      }
+
+      if (fromDate || toDate) {
+        const joined = parseDateForFilter(user.dateJoined);
+        if (!joined) {
+          return false;
+        }
+        if (!isWithinInclusiveRange(joined, fromDate, toDate)) {
+          return false;
+        }
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return [
+        user.name,
+        user.email,
+        user.location,
+        user.totalServicesRequested.toString(),
+        user.dateJoined,
+        user.status,
+        user.role,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery);
+    },
   );
 }
 

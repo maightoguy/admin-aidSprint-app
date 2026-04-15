@@ -25,7 +25,7 @@ export const usersSummaryCards: UsersSummaryCard[] = [
   },
 ];
 
-export const userRecords: UserRecord[] = [
+const userSeedRecords: UserRecord[] = [
   {
     id: "emery-torff",
     name: "Emery Torff",
@@ -34,6 +34,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 0,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "Admin",
   },
   {
     id: "maren-dokidis",
@@ -43,6 +44,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 100,
     dateJoined: "Apr 12, 2023",
     status: "Deactivated",
+    role: "User",
   },
   {
     id: "cooper-siphron",
@@ -52,6 +54,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 50,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "User",
   },
   {
     id: "marcus-dias",
@@ -61,6 +64,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 10,
     dateJoined: "Apr 12, 2023",
     status: "Deactivated",
+    role: "User",
   },
   {
     id: "ahmad-stanton-1",
@@ -70,6 +74,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 5,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "User",
   },
   {
     id: "ahmad-stanton-2",
@@ -79,6 +84,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 2,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "User",
   },
   {
     id: "ahmad-stanton-3",
@@ -88,6 +94,7 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 1,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "User",
   },
   {
     id: "ahmad-stanton-4",
@@ -97,5 +104,36 @@ export const userRecords: UserRecord[] = [
     totalServicesRequested: 30,
     dateJoined: "Apr 12, 2023",
     status: "Active",
+    role: "Admin",
   },
 ];
+
+function buildExpandedUserRecords(seed: UserRecord[]) {
+  const start = new Date(2023, 3, 12);
+  const expanded: UserRecord[] = [...seed];
+
+  for (let index = 0; index < 24; index += 1) {
+    const base = seed[index % seed.length];
+    const date = new Date(start);
+    date.setDate(start.getDate() + index * 9);
+    const dateJoined = date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+
+    expanded.push({
+      ...base,
+      id: `${base.id}-extra-${index + 1}`,
+      email: `${base.id.replace(/-/g, ".")}.${index + 1}@email.com`,
+      totalServicesRequested: base.totalServicesRequested + index * 2,
+      dateJoined,
+      status: index % 5 === 0 ? "Deactivated" : "Active",
+      role: index % 7 === 0 ? "Admin" : "User",
+    });
+  }
+
+  return expanded;
+}
+
+export const userRecords: UserRecord[] = buildExpandedUserRecords(userSeedRecords);

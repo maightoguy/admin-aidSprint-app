@@ -29,6 +29,13 @@ import {
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
 import { RevenueIcon, TotalRequestsIcon, TotalRevenueIcon } from "@/ui/icons";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import type {
+  FilterField,
+  FiltersState,
+} from "../shared/filters/filter-schema";
+import { FilterButton } from "../shared/filters/filter-button";
+import { useUrlFilters } from "../shared/filters/use-url-filters";
+import { paginateItems } from "../shared/pagination-utils";
 import { contractorRecords } from "../contractors/contractors.data";
 import type {
   ContractorRecord,
@@ -36,6 +43,7 @@ import type {
   ContractorTransactionType,
 } from "../contractors/contractors.types";
 import { toast } from "sonner";
+import { filterTransactions } from "./transactions.utils";
 
 type TransactionStatusAction = "approve" | "reject";
 
@@ -117,6 +125,62 @@ const transactionBlueprints: Array<{
     status: "Completed",
   },
 ];
+
+const transactionTypes: ContractorTransactionType[] = [
+  "Withdrawal",
+  "Service payment",
+];
+const transactionStatuses: ContractorTransactionStatus[] = [
+  "Completed",
+  "Pending",
+  "Failed",
+];
+
+const transactionFiltersSchema: FilterField[] = [
+  {
+    type: "dateRange",
+    key: "dateRange",
+    label: "Date range",
+    fromKey: "from",
+    toKey: "to",
+  },
+  {
+    type: "select",
+    key: "type",
+    label: "Type",
+    options: transactionTypes.map((type) => ({
+      label: type,
+      value: type,
+    })),
+  },
+  {
+    type: "select",
+    key: "status",
+    label: "Status",
+    options: transactionStatuses.map((status) => ({
+      label: status,
+      value: status,
+    })),
+  },
+  {
+    type: "numberRange",
+    key: "amountRange",
+    label: "Amount range",
+    minKey: "minAmount",
+    maxKey: "maxAmount",
+    minLabel: "Minimum amount",
+    maxLabel: "Maximum amount",
+  },
+];
+
+const transactionFilterDefaults: FiltersState = {
+  type: null,
+  status: null,
+  minAmount: null,
+  maxAmount: null,
+  from: null,
+  to: null,
+};
 
 function formatSignedCurrency(amount: number) {
   const absoluteAmount = Math.abs(amount);
@@ -498,46 +562,81 @@ export default function TransactionsPage() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
   const [selectedTransactionId, setSelectedTransactionId] = useState<
     string | null
   >(null);
-  const pageSize = 8;
+  const pageSize = expanded ? 10 : 5;
+  const { filters: urlFilters } = useUrlFilters({
+    schema: transactionFiltersSchema,
+    defaults: transactionFilterDefaults,
+  });
+
+  const typeFilter =
+    urlFilters.type &&
+    transactionTypes.includes(urlFilters.type as ContractorTransactionType)
+      ? String(urlFilters.type)
+      : null;
+  const statusFilter =
+    urlFilters.status &&
+    transactionStatuses.includes(
+      urlFilters.status as ContractorTransactionStatus,
+    )
+      ? String(urlFilters.status)
+      : null;
+  const minAmountFilter =
+    typeof urlFilters.minAmount === "number" ? urlFilters.minAmount : null;
+  const maxAmountFilter =
+    typeof urlFilters.maxAmount === "number" ? urlFilters.maxAmount : null;
+  const fromFilter =
+    typeof urlFilters.from === "string" && urlFilters.from
+      ? urlFilters.from
+      : null;
+  const toFilter =
+    typeof urlFilters.to === "string" && urlFilters.to ? urlFilters.to : null;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [
+    searchQuery,
+    expanded,
+    typeFilter,
+    statusFilter,
+    minAmountFilter,
+    maxAmountFilter,
+    fromFilter,
+    toFilter,
+  ]);
 
-  const filteredTransactions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return transactions;
-    }
-
-    return transactions.filter((transaction) =>
-      [
-        transaction.transactionCode,
-        transaction.contractorName,
-        transaction.contractorEmail,
-        transaction.type,
-        transaction.status,
-        transaction.accountName,
-        transaction.bankName,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [searchQuery, transactions]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredTransactions.length / pageSize),
+  const filteredTransactions = useMemo(
+    () =>
+      filterTransactions(transactions, {
+        query: searchQuery,
+        type: typeFilter,
+        status: statusFilter,
+        minAmount: minAmountFilter,
+        maxAmount: maxAmountFilter,
+        from: fromFilter,
+        to: toFilter,
+      }),
+    [
+      transactions,
+      searchQuery,
+      typeFilter,
+      statusFilter,
+      minAmountFilter,
+      maxAmountFilter,
+      fromFilter,
+      toFilter,
+    ],
   );
-  const currentRows = filteredTransactions.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
+
+  const paginatedTransactions = useMemo(
+    () => paginateItems(filteredTransactions, currentPage, pageSize),
+    [filteredTransactions, currentPage, pageSize],
   );
+  const totalPages = paginatedTransactions.totalPages;
+  const currentRows = paginatedTransactions.items;
   const selectedTransaction = useMemo(
     () =>
       transactions.find(
@@ -629,11 +728,31 @@ export default function TransactionsPage() {
               </label>
               <button
                 type="button"
-                className="inline-flex h-[42px] w-[46px] shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085] transition hover:bg-white"
-                aria-label="Filter transactions"
+                onClick={() => setExpanded((prev) => !prev)}
+                className="inline-flex h-[42px] items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] px-4 text-sm font-semibold text-[#667085] transition hover:bg-white"
+                aria-label={
+                  expanded
+                    ? "Show fewer transactions per page"
+                    : "Show more transactions per page"
+                }
               >
-                <SlidersHorizontal className="h-4 w-4" />
+                {expanded ? "See less" : "See all"}
               </button>
+              <FilterButton
+                title="Filter transactions"
+                schema={transactionFiltersSchema}
+                defaults={transactionFilterDefaults}
+                trigger={({ onClick }) => (
+                  <button
+                    type="button"
+                    onClick={onClick}
+                    className="inline-flex h-[42px] w-[46px] shrink-0 items-center justify-center rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] text-[#667085] transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                    aria-label="Filter transactions"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </button>
+                )}
+              />
             </div>
           </div>
 
