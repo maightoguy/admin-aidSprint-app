@@ -57,6 +57,26 @@
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Filter modal design tokens for responsive dashboard filters and Figma handoff. */
+    --filter-modal-surface: #ffffff;
+    --filter-modal-surface-muted: #f8fafc;
+    --filter-modal-border: #d0d5dd;
+    --filter-modal-border-strong: #98a2b3;
+    --filter-modal-title: #101828;
+    --filter-modal-text: #344054;
+    --filter-modal-muted: #667085;
+    --filter-modal-accent: #041133;
+    --filter-modal-accent-strong: #0a1c4e;
+    --filter-modal-focus: rgba(4, 17, 51, 0.18);
+    --filter-modal-spacing-1: 4px;
+    --filter-modal-spacing-2: 8px;
+    --filter-modal-spacing-3: 16px;
+    --filter-modal-spacing-4: 24px;
+    --filter-modal-font-size: 14px;
+    --filter-modal-line-height: 20px;
+    --filter-modal-touch-target: 44px;
+    --filter-modal-radius: 16px;
   }
 
   .dark {

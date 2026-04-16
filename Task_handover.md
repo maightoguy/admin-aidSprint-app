@@ -50,6 +50,7 @@ The `shared/` directory contains TypeScript interfaces and types that are used b
 ### Styling System
 - **Primary:** Tailwind CSS 3 utility classes for rapid and consistent styling.
 - **Theme and Design Tokens:** Configured in `client/global.css` and `tailwind.config.ts`.
+- **Filter Modal Tokens:** Shared filter-modal color, spacing, typography, radius, focus, and touch-target tokens now live in `src/global.css` under the `:root` design-token block to support Figma handoff and responsive filter consistency.
 - **UI Components:** Pre-built library in `client/components/ui/` based on Radix UI and styled with Tailwind CSS.
 - **Utility:** `cn()` function (combines `clsx` + `tailwind-merge`) for robust conditional class management.
 
@@ -281,6 +282,22 @@ admin-aidSprint-app/
    - Fixed a syntax formatting issue in `tsconfig.json` that was causing parsing failures.
    - Formatted the entire codebase using Prettier.
    - Verified that the project builds (`npm run build`) and passes type checking (`npm run typecheck`) successfully.
+
+5. **Responsive Shared Filter Modal Refresh:**
+   - Rebuilt `src/components/dashboard/shared/filters/filter-modal.tsx` as a compact, schema-driven responsive modal with three explicit modes:
+     - **Mobile (`< 768px`)**: inline accordion for filter groups so hidden controls remain keyboard-accessible.
+     - **Tablet (`768px - 1023px`)**: compact single-column filter panel constrained to `max-width: 40vw`.
+     - **Desktop (`>= 1024px`)**: split layout with a lightweight inline calendar constrained to `max-width: 60vw`.
+   - Replaced the old stacked layout with 8px-based spacing, 14px filter typography, 44px minimum touch targets, and stronger contrast tokens aligned with WCAG 2.1 interaction requirements.
+   - Preserved the existing shared filter API (`schema`, `value`, `onApply`, `onReset`) so all current consumers (`overview`, `dashboard-layout`, `contractors`, `users`, `requests`, `transactions`, `support`) continue working without integration changes.
+   - Added focused component coverage in `src/components/dashboard/shared/filters/filter-modal.test.tsx` for 320px, 768px, 1024px, and 1440px viewports, including responsive layout switching, keyboard interaction, resize persistence, apply/reset flows, and runtime safety handling.
+   - Verified the redesigned modal with:
+     - `npm run typecheck`
+     - `npm exec vitest -- --run src/components/dashboard/shared/filters/filter-modal.test.tsx --coverage --coverage.include=src/components/dashboard/shared/filters/filter-modal.tsx`
+   - Latest coverage for `filter-modal.tsx`:
+     - Statements: `93.46%`
+     - Functions: `93.87%`
+     - Lines: `95.52%`
 
 ---
 
