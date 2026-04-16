@@ -501,7 +501,7 @@ export function FilterModal({
       <DialogContent
         data-testid="filter-modal"
         data-layout={viewportMode}
-        className="w-[calc(100vw-16px)] max-h-[92vh] gap-0 overflow-hidden rounded-[20px] border border-[var(--filter-modal-border)] bg-[var(--filter-modal-surface)] p-0 shadow-[0_24px_80px_rgba(15,23,42,0.16)] [&>button]:right-2 [&>button]:top-2 [&>button]:inline-flex [&>button]:h-[var(--filter-modal-touch-target)] [&>button]:w-[var(--filter-modal-touch-target)] [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full [&>button]:text-[var(--filter-modal-muted)] sm:w-[calc(100vw-48px)] md:max-w-[40vw] lg:max-w-[60vw]"
+        className="w-[calc(100vw-16px)] max-h-[92vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-[20px] border border-[var(--filter-modal-border)] bg-[var(--filter-modal-surface)] p-0 shadow-[0_24px_80px_rgba(15,23,42,0.16)] [&>button]:right-2 [&>button]:top-2 [&>button]:inline-flex [&>button]:h-[var(--filter-modal-touch-target)] [&>button]:w-[var(--filter-modal-touch-target)] [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full [&>button]:text-[var(--filter-modal-muted)] sm:w-[calc(100vw-48px)] md:max-w-[40vw] lg:max-w-[60vw]"
       >
         <DialogHeader className="gap-[var(--filter-modal-spacing-1)] border-b border-[var(--filter-modal-border)] px-[var(--filter-modal-spacing-3)] py-[var(--filter-modal-spacing-3)] text-left sm:px-[var(--filter-modal-spacing-4)]">
           <DialogTitle className="pr-12 text-[length:var(--filter-modal-font-size)] font-semibold leading-[var(--filter-modal-line-height)] text-[var(--filter-modal-title)]">
@@ -512,7 +512,10 @@ export function FilterModal({
             screen sizes.
           </DialogDescription>
         </DialogHeader>
-        <div className="overflow-y-auto px-[var(--filter-modal-spacing-3)] py-[var(--filter-modal-spacing-3)] sm:px-[var(--filter-modal-spacing-4)]">
+        <div
+          data-testid="filter-modal-scroll-area"
+          className="min-h-0 overflow-y-auto overscroll-contain px-[var(--filter-modal-spacing-3)] py-[var(--filter-modal-spacing-3)] sm:px-[var(--filter-modal-spacing-4)]"
+        >
           <div className="space-y-[var(--filter-modal-spacing-3)]">
             {activeSummaries.length ? (
               <div className="flex flex-wrap gap-[var(--filter-modal-spacing-2)]">

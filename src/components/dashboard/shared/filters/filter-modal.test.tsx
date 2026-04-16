@@ -122,9 +122,13 @@ describe("FilterModal", () => {
     render(<ModalHarness />);
 
     const dialog = screen.getByTestId("filter-modal");
+    const scrollArea = screen.getByTestId("filter-modal-scroll-area");
 
     expect(dialog.getAttribute("data-layout")).toBe("desktop");
     expect(dialog.className).toContain("lg:max-w-[60vw]");
+    expect(dialog.className).toContain("grid-rows-[auto_minmax(0,1fr)_auto]");
+    expect(scrollArea.className).toContain("min-h-0");
+    expect(scrollArea.className).toContain("overflow-y-auto");
     expect(screen.getByRole("grid")).toBeTruthy();
     expect(screen.getByLabelText("Date range start date")).toBeTruthy();
   });
