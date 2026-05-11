@@ -86,7 +86,9 @@ Current top-level routes:
 - `/requests` (protected)
 - `/transactions` (protected)
 - `/support` (protected)
+- `/disputes` (protected, placeholder)
 - `/settings` (protected)
+- `/marketplace` (protected, placeholder)
 
 Auth readiness note:
 - Protected routes are now enforced via a lightweight auth session guard. Unauthenticated access redirects to login and supports session-expiry handling.
@@ -318,7 +320,7 @@ Upgrade `src/components/dashboard/transactions/transactions.tsx` into a finance-
 ### Phase 4 Prompt A: Auth-Ready Login And Route Structure (Done)
 Make `src/login/login.tsx` and the app route structure auth-ready before backend integration starts. Keep the current visual language intact and limit UI changes to the states needed for real auth behavior: validation, loading, locked/unauthorized access, session expiry, and protected-route handling. Reuse existing feedback patterns such as toasts, inline messages, dialogs, and loading indicators. Focus on route guards, naming, and auth-state architecture more than visual redesign.
 
-### Phase 4 Prompt B: Admin Route Architecture Cleanup (Planned)
+### Phase 4 Prompt B: Admin Route Architecture Cleanup (Done)
 Refactor route structure and navigation so current and planned admin modules map cleanly to future backend contracts. Keep the existing sidebar and dashboard shell styling, but normalize route naming, module grouping, and protected navigation flow for overview, requests, contractors, transactions, support, disputes, settings, and future marketplace operations. Preserve the visual shell while improving information architecture.
 
 ### 1. Turn Overview Into A Real Operations Dashboard

@@ -25,6 +25,12 @@
 - Updated KYC and shared test coverage so the full suite is stable again after the earlier Prompt 4 refactor:
   - Replaced upload-oriented KYC tests with read-only review workflow assertions in `contractor-kyc-tab.test.tsx`.
   - Increased per-test timeouts in `transactions.test.tsx` and `filter-modal.test.tsx` to avoid slow-environment flakes.
+- Completed Phase 4 Prompt 9 (Admin route architecture cleanup) with minimal UI change.
+  - Centralized route paths in `dashboard-navigation.ts` via a `ROUTES` constant and reused it in `App.tsx`.
+  - Normalized navigation labels (Transactions) and added planned module entries for Disputes + Marketplace.
+  - Added dashboard-shell placeholders for `/disputes` and `/marketplace` so planned modules have stable routes without introducing new design language.
+- Fixed a TypeScript narrowing issue in `login.tsx` by explicitly guarding the `SignInResult` failure branch before reading `result.message`.
+- Strengthened the `SignInResult` type narrowing in `login.tsx` using an explicit `result.ok === false` check to satisfy stricter type analyzers.
 
 ## Current Context:
 - The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.
@@ -35,6 +41,7 @@
   - Prompt 4: Contractor KYC read-only review is done.
   - Prompt 2: Requests dispatch + live monitoring workflow is done.
   - Prompt 8: Auth-ready login and protected states is done.
+  - Prompt 9: Admin route architecture cleanup is done.
 - Planning direction is to keep visuals close to current Figma-backed patterns and concentrate most changes in workflow depth, status modeling, routing, and information density rather than redesign.
 - Current planning assessment:
   - Phase 1 = moderate UI shift, high workflow change
@@ -52,6 +59,4 @@
   - dedicated disputes surface
 - Phase 3 prompt chunks:
   - transactions finance operations
-- Phase 4 prompt chunks:
-  - admin route architecture cleanup
 - When implementation starts, keep treating Figma as the visual source of truth and the PRD as the workflow source of truth.

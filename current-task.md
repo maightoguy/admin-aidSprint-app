@@ -39,7 +39,7 @@ Keep visuals aligned to the current Figma-backed dashboard shell. Treat Figma as
 #### Phase 4 (Auth + Routes)
 
 - Prompt 8: Auth-ready login and protected states (login.tsx + route guards) — Done
-- Prompt 9: Admin route architecture cleanup (routes + navigation normalization)
+- Prompt 9: Admin route architecture cleanup (routes + navigation normalization) — Done
 
 **Planning Read**
 
@@ -116,7 +116,7 @@ Planning and implementation task: Make `src/login/login.tsx` and the app route s
 - Prompt 9: Admin route architecture cleanup
 
 ```text
-Planning and implementation task: Refactor route structure and navigation so current and planned admin modules map cleanly to future backend contracts. Keep the existing sidebar and dashboard shell styling, but normalize route naming, module grouping, and protected navigation flow for overview, requests, contractors, transactions, support, disputes, settings, and future marketplace operations. Preserve the visual shell while improving information architecture.
+Planning and implementation task: Refactor route structure and navigation so current and planned admin modules map cleanly to future backend contracts. Keep the existing sidebar and dashboard shell styling, but normalize route naming, module grouping, and protected navigation flow for overview, requests, contractors, transactions, support, disputes, settings, and future marketplace operations. Preserve the visual shell while improving information architecture. --- DONE
 ```
 
 **Handover Updated**

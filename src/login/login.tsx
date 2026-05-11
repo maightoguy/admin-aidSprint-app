@@ -30,7 +30,9 @@ export default function Login() {
 
   const emailError = useMemo(() => {
     if (email.trim() === "") return null;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : "Invalid email format.";
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      ? null
+      : "Invalid email format.";
   }, [email]);
 
   const passwordError = useMemo(() => {
@@ -61,17 +63,17 @@ export default function Login() {
       rememberDevice,
     });
 
-    if (result.ok) {
-      toast.success("Signed in", {
-        description: "Welcome back.",
+    if (result.ok === false) {
+      toast.error("Unable to sign in", {
+        description: result.message,
       });
-      navigate(redirectPath, { replace: true });
       return;
     }
 
-    toast.error("Unable to sign in", {
-      description: result.message,
+    toast.success("Signed in", {
+      description: "Welcome back.",
     });
+    navigate(redirectPath, { replace: true });
   };
 
   return (
