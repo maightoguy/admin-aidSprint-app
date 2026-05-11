@@ -1,480 +1,717 @@
-# Project Handover & Architecture Summary
+# AidSprint Admin Frontend PRD Assessment and Handover
 
-## 🏗 Project Overview
-**AidSprint Admin App** is a production-ready, full-stack React application template designed for the administrative dashboard. It provides a robust interface for managing contractors, users, requests, and transactions within the AidSprint ecosystem. The application leverages a modern frontend stack with an integrated Express server for API handling, functioning as a highly responsive Single-Page Application (SPA).
+Last updated: 2026-05-04
 
-### Key Features
-- **Dashboard Overview:** Centralized view of key metrics (total contractors, requests, revenue, users).
-- **Contractor Management:** Detailed views for individual contractors, including KYC verification, request history, and transaction history.
-- **User Management:** Comprehensive user details and management capabilities.
-- **Request Management:** Overview and detailed management of service requests, including status updates.
-- **Transaction Management:** Tracking and management of financial transactions, with status update functionality.
-- **Authentication:** Secure user login and session management.
-- **Responsive UI:** Built with Tailwind CSS and Radix UI for a consistent and adaptive user experience.
-- **Branding Update:** Replaced all CSS/SVG-based AidSprint logos with the official `sec-logo.png` across the sidebar and login pages.
-- **Overview Navigation:** Implemented functional "View profile" buttons in the "Recent requests" section of the dashboard, allowing navigation to individual user detail pages.
+## Purpose
+This document replaces earlier speculative handover notes with a reality-based assessment of the current admin frontend against the product requirements document in `PRODUCT REQUIREMENTS DOCUMENT.md`.
 
-### Tech Stack
-- **Package Manager:** PNPM / NPM (preferred)
-- **Frontend Framework:** React 18 + Vite (for fast development and optimized builds)
-- **Routing:** React Router v6 (SPA mode for seamless navigation)
-- **Styling:** Tailwind CSS v3 (utility-first CSS framework) + Radix UI (headless UI components) + Shadcn UI components (pre-built, customizable UI library)
-- **State/Data Management:** React Query (`@tanstack/react-query`) for efficient server state management, caching, and synchronization.
-- **Backend:** Express server integrated with the Vite dev server (for a unified development experience and API handling)
-- **Language:** TypeScript across the entire stack (Client, Server, and Shared) for type safety and improved code quality.
-- **Testing:** Vitest (fast unit and integration testing framework)
-- **Icons:** Lucide React icons (for scalable and customizable vector icons)
-- **Notifications:** Sonner (for toast notifications)
+The goal is to answer three questions clearly:
+1. What is essential for the AidSprint admin app frontend?
+2. What already exists in the current codebase?
+3. What must be added or changed before backend implementation begins?
 
----
+## Current Verdict
+The current admin app is a solid frontend foundation, but it does not yet fully satisfy the PRD for the admin portal.
 
-## 🏛 Architecture
+What exists today is best described as:
+- a strong mock-data admin dashboard shell
+- good table/detail patterns for users, contractors, requests, transactions, and support
+- reusable filtering, pagination, and sheet/sidebar interaction patterns
+- an incomplete operations surface for a help-on-demand marketplace
 
-### Frontend Architecture
-The frontend is a React 18 SPA built with Vite.
-- **Component-Based:** UI is composed of reusable React components.
-- **Routing:** `react-router-dom` v6 manages client-side routing, defining routes in `src/App.tsx` and rendering page components from `src/components/dashboard/` and other feature-specific directories.
-- **State Management:** Primarily uses `React Query` for server-side data fetching, caching, and synchronization. Local UI state is managed using React's `useState` and `useContext` hooks.
-- **UI Library:** Utilizes Radix UI for unstyled, accessible components, styled with Tailwind CSS. Shadcn UI provides pre-built, customizable components on top of Radix and Tailwind.
-- **Styling:** Tailwind CSS is used for all styling, configured in `tailwind.config.ts` and `src/global.css`. The `cn()` utility (combining `clsx` and `tailwind-merge`) is used for conditional and merged class names.
+The frontend is not yet ready to be treated as PRD-complete because several required admin capabilities are still missing or under-modeled:
+- real-time job monitoring and dispatch operations
+- service category management
+- tier pricing management
+- promo code management
+- push notification management
+- dispute operations
+- fraud and trust-safety tooling
+- contractor performance watchlists and intervention tools
+- finance workflows for payouts, reconciliation, and reporting
+- auth-ready admin access patterns
 
-### Backend Architecture
-The backend is an Express.js server integrated with the Vite development server.
-- **API Endpoints:** All API endpoints are prefixed with `/api/` and defined in `server/index.ts`, with individual route handlers located in `server/routes/`.
-- **Development Integration:** During development, the Express server runs alongside the Vite dev server on a single port (8080), providing hot reload for both client and server code.
-- **Type Safety:** Shared TypeScript interfaces in `shared/api.ts` ensure type-safe communication between the frontend and backend.
+## PRD Essentials For The Admin App
+The PRD makes the following admin-facing capabilities essential:
 
-### Shared Components and Types
-The `shared/` directory contains TypeScript interfaces and types that are used by both the client and server, ensuring data consistency and type safety across the full stack. Path aliases (`@shared/*` for `shared/` and `@/*` for `src/`) simplify imports.
+### Core Operations
+- Admin dashboard web portal
+- Manage users
+- Manage contractors
+- Contractor verification and approvals
+- Monitor jobs in real time
+- Support tickets and disputes
+- Suspend and restore contractor accounts
 
-### Styling System
-- **Primary:** Tailwind CSS 3 utility classes for rapid and consistent styling.
-- **Theme and Design Tokens:** Configured in `client/global.css` and `tailwind.config.ts`.
-- **Filter Modal Tokens:** Shared filter-modal color, spacing, typography, radius, focus, and touch-target tokens now live in `src/global.css` under the `:root` design-token block to support Figma handoff and responsive filter consistency.
-- **UI Components:** Pre-built library in `client/components/ui/` based on Radix UI and styled with Tailwind CSS.
-- **Utility:** `cn()` function (combines `clsx` + `tailwind-merge`) for robust conditional class management.
+### Marketplace Configuration
+- Edit service categories
+- Edit tier pricing
+- Create promo codes
+- Manage push notifications
 
----
+### Trust, Quality, and Risk
+- Automatic fraud detection support surfaces
+- Track low-rated contractors
+- Visibility into customer satisfaction and poor performance trends
 
-## 🗄 Database Schema (Conceptual)
-(Note: Actual database schema details would be provided here, including table structures, relationships, and key fields. This is a conceptual outline.)
+### Financial Operations
+- Financial payouts
+- Financial reports
+- Revenue visibility
+- Outstanding dispute visibility
 
-- **Users:**
-    - `id` (PK)
-    - `email` (Unique)
-    - `passwordHash`
-    - `role` (e.g., 'admin', 'user')
-    - `createdAt`, `updatedAt`
-- **Contractors:**
-    - `id` (PK)
-    - `userId` (FK to Users)
-    - `firstName`, `lastName`
-    - `kycStatus` (e.g., 'pending', 'approved', 'rejected')
-    - `servicesProvided`
-    - `locations`
-    - `createdAt`, `updatedAt`
-- **Requests:**
-    - `id` (PK)
-    - `contractorId` (FK to Contractors)
-    - `userId` (FK to Users)
-    - `status` (e.g., 'pending', 'approved', 'rejected', 'completed')
-    - `description`
-    - `amount`
-    - `createdAt`, `updatedAt`
-- **Transactions:**
-    - `id` (PK)
-    - `contractorId` (FK to Contractors)
-    - `requestId` (FK to Requests, optional)
-    - `type` (e.g., 'payout', 'fee')
-    - `amount`
-    - `status` (e.g., 'pending', 'approved', 'rejected')
-    - `bankAccountDetails`
-    - `createdAt`, `updatedAt`
+### Dashboard Analytics
+The dashboard should surface at least the following high-value operational KPIs:
+- total jobs today
+- jobs by category
+- average response time
+- active contractors
+- user analytics
+- heatmaps
+- total revenue
+- outstanding disputes
+- customer satisfaction rating
 
----
+## Reality Check: What The Current Frontend Actually Has
+The current app is frontend-only and mock-data-driven.
 
-## 🔗 API Endpoints
-The Express server exposes the following key API endpoints:
+### Routing Surface
+Reviewed in [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx).
 
-- **`GET /api/ping`**: A simple endpoint to check server health.
-- **`GET /api/demo`**: A demo endpoint for testing API integration.
-- **`GET /api/contractors`**: Retrieves a list of all contractors.
-- **`GET /api/contractors/:id`**: Retrieves details for a specific contractor.
-- **`GET /api/contractors/:id/transactions`**: Retrieves transaction history for a specific contractor.
-- **`PUT /api/contractors/:id/transactions/:transactionId/status`**: Updates the status of a specific contractor transaction.
-- **`GET /api/requests`**: Retrieves a list of all service requests.
-- **`GET /api/requests/:id`**: Retrieves details for a specific request.
-- **`PUT /api/requests/:id/status`**: Updates the status of a specific request.
-- **`GET /api/users`**: Retrieves a list of all users.
-- **`GET /api/users/:id`**: Retrieves details for a specific user.
+Current top-level routes:
+- `/` -> login
+- `/overview` -> dashboard overview
+- `/users` and `/users/:userId`
+- `/contractors` and `/contractors/:contractorId`
+- `/requests`
+- `/transactions`
+- `/support`
+- `/settings`
 
----
+### Existing Feature Inventory
 
-## 🔒 Authentication Mechanisms
-(Details on authentication, e.g., JWT, session-based, would go here.)
-The application uses a token-based authentication system. Upon successful login, a secure token (e.g., JWT) is issued to the client. This token is then sent with subsequent API requests to authenticate the user and authorize access to protected resources.
+#### Dashboard Overview
+Reviewed in [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx).
 
----
+Current strengths:
+- KPI-style summary cards
+- revenue chart
+- top services visualization
+- recent requests table
+- date filtering
 
-## 👤 User Roles and Permissions
-Currently, the application supports an `admin` role.
-- **Admin:** Has full access to all features, including managing contractors, users, requests, and transactions, and updating their statuses.
+Current limitation:
+- this is a generic summary dashboard, not yet an operations dashboard for a live help-on-demand service marketplace
 
----
+#### Users
+Reviewed in [users.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.tsx) and [user-details-page.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/user-details/user-details-page.tsx).
 
-## ✨ Feature Specifications
+Current strengths:
+- search, filters, pagination
+- user status actions
+- user detail page
+- request history linkage
 
-### Transaction History Tab (Contractor Details Page)
-- **Figma Designs:** `Desktop - 22`, `Desktop - 23`, `Desktop - 24`
-- **Functionality:**
-    - Displays summary cards for total revenue, total transactions, and average transaction value.
-    - Presents a paginated table of all transactions for a specific contractor.
-    - Includes search and filter capabilities for transactions.
-    - Each transaction row has a "3 dots" action menu.
-- **Transaction Details Sidebar:**
-    - Opens when the "3 dots" icon of a transaction is clicked.
-    - Displays detailed information about the selected transaction (ID, account number, account name, bank, amount, fee, status).
-    - Features an "Update Status" button.
-    - The "Update Status" button reveals an upward-opening dropdown with "Approve Transaction" and "Reject Transaction" options.
-    - Status updates are handled via the `handleUpdateStatus` function, which dispatches updates to the backend.
+Current limitation:
+- lacks richer admin controls such as payment history visibility, notification history, fraud markers, saved-location oversight, and audit trails
 
-### Requests Section
-- **Figma Designs:** `Desktop - 35`, `Frame 2147224490`
-- **Functionality:**
-    - Displays summary cards for total requests, pending requests, and approved requests.
-    - Presents a paginated table of all service requests.
-    - Includes search and filter capabilities for requests.
-    - Each request row has a "3 dots" action menu.
-- **Request Details Sidebar:**
-    - Opens when the "3 dots" icon of a request is clicked.
-    - Displays detailed information about the selected request.
-    - (Further details on request status updates or actions would be specified here.)
+#### Contractors
+Reviewed in [contractors.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.tsx), [contractor-details-page.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-details-page.tsx), [contractor-kyc-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-kyc-tab.tsx), [contractor-request-history-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-request-history-tab.tsx), and [contractor-transaction-history-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-transaction-history-tab.tsx).
 
-### User Management Section
-- **Functionality:**
-    - Displays summary cards for total, active, and deactivated users.
-    - Presents a paginated table of all users with search and filter capabilities.
-    - Each user row includes a three-dot action menu.
-- **User Actions Menu:**
-    - "View profile": Navigates to the detailed user profile page.
-    - "Activate account": Updates user status to "Active" with real-time feedback.
-    - "Deactivate account": Updates user status to "Deactivated" with real-time feedback.
-    - Implemented in both the main Users page and the Recent Requests section of the Overview dashboard.
+Current strengths:
+- contractor list page with filters and actions
+- contractor detail tabs
+- KYC review surface
+- request history tab
+- transaction history tab
 
-### Codebase Cleanup and Refactoring
-- **Global Rename:** Systematically renamed all references from "request-details" to "requests" across the entire codebase. This included file and folder names, import/export statements, variable/function/class/interface names, configuration files, documentation comments, and string literals.
-- **Dead Code Removal:** Conducted a thorough analysis to remove unused imports, variables, functions, and dead code.
-- **Code Consolidation:** Consolidated duplicate or similar code blocks into reusable functions.
-- **Dependency Optimization:** Removed obsolete configuration files and dependencies.
-- **App Maintenance:** Updated dependencies to their latest stable versions, fixed deprecated API usage, and optimized bundle size.
-- **Testing:** Ensured all tests pass after modifications.
+Current limitations:
+- no performance watchlist surface for low-rated or risky contractors
+- no suspension and restore workflow with reason capture and audit state
+- no availability, acceptance-rate, completion-rate, or response-time metrics
+- KYC page still contains a testing-only admin upload behavior that should not exist in production admin workflows
 
----
+Important note:
+- [contractor-kyc-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-kyc-tab.tsx) explicitly includes a TODO stating that admin-side document upload is testing-only and must be removed before production
 
-## 🚀 Deployment Processes
-- **Development:** `pnpm dev` starts the development server with hot reload for both client and server.
-- **Production Build:** `pnpm build` creates an optimized production build for both the client SPA and the Express server.
-- **Production Start:** `pnpm start` runs the production server.
-- **Cloud Deployment:** The application is designed for easy deployment to platforms like Netlify or Vercel, leveraging their respective integrations.
+#### Requests
+Reviewed in [requests.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.tsx), [requests-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-sidebar.tsx), [requests-overlay.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-overlay.tsx), and [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts).
 
----
+Current strengths:
+- requests list with filters and pagination
+- request detail sidebar
+- request status actions
+- live-tracker-style overlay concept
 
-## 📊 Monitoring Setup
-(Details on monitoring tools, logging, and error tracking would go here.)
-Currently, basic server-side logging is in place. For production, integration with dedicated monitoring solutions (e.g., Sentry for error tracking, Prometheus/Grafana for metrics) would be recommended to ensure application health and performance.
+Current limitations:
+- not yet structured as a true dispatch board
+- lacks assignment queue depth, SLA visibility, live event timeline, intervention controls, and escalation/dispute hooks
+- request lifecycle states are still simplified for marketplace operations
 
----
+#### Transactions
+Reviewed in [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx).
 
-## 💡 Known Issues and Future Roadmap
+Current strengths:
+- transaction list page
+- filterable/searchable table
+- detail sidebar
+- status update controls
 
-### Known Issues
-- (Any current bugs or limitations would be listed here.)
+Current limitations:
+- not yet a payouts and reconciliation workspace
+- no settlement batches, failure handling, exports, payout approvals, or commission reporting views
 
-### Future Roadmap
-- Implement comprehensive user authentication with role-based access control.
-- Enhance filtering and sorting capabilities across all tables.
-- Integrate real-time notifications for critical events.
-- Develop a robust reporting and analytics module.
-- Implement a more sophisticated error handling and logging system.
-- Expand test coverage for all new features.
+#### Support
+Reviewed in [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx).
 
----
+Current strengths:
+- ticket list, filters, pagination, and details sidebar
 
-## 🛠 Development Workflows and Standards
+Current limitations:
+- no dedicated dispute workflow
+- no evidence review, refund path, job-linked escalation, or trust-and-safety coordination layer
 
-### Coding Standards
-- **Language:** TypeScript for all new code.
-- **Formatting:** Prettier is used for automatic code formatting to ensure consistency.
-- **Linting:** ESLint is configured to enforce coding style and identify potential issues.
-- **Naming Conventions:**
-    - Components: PascalCase (e.g., `MyComponent.tsx`)
-    - Functions/Variables: camelCase (e.g., `myFunction`, `myVariable`)
-    - Interfaces/Types: PascalCase (e.g., `MyInterface`)
-    - Files: kebab-case for directories, kebab-case or PascalCase for components/modules.
+#### Settings
+Reviewed in [settings.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/settings.tsx).
 
-### Testing Procedures
-- **Unit Tests:** Vitest is used for writing unit tests for individual functions and components.
-- **Integration Tests:** Vitest is also used for integration tests to ensure different parts of the application work together correctly.
-- **Test Commands:** `pnpm test` to run all tests. `pnpm typecheck` for TypeScript validation.
+Current strengths:
+- basic configuration shell exists
 
-### Maintenance Protocols
-- **Dependency Updates:** Regularly update dependencies to their latest stable versions to leverage new features, bug fixes, and security patches.
-- **Code Reviews:** All code changes should undergo a peer code review process.
-- **Documentation:** Keep `Task_handover.md` and inline comments up-to-date with any changes or new features.
-- **Performance Monitoring:** Regularly monitor application performance and address any bottlenecks.
-- **Security Audits:** Conduct periodic security audits to identify and mitigate vulnerabilities.
+Current limitations:
+- far below PRD requirements
+- does not yet support service categories, pricing tiers, promo codes, notification templates/campaigns, or operational rules
 
----
+#### Shared Admin Infrastructure
+Reviewed in:
+- [dashboard-layout.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-layout.tsx)
+- [dashboard-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-sidebar.tsx)
+- [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts)
+- [filter-schema.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/filters/filter-schema.ts)
+- [use-url-filters.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/filters/use-url-filters.ts)
+- [pagination-utils.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/pagination-utils.ts)
 
-## 📁 Folder Structure
-The project recently underwent a restructuring to simplify the directory layout and make it more feature-oriented and intuitive.
+Current strengths:
+- reusable dashboard shell
+- reusable filter schema and URL-synced filter state
+- reusable pagination utilities
+- repeatable table + sidebar UI patterns
 
-```text
-admin-aidSprint-app/
-├── public/                 # Static assets like favicons and raw SVGs
-├── server/                 # Express backend API
-│   ├── routes/             # Individual API endpoint handlers
-│   ├── index.ts            # Main server setup and middleware
-│   └── node-build.ts       # Server build configuration
-├── shared/                 # Shared TypeScript interfaces/types between Client & Server
-│   └── api.ts              
-├── src/                    # Primary Frontend Application Directory (formerly 'client')
-│   ├── components/         # Reusable React components
-│   │   └── ui/             # Pre-built Radix/Shadcn UI component library
-│   ├── hooks/              # Custom React hooks (e.g., use-toast, use-mobile)
-│   ├── lib/                # Utility functions (e.g., tailwind merge cn() function)
-│   ├── login/              # Feature: Login Module
-│   │   └── login.tsx       # Main login page component
-│   ├── not-found/          # Feature: 404 Error Module
-│   │   └── not-found.tsx   # 404 page component
-│   ├── App.tsx             # Root React component containing the Router setup
-│   ├── global.css          # Tailwind directives and global design tokens
-│   └── vite-env.d.ts       # Vite TypeScript definitions
-├── .env                    # Environment variables
-├── netlify.toml            # Netlify deployment configuration
-├── tailwind.config.ts      # Tailwind styling configuration
-├── tsconfig.json           # TypeScript configuration
-├── vite.config.ts          # Vite frontend configuration
-└── vite.config.server.ts   # Vite backend/SSR build configuration
-```
+Current limitations:
+- notification drawer is still placeholder-level
+- navigation does not yet reflect the full PRD information architecture
+- shared admin domain types are still too light for real operations use
 
----
+### Backend Reality
+Reviewed in [server/index.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/server/index.ts) and [api.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/shared/api.ts).
 
-## 🔄 Recent Changes & Restructuring
+Current state:
+- backend is starter-only
+- real admin APIs do not exist yet
+- only `/api/ping` and `/api/demo` are currently implemented
+- shared API typing is minimal
 
-1. **`client/` to `src/` Migration:**
-   - The primary frontend folder was renamed from `client` to the standard `src` directory to follow standard React conventions.
-   - All configuration files (`vite.config.ts`, `tsconfig.json`, `tailwind.config.ts`, `components.json`) were updated to correctly alias and resolve the new `@/` path to `./src`.
+This means all current frontend coverage should be understood as UI architecture and workflow preparation, not integrated product completion.
 
-2. **Feature-based Component Organization:**
-   - Removed the generic `pages/` directory.
-   - Moved page components into dedicated feature directories for better scalability:
-     - The main entry page (`Index.tsx`) was refactored and moved to `src/login/login.tsx`.
-                - The error page was moved to `src/not-found/not-found.tsx`.
-            - Updated `src/App.tsx` routing to reflect these new modular paths.
+## Requirement Coverage Assessment
 
-3. **Global Rename: `request-details` to `requests`:**
-   - Systematically renamed the `request-details` folder and all its contents to `requests`.
-   - Updated all relevant import/export statements and file paths across the codebase.
+### Meets Or Mostly Meets Frontend Foundation Needs
+- dashboard shell and navigation structure
+- users list/detail management pattern
+- contractors list/detail management pattern
+- KYC review pattern
+- requests list/detail pattern
+- transactions list/detail pattern
+- support tickets pattern
+- shared filters, tables, and pagination
 
-4. **TypeScript & Dependency Fixes:**
-   - Resolved a TypeScript error regarding missing Node types by installing `@types/node` as a dev dependency.
-   - Fixed a syntax formatting issue in `tsconfig.json` that was causing parsing failures.
-   - Formatted the entire codebase using Prettier.
-   - Verified that the project builds (`npm run build`) and passes type checking (`npm run typecheck`) successfully.
+### Partially Meets PRD
+- dashboard analytics: partial visual coverage, but not the right operational KPI set yet
+- contractor management: partial because verification exists, but performance/risk controls are incomplete
+- request monitoring: partial because request list and tracker concept exist, but no true dispatch/monitoring console
+- financial operations: partial because transaction UI exists, but not payouts/reporting workflows
+- support: partial because ticket handling exists, but disputes are missing
 
-5. **Responsive Shared Filter Modal Refresh:**
-   - Rebuilt `src/components/dashboard/shared/filters/filter-modal.tsx` as a compact, schema-driven responsive modal with three explicit modes:
-     - **Mobile (`< 768px`)**: inline accordion for filter groups so hidden controls remain keyboard-accessible.
-     - **Tablet (`768px - 1023px`)**: compact single-column filter panel constrained to `max-width: 40vw`.
-     - **Desktop (`>= 1024px`)**: split layout with a lightweight inline calendar constrained to `max-width: 60vw`.
-   - Replaced the old stacked layout with 8px-based spacing, 14px filter typography, 44px minimum touch targets, and stronger contrast tokens aligned with WCAG 2.1 interaction requirements.
-   - Preserved the existing shared filter API (`schema`, `value`, `onApply`, `onReset`) so all current consumers (`overview`, `dashboard-layout`, `contractors`, `users`, `requests`, `transactions`, `support`) continue working without integration changes.
-   - Added focused component coverage in `src/components/dashboard/shared/filters/filter-modal.test.tsx` for 320px, 768px, 1024px, and 1440px viewports, including responsive layout switching, keyboard interaction, resize persistence, apply/reset flows, and runtime safety handling.
-   - Verified the redesigned modal with:
-     - `npm run typecheck`
-     - `npm exec vitest -- --run src/components/dashboard/shared/filters/filter-modal.test.tsx --coverage --coverage.include=src/components/dashboard/shared/filters/filter-modal.tsx`
-   - Latest coverage for `filter-modal.tsx`:
-     - Statements: `93.46%`
-     - Functions: `93.87%`
-     - Lines: `95.52%`
+### Does Not Yet Meet PRD
+- service category management
+- tier pricing management
+- promo code creation and management
+- push notification management
+- fraud detection review surface
+- low-rated contractor watchlist and intervention flow
+- suspend/restore contractor lifecycle with proper admin UX
+- real-time jobs command center
+- dashboard heatmap and response-time analytics
+- outstanding disputes dashboard reporting
+- customer satisfaction operations view
+- auth-ready secure admin flow expectations
 
----
+## Best-Practice Guidance For A Help-On-Demand Service Admin
+The admin frontend should be shaped around operational speed, trust, and intervention.
 
-## 🚀 Getting Started & Commands
+### Principles To Keep
+- Use urgency-first design. High-risk, delayed, disputed, and failed-payment items should be visually prioritized.
+- Keep destructive actions guarded. Suspend, cancel, reject, refund, and payout actions should require confirmation and reason capture.
+- Preserve auditability. Every admin action should have a visible actor, timestamp, and reason field in the UI model.
+- Separate operational queues from settings. Live job management should not compete with configuration tasks.
+- Prefer explicit status taxonomies. Avoid ambiguous statuses like generic pending when the business needs assigned, en route, arrived, in progress, completed, cancelled, disputed, refunded, payout pending, payout failed, and similar states.
+- Design for backend readiness. Frontend state should map cleanly to future API contracts and avoid temporary naming that will be expensive to unwind.
 
-The project uses a single-port development environment (Port `8080`).
+## What Needs To Change In The Existing Frontend
 
-```bash
-# Install dependencies
-npm install
+## Planning Update: UI Impact By Phase
+This planning pass confirms that the upcoming roadmap should remain a low-redesign, high-workflow evolution of the current admin UI.
 
-# Start development server (Client + Server Hot Reload)
-npm run dev
+Visual guidance:
+- preserve the current dashboard shell, typography rhythm, card language, tables, sidebars, drawers, badges, filters, and action hierarchy
+- prefer extending existing Figma-backed patterns over introducing new component families
+- treat new work as information architecture and workflow expansion, not a visual redesign
 
-# Run TypeScript validation
-npm run typecheck
+Phase-by-phase UI impact:
+- Phase 1: moderate UI change, high workflow change
+- Phase 2: moderate to high UI change, especially where disputes and marketplace configuration need clearer separation
+- Phase 3: low to moderate UI change, mostly finance-state depth and reporting controls
+- Phase 4: low UI change, mostly auth, routing, and protected-state handling
 
-# Build for production (Builds both client SPA and server)
-npm run build
+Files most likely to stay visually close to current Figma:
+- `overview.tsx`
+- `requests.tsx`
+- `transactions.tsx`
+- `support.tsx`
+- contractor list/detail tabs and existing sidebars
 
-# Run unit tests
-npm run test
-```
+Areas most likely to need careful Figma-extension decisions rather than redesign:
+- disputes workspace
+- pricing and promo management in settings
+- notification management
+- finance reporting and reconciliation drill-downs
 
-### Adding New Features
-To maintain the new folder structure, any new pages or major features (e.g., a Dashboard) should be created in their own dedicated folder inside `src/` (e.g., `src/dashboard/dashboard.tsx`), and then imported into the `<Routes>` block within `src/App.tsx`.
+## Trae Prompt Bank
+Use the following prompts as implementation chunks. Each prompt is designed to preserve the current AidSprint visual system while increasing workflow depth.
 
+### Phase 1 Prompt A: Overview Operations Control Center
+Refactor `src/components/overview/overview.tsx` into an operations-first control center without changing the current dashboard shell or visual language. Reuse the existing summary-card, chart, table, badge, filter, and responsive mobile-card patterns already present in `overview.tsx`, `requests.tsx`, `transactions.tsx`, and the shared dashboard primitives. Keep the page recognizably aligned to current Figma styling, but reorganize the information hierarchy so urgent operational queues appear first. Add cards and sections for delayed jobs, disputed jobs, failed payouts, KYC blockers, low-rated contractors, and live operational KPIs. Use explicit lifecycle labels and backend-ready naming. Do not invent a new design language; extend the current one. Add focused tests only where interaction logic changes materially.
 
-{
-  "primary_request_and_intent": [
-    "Build the Transaction history tab for the contractor details page, based on Figma design `Desktop - 22`. This includes summary cards, a transaction table, and pagination.",
-    "Implement a side-bar for transaction history details that opens when clicking the 3 dots of a transaction in the table, based on Figma design `Desktop - 23`.",
-    "The transaction details sidebar should include an 'Update Status' button with a dropdown (opening upwards) allowing 'Approve Transaction' or 'Reject Transaction' options, based on Figma design `Desktop - 24`.",
-    "Build the Request section, with the component located in a folder to be renamed from 'request-details' to 'requests', based on Figma design `Desktop - 35`. This includes summary cards, a requests table, and pagination.",
-    "Implement a request details sidebar that opens when clicking the 3 dots of a request in the table, based on Figma design `Frame 2147224490`.",
-    "Execute a comprehensive codebase cleanup and refactoring operation, including global renames from 'request-details' to 'requests', unused code removal, redundancy checks, app maintenance (dependency updates, deprecated API fixes, bundle size optimization), and safety measures (backup, automated tools, test suite runs, backward compatibility).",
-    "Update the task handover document to comprehensively document the admin application, covering technical architecture, business logic, implementation methodologies, current development status, operational procedures, system architecture diagrams, database schemas, API endpoints, authentication mechanisms, user roles and permissions, feature specifications, deployment processes, monitoring setup, known issues, future roadmap, development workflows, coding standards, testing procedures, and maintenance protocols.",
-    "Compress the entire conversation into a lossless, JSON-formatted summary."
-  ],
-  "key_technical_concepts": [
-    "Frontend Framework: React 18 + Vite",
-    "Routing: React Router v6 (SPA mode)",
-    "Styling: Tailwind CSS v3 + Radix UI (Shadcn UI components)",
-    "State/Data Management: React Query (`@tanstack/react-query`)",
-    "Backend: Express server (integrated with Vite dev server)",
-    "Language: TypeScript",
-    "Testing: Vitest",
-    "Package Manager: PNPM / NPM",
-    "UI Components: DropdownMenu, Dialog (for sidebars), Input, Pagination, Accordion, Toast (Sonner)",
-    "Figma-to-Code-Specialist skill: Utilized for generating UI components from Figma designs",
-    "Codebase Refactoring: Global renames, dead code elimination, dependency updates, documentation"
-  ],
-  "files_and_code_sections": [
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\overview\\overview.tsx",
-      "status": "Modified",
-      "why_important": "Updated imports for various icons (`TotalContractorsIcon`, `TotalRequestsIcon`, `TotalRevenueIcon`, `TotalUsersIcon`) and `summaryCardPattern`. Also imported `toast` from `sonner`. This indicates a general update to icon and utility imports across the application.",
-      "changes": "Imports for icons and `summaryCardPattern` were updated. `toast` from `sonner` was imported. `totalRevenuePattern` and `requestsCardPattern` were assigned `summaryCardPattern`."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\contractors\\contractors.data.ts",
-      "status": "Modified",
-      "why_important": "Updated imports for `summaryCardPattern` and `TotalContractorsIcon`, and defined `contractorsSummaryPattern` and `contractorsSummaryIcon`. This centralizes asset and icon usage for contractor-related summary data.",
-      "changes": "Imports for `summaryCardPattern` and `TotalContractorsIcon` were updated. `contractorsSummaryPattern` was set to `summaryCardPattern` and `contractorsSummaryIcon` to `TotalContractorsIcon`."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\contractors\\contractor-kyc-context.tsx",
-      "status": "Modified",
-      "why_important": "Updated constants related to KYC document handling, including maximum documents, accepted MIME types, file extensions, and the review admin name. This reflects configuration changes for the KYC verification process.",
-      "changes": "Constants `MAX_SERVICE_PROVIDER_DOCUMENTS`, `ACCEPTED_MIME_TYPES`, `ACCEPTED_FILE_EXTENSIONS`, and `REVIEW_ADMIN_NAME` were updated."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\contractors\\contractor-kyc-tab.tsx",
-      "status": "Modified",
-      "why_important": "Updated imports for various Lucide icons (`Check`, `CheckCircle2`, `CircleAlert`, `Eye`, `Upload`, `XCircle`) and `toast` from `sonner`. Also, modified the styling logic for `AccordionItem` based on the active category. This indicates UI and notification system integration.",
-      "changes": "Imports for Lucide icons and `toast` from `sonner` were updated. Styling for `AccordionItem` was modified to conditionally apply `border-[#101828] shadow-[0_10px_30px_rgba(15,23,42,0.08)]` or `border-[#EAECF0] hover:border-[#D0D5DD]`."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\contractors\\contractor-request-history-tab.tsx",
-      "status": "Modified",
-      "why_important": "This file is central to the contractor's request history. The modifications include imports for UI components (`DropdownMenu`, `Input`), `ContractorRecord`, and `userDetailsRecords`. The user frequently opening this file suggests it's a key area of ongoing development or reference.",
-      "changes": "Imports for `DropdownMenu` components, `Input`, `ContractorRecord`, and `userDetailsRecords` were updated. Filtering logic for `requestRows` based on `searchQuery` was implemented."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22655_16919\\index.jsx",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the structure and styling for the transaction details sidebar (`Desktop - 23`). This was a reference for implementing the sidebar.",
-      "changes": "Contains JSX for the transaction details sidebar, including transaction ID, account number, account name, bank account, amount, fee, and status. It also has an 'Update Status' button."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22656_7780\\index.jsx",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the structure and styling for the transaction details sidebar with the 'Update Status' dropdown (`Desktop - 24`). This was a reference for implementing the dropdown functionality.",
-      "changes": "Contains JSX for the transaction details sidebar, similar to `22655_16919`, but with an expanded 'Update Status' section showing 'Approve Transaction' and 'Reject Transaction' options."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\contractors\\contractor-transaction-history-tab.tsx",
-      "status": "Modified/Created",
-      "why_important": "This file implements the transaction history tab for contractors, including summary cards, a transaction table, pagination, and the `TransactionDetailsSidebar` component. It handles data fetching, filtering, and status updates.",
-      "changes": "Significantly updated/created to implement the transaction history tab. Includes imports for UI components (`Dialog`, `DropdownMenu`, `Input`), Lucide icons, `summaryCardPattern`, custom icons, `toast`, and data functions/types. Implements `TransactionSummaryCard` and the main `ContractorTransactionHistoryTab` component with state management for search, filters, pagination, and selected transactions. Renders summary cards, a transaction table, search/filter inputs, pagination controls, and integrates `TransactionDetailsSidebar` with `handleUpdateStatus`."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\App.tsx",
-      "status": "Modified",
-      "why_important": "Updated imports for `RequestsPage` and `ContractorDetailsPage` to reflect the folder renaming from `request-details` to `requests`. This is crucial for correct routing.",
-      "changes": "The import path for `RequestsPage` was updated from `./components/dashboard/request-details/requests` to `./components/dashboard/requests/requests`."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\request-details\\requests.test.tsx",
-      "status": "Deleted",
-      "why_important": "Deleted as part of the global rename and refactoring from `request-details` to `requests`.",
-      "changes": "File was deleted."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\request-details\\requests.tsx",
-      "status": "Deleted",
-      "why_important": "Deleted as part of the global rename and refactoring from `request-details` to `requests`. The content was likely moved to `src/components/dashboard/requests/requests.tsx`.",
-      "changes": "File was deleted."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\src\\components\\dashboard\\requests\\requests.tsx",
-      "status": "Modified/Created",
-      "why_important": "This file now contains the implementation for the main Requests section, including summary cards, a table of requests, search/filter, and pagination. It was created/updated as part of the 'Requests section' task and the global rename.",
-      "changes": "This file was created/updated to implement the Requests section, likely mirroring the structure of the transaction history tab but adapted for request data, including summary statistics, a table of requests, search/filter, pagination, and a request details sidebar."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22656_11914\\index.jsx",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the JSX for the 'View request' dropdown item, which is part of the request details functionality.",
-      "changes": "Contains JSX for a `div` with class `frame2147224490` and a `p` tag with class `viewRequest` displaying 'View request'."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22656_11914\\index.module.scss",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the SCSS for the 'View request' dropdown item.",
-      "changes": "Contains SCSS for `.frame2147224490` (flex container, border-radius, background, padding, width, height) and `.viewRequest` (font styles, color, line-height, letter-spacing)."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22659_17940\\index.jsx",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the JSX for the 'View details' dropdown item, relevant for the Transaction section.",
-      "changes": "Contains JSX for a `div` with class `frame2147224493` and a `p` tag with class `viewDetails` displaying 'View details'."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\22659_17940\\index.module.scss",
-      "status": "Examined (Figma-generated code)",
-      "why_important": "Provides the SCSS for the 'View details' dropdown item.",
-      "changes": "Contains SCSS for `.frame2147224493` (flex container, border-radius, background, padding, width, height) and `.viewDetails` (font styles, color, line-height, letter-spacing)."
-    },
-    {
-      "file_path": "C:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\Task_handover.md",
-      "status": "Examined (target for update)",
-      "why_important": "This is the document the user wants to update with comprehensive project documentation. The current content provides an overview of the project, tech stack, folder structure, recent changes, and getting started commands.",
-      "changes": "Current content includes sections on Project Overview, Tech Stack, Folder Structure, Recent Changes & Restructuring, and Getting Started & Commands. This document is slated for significant expansion to cover all requested documentation points."
-    }
-  ],
-  "errors_and_fixes": [
-    "No explicit errors were encountered and fixed during the provided conversation segments."
-  ],
-  "problem_solving": [
-    "**Transaction History Tab:** Successfully implemented the transaction history tab for contractors, including summary cards, a filterable/searchable table, pagination, and a transaction details sidebar with status update functionality.",
-    "**Requests Section:** Successfully implemented the requests section, including summary cards, a filterable/searchable table, and pagination.",
-    "**Codebase Refactoring (request-details to requests):** Successfully performed a global rename of the `request-details` folder and its contents to `requests`, updating imports and file paths accordingly. This involved deleting old files and creating/modifying new ones."
-  ],
-  "all_user_messages": [
-    "We need to build the Transaction history tab of the contactor details ( Use the Figma-to-Code-Specialist skill to build this header based on the linked design. )- `Desktop - 22` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22654_15742.png` -When we click the 3 dots of a transaction in the table a side bar should open with the transaction history details of that specific transaction `Desktop - 23` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22655_16919.png` - The sidebar should have an Update status button which opens a drop down (not the dropdown should open upwards since its at the bottom of the page so it wont dissapear into the bottom), this drop down allows the admin to either approve transaction or reject transaction `Desktop - 24` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22656_7780.png`",
-    "continue -- and never forget to write a summary of the task you implemented",
-    "Time to create the Request section, the requests component should be in the request-details folder (we should probably rename that folder to just requests)- `Desktop - 35` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22656_11928.png` - when we click on the 3 dots of a request in the table it should open the request details of that particular request `Frame 2147224490` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22656_11914.png` ( Use the Figma-to-Code-Specialist skill to build this header based on the linked design.)",
-    "Execute a comprehensive codebase cleanup and refactoring operation with the following specific tasks: 1. Perform a systematic global rename of all references from \"request-details\" to \"requests\" across the entire codebase, including: - File and folder names - Import/export statements - Variable and function names - Class and interface names - Configuration files - Documentation comments - String literals and constants 2. Conduct a thorough codebase analysis to identify and implement effective cleanup opportunities: - Remove unused imports, variables, functions, and dead code - Consolidate duplicate or similar code blocks into reusable functions - Optimize redundant database queries and API calls - Eliminate circular dependencies - Remove obsolete configuration files and dependencies 3. Perform redundancy checks across all modules: - Identify and merge duplicate utility functions - Consolidate similar API endpoints - Remove redundant state management - Eliminate duplicate CSS styles and components - Merge similar test cases 4. Execute comprehensive app maintenance tasks: - Update all dependencies to their latest stable versions - Fix deprecated API usage and replace with modern alternatives - Optimize bundle size by removing unnecessary packages - Update documentation to reflect all changes - Ensure all tests pass after modifications 5. Implement safety measures: - Create a full backup before making changes - Use automated refactoring tools with proper validation - Run the complete test suite after each major change - Verify no breaking changes in the public API - Ensure backward compatibility where applicable Deliverables must include a detailed report of all changes made, performance improvements achieved, and confirmation that all existing functionality remains intact.",
-    "Its time for the Transaction section, Use the Figma-to-Code-Specialist skill to build this header based on the linked design. `Desktop - 37` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22659_17946.png` The tables 3 dots will open the dropdown with the view details button `Frame 2147224493` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22659_17940.png` and clicking the button will open the Transaction details sidebar which contains the details of that particular transaction. `Desktop - 38` `c:\\Users\\hp\\Desktop\\Work\\Assignment\\aidSprint-app\\admin-aidSprint-app\\.figma\\image\\screenshot_22659_18316.png`",
-    "Update the task handover document to comprehensively document the admin application, including all technical architecture, business logic, implementation methodologies, current development status, and operational procedures. The documentation must cover system architecture diagrams, database schemas, API endpoints, authentication mechanisms, user roles and permissions, feature specifications, deployment processes, monitoring setup, known issues, and future roadmap. Include detailed explanations of all development workflows, coding standards, testing procedures, and maintenance protocols currently in use. Ensure the document provides complete context for any team member to understand and continue development without requiring additional clarification."
-  ],
-  "pending_tasks": [
-    "Complete the comprehensive codebase cleanup and refactoring operation as detailed in the user's request.",
-    "Update the `Task_handover.md` document with comprehensive documentation covering technical architecture, business logic, implementation methodologies, current development status, and operational procedures."
-  ],
-  "current_work": "Immediately before this summary request, the user reiterated the task to \"Update the task handover document to comprehensively document the admin application, including all technical architecture, business logic, implementation methodologies, current development status, and operational procedures. The documentation must cover system architecture diagrams, database schemas, API endpoints, authentication mechanisms, user roles and permissions, feature specifications, deployment processes, monitoring setup, known issues, and future roadmap. Include detailed explanations of all development workflows, coding standards, testing procedures, and maintenance protocols currently in use. Ensure the document provides complete context for any team member to understand and continue development without requiring additional clarification.\" I have just read the `Task_handover.md` file in preparation for this update.",
-  "optional_next_step": "The next step is to update the `Task_handover.md` document with the comprehensive documentation as requested by the user.",
-  "conversation_language": "English"
-}
+### Phase 1 Prompt B: Requests Dispatch Workflow
+Upgrade `src/components/dashboard/requests/requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` into a dispatch and live-monitoring workflow while preserving the current table, sidebar, and overlay styling patterns. Reuse the working status-menu, drawer, badge, filter, pagination, and responsive mobile-card behavior already established across requests, support, transactions, overview, and contractor tabs. Add explicit request lifecycle states, urgent queue visibility, intervention actions, and better operational grouping, but keep the visual styling within the current Figma-backed component system. Ensure mobile and tablet layouts continue following the same breakpoints and stacking patterns as overview/users/contractors.
+
+### Phase 1 Prompt C: Contractor Operations Surface
+Refactor the contractor area in `src/components/dashboard/contractors/` into an operations-first contractor management surface without redesigning the existing Figma language. Extend the current contractor list, contractor details page, summary cards, request-history tab, and transaction-history tab with trust/risk indicators, low-rating watchlists, suspension and restore actions, performance metrics, and clearer contractor lifecycle states. Reuse existing card, tab, table, badge, menu, sidebar, and modal patterns before introducing any new layout structure. Keep the visual system consistent with current dashboard styling.
+
+### Phase 1 Prompt D: Contractor KYC Review Cleanup
+Remove the testing-only admin upload behavior from `src/components/dashboard/contractors/contractor-kyc-tab.tsx` and convert the KYC tab into a read-only review plus approve/reject workflow. Preserve the current tab structure and detail-card styling. Add confirmation and reason-capture UX for rejection decisions using existing modal/drawer patterns where possible. Keep naming and state models backend-ready and aligned with explicit approval states.
+
+### Phase 2 Prompt A: Settings Marketplace Configuration
+Expand `src/components/dashboard/setting/settings.tsx` into a marketplace-configuration workspace for service categories, pricing tiers, promos, and notification management. Preserve the current settings route and visual language, but reorganize the page into clearly separated configuration sections using existing cards, forms, toggles, tabs, and panel patterns. Treat this as an extension of the existing design system, not a new admin theme. If a workflow becomes too complex for the current page pattern, structure it as clearly separated internal sections before proposing brand-new surfaces.
+
+### Phase 2 Prompt B: Disputes Planning Surface
+Create a dedicated disputes surface, either as a new route or a clearly separated operational section branching from the support workflow, while staying visually aligned with `support.tsx`, `support-sidebar.tsx`, `requests-sidebar.tsx`, and the existing table/detail-sheet system. Prioritize evidence review, linked job context, refund/reversal readiness, actor/reason auditability, and explicit dispute lifecycle states. Reuse existing list, badge, drawer, and filter patterns first. Only introduce a new page-level layout if the workflow cannot fit cleanly inside current support patterns.
+
+### Phase 3 Prompt A: Transactions Finance Operations
+Upgrade `src/components/dashboard/transactions/transactions.tsx` into a finance-operations workspace for payouts, exports, reporting, failures, and reconciliation while preserving the current transaction page structure, summary cards, table styling, filters, dropdowns, and right-side detail panel patterns. Expand the workflow with explicit payout states, failure buckets, export actions, and reconciliation-focused views, but keep the UI visually consistent with existing Figma-backed pages. Use backend-ready finance naming and avoid generic statuses.
+
+### Phase 4 Prompt A: Auth-Ready Login And Route Structure
+Make `src/login/login.tsx` and the app route structure auth-ready before backend integration starts. Keep the current visual language intact and limit UI changes to the states needed for real auth behavior: validation, loading, locked/unauthorized access, session expiry, and protected-route handling. Reuse existing feedback patterns such as toasts, inline messages, dialogs, and loading indicators. Focus on route guards, naming, and auth-state architecture more than visual redesign.
+
+### Phase 4 Prompt B: Admin Route Architecture Cleanup
+Refactor route structure and navigation so current and planned admin modules map cleanly to future backend contracts. Keep the existing sidebar and dashboard shell styling, but normalize route naming, module grouping, and protected navigation flow for overview, requests, contractors, transactions, support, disputes, settings, and future marketplace operations. Preserve the visual shell while improving information architecture.
+
+### 1. Turn Overview Into A Real Operations Dashboard
+Primary file: [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx)
+
+Required changes:
+- replace generic summary cards with PRD-relevant KPIs
+- add total jobs today
+- add jobs by category
+- add average response time
+- add active contractors now
+- add outstanding disputes count
+- add customer satisfaction rating
+- add a service-area heatmap placeholder panel
+- add an urgent incidents or jobs needing intervention panel
+- add a low-rated contractors panel
+- add failed payouts or finance alerts panel
+
+Recommended layout:
+- top row: operational KPIs
+- middle row: jobs by category, revenue, satisfaction, response-time trend
+- bottom row: urgent queue, disputes, contractor health, live map/heatmap
+
+### 2. Evolve Requests Into An Operations And Dispatch Workspace
+Primary files:
+- [requests.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.tsx)
+- [requests-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-sidebar.tsx)
+- [requests-overlay.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-overlay.tsx)
+- [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts)
+
+Required changes:
+- add richer request lifecycle statuses
+- add urgency/SLA columns and filters
+- add assignment state and contractor availability view
+- add reschedule, reassign, escalate, and refund/dispute entry actions
+- add event timeline in the sidebar
+- add customer and contractor communication metadata
+- expand the live tracker from a request overlay into a reusable operations map panel
+- support bulk queue filters such as unassigned, delayed, disputed, and high priority
+
+Suggested lifecycle model:
+- Created
+- Awaiting assignment
+- Assigned
+- Contractor en route
+- Arrived
+- In progress
+- Completed
+- Cancelled
+- Disputed
+- Refunded
+
+### 3. Expand Contractor Management Around Trust And Performance
+Primary files:
+- [contractors.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.tsx)
+- [contractor-details-page.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-details-page.tsx)
+- [contractor-kyc-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-kyc-tab.tsx)
+- [contractors.types.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.types.ts)
+
+Required changes:
+- add suspend and restore actions with reason capture and status history
+- add low-rating and repeated-complaint indicators
+- add performance metrics: acceptance rate, completion rate, average rating, response time, last active, service zone coverage
+- add account flags: KYC incomplete, payout blocked, risk review, repeated cancellation
+- convert KYC admin upload UI into a read-only document review and decision flow
+- add contractor payout summary and pending payout indicator on the details page
+
+### 4. Upgrade Transactions Into A Finance Operations Surface
+Primary file: [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx)
+
+Required changes:
+- separate customer payments from contractor payouts
+- add payout status taxonomy: pending, approved, processing, paid, failed, reversed
+- add export/report actions
+- add payout summary cards
+- add failed payout review list
+- add reconciliation-oriented filters
+- add fee and commission breakdown presentation
+
+### 5. Split Support From Disputes
+Primary file: [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx)
+
+Required changes:
+- either add top-level tabs or a new route for disputes
+- create dispute states such as open, investigating, awaiting evidence, resolved, refunded, rejected
+- show linked request, user, contractor, payment amount, evidence, and resolution notes
+- support action history and outcome logging
+
+Recommendation:
+- keep `Support` for inbound support operations
+- add `Disputes` as a dedicated route if the PRD scope remains large
+
+### 6. Rebuild Settings Into Marketplace Configuration
+Primary file: [settings.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/settings.tsx)
+
+Required settings modules:
+- service categories
+- service category subtypes if applicable
+- tier pricing rules
+- surge or urgency pricing configuration if the business supports it
+- promo codes
+- push notification templates and campaigns
+- operational thresholds or policy settings
+
+Recommendation:
+- split Settings into sections or nested routes instead of one shallow page
+- use clear ownership panels with draft/publish or save/apply patterns
+
+### 7. Add Missing Admin Modules
+Recommended new frontend surfaces:
+- `Disputes`
+- `Promotions`
+- `Notifications`
+- `Fraud and Risk`
+- `Pricing`
+- `Service Categories`
+
+These may live as top-level routes or nested settings routes depending on navigation preference.
+
+### 8. Make Login Auth-Ready Even Before Backend
+Primary file: [login.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/login/login.tsx)
+
+Current limitation:
+- login simply navigates to `/overview`
+
+Required frontend preparation:
+- add proper form validation states
+- add loading and error states
+- plan route guarding
+- reserve support for role-based admin permissions
+- prepare a 2FA step or verification screen if required by the business
+- add session-expired UX
+
+## Recommended Information Architecture
+To better match the PRD, the admin navigation should evolve toward something like this:
+- Dashboard
+- Operations
+- Requests
+- Users
+- Contractors
+- Transactions
+- Disputes
+- Support
+- Promotions
+- Notifications
+- Settings
+
+Alternative structure if fewer top-level items are preferred:
+- Dashboard
+- Operations
+- Marketplace
+- Users
+- Contractors
+- Finance
+- Support
+- Settings
+
+Where:
+- `Marketplace` contains categories, pricing, promos, notifications
+- `Finance` contains transactions, payouts, reports
+- `Support` contains tickets and disputes
+
+## Frontend Domain Modeling That Should Be Added Before Backend
+The current mock types are useful, but the domain model should be expanded now so the backend contract is easier to implement later.
+
+Recommended frontend type groups:
+- request lifecycle and SLA types
+- contractor performance and risk types
+- payout and settlement types
+- dispute case types
+- promo campaign types
+- notification template and delivery types
+- dashboard analytics types
+- audit log types
+
+Suggested placement:
+- shared cross-app contracts in `shared/`
+- feature-specific UI models close to each feature folder
+
+## Concrete Component-Level Change Plan
+
+### Existing Files To Update
+- [App.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/App.tsx)
+  - add missing routes and reorganize navigation destinations
+- [dashboard-navigation.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-navigation.ts)
+  - add PRD-aligned nav items and rename `Transaction` to `Transactions`
+- [dashboard-layout.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/shared/dashboard-layout.tsx)
+  - convert placeholder notifications area into a real notification/alert center pattern
+- [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx)
+  - rebuild around operational KPIs and interventions
+- [requests.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.tsx)
+  - add queue and dispatch behavior
+- [requests-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-sidebar.tsx)
+  - add timeline, assignment, escalation, and dispute hooks
+- [requests-overlay.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-overlay.tsx)
+  - expand into a map/live monitoring panel
+- [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts)
+  - replace simplified status action mapping with richer lifecycle modeling
+- [contractors.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractors.tsx)
+  - add performance, risk, and suspension states
+- [contractor-kyc-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-kyc-tab.tsx)
+  - remove testing-only upload control and keep admin review-only behavior
+- [contractor-details-page.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-details-page.tsx)
+  - add performance and payout summary blocks
+- [transactions.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/transactions/transactions.tsx)
+  - refocus on payouts, reporting, and reconciliation
+- [support.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/support/support.tsx)
+  - add or split dispute handling
+- [settings.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/setting/settings.tsx)
+  - turn into a configuration center
+- [login.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/login/login.tsx)
+  - add auth-ready UX states
+
+### New Files Or Modules Likely Needed
+- operations dashboard widgets/components
+- dispute list and dispute details components
+- pricing management components
+- service category management components
+- promo code management components
+- notification management components
+- fraud/risk review components
+- shared timeline, audit log, and status badge utilities
+
+## Recommended Delivery Order
+
+### Phase 1: Close The Biggest Frontend PRD Gaps
+- rebuild `Overview` into an operations dashboard
+- upgrade `Requests` into a dispatch/monitoring workspace
+- expand `Contractors` with trust/performance controls
+- remove the testing-only admin upload behavior from KYC
+
+### Phase 2: Add Missing Product Modules
+- disputes
+- service categories
+- pricing tiers
+- promo codes
+- push notifications
+
+### Phase 3: Strengthen Finance And Trust
+- payout workflows
+- reporting/export surfaces
+- fraud/risk review workspace
+- low-rated contractor watchlist
+
+### Phase 4: Backend-Ready Integration Pass
+- replace mock loaders with service modules
+- introduce shared API contracts
+- add route guards and auth shell
+- connect async states, empty states, and failure states everywhere
+
+## Risks If We Start Backend Too Early
+If backend work starts before the frontend models and workflows are corrected, likely problems include:
+- unstable status enums and API contracts
+- rework caused by weak lifecycle modeling
+- duplicated effort between support, disputes, and requests
+- confusion around payout vs transaction terminology
+- settings API design that does not match the eventual admin UX
+
+## Recommended Immediate Next Actions
+1. Approve the revised admin information architecture.
+2. Decide whether disputes, promotions, and notifications should be top-level routes or nested under settings/support.
+3. Rework `Overview`, `Requests`, and `Contractors` first because they are closest to the core operations surface.
+4. Remove or disable any testing-only admin behaviors that would misrepresent the real product workflow.
+5. Define frontend domain types before backend endpoints are designed.
+
+## Figma-Safe UI Impact Assessment
+The planned work does not need to become a visual redesign. Most of it can be executed as a structured product-depth expansion inside the existing design language.
+
+### Guiding Rule
+Do not redesign the UI unless Figma already provides a new surface. Keep the current visual system and evolve:
+- information hierarchy
+- data density
+- status taxonomy
+- actions and workflows
+- route structure
+
+That means we should preserve the current:
+- spacing rhythm
+- card style
+- table style
+- sidebar/detail-sheet pattern
+- filter pattern
+- button hierarchy
+- icon language
+- typography scale
+
+### UI Change By Phase
+
+#### Phase 1: Overview, Requests, Contractor Area, KYC
+Expected UI impact: moderate
+
+This phase needs the most product-depth change, but it still does not require a full design reset.
+
+What changes visually:
+- `overview.tsx` will need new KPI cards and more operational widgets
+- `requests.tsx` will need more queue-oriented columns, filters, badges, and actions
+- contractor pages will need more health/performance/status surfaces
+- KYC will lose the testing-only upload action and become a stricter review flow
+
+What should stay visually stable:
+- dashboard shell
+- card styling
+- filter modal pattern
+- table row styling
+- sidebar and sheet treatment
+- current color system and component primitives
+
+Recommended Figma-safe approach:
+- reuse existing cards rather than inventing new visual containers
+- add new sections in the same layout grammar already used across the dashboard
+- prefer new badges, stat chips, secondary panels, and tabs over new custom layouts
+
+#### Phase 2: Settings Expansion and Disputes Surface
+Expected UI impact: moderate to high
+
+This phase introduces the most net-new product areas, so it may require the most new screens. Even so, the visual language can remain stable.
+
+What changes visually:
+- `settings.tsx` likely becomes a multi-section configuration workspace
+- disputes may need a new route or a tabbed extension of support
+- forms become denser because pricing, categories, promo rules, and notification templates need structured configuration UIs
+
+What should stay visually stable:
+- page header pattern
+- section cards
+- table and sidebar patterns
+- filter and pagination patterns
+- action menu patterns
+
+Recommended Figma-safe approach:
+- treat each new settings capability as a variation of existing dashboard sections
+- use tabs, grouped cards, tables, drawers, and confirmation modals instead of inventing a new admin design system
+- if Figma does not yet include disputes or marketplace settings screens, build them as extensions of current `Support` and `Settings` patterns, not as visually distinct products
+
+#### Phase 3: Transactions Into Finance Operations
+Expected UI impact: low to moderate
+
+This phase is mostly a workflow and information-model upgrade, not a large visual departure.
+
+What changes visually:
+- more finance-specific summary cards
+- clearer payout states and filters
+- export/report actions
+- failed payout and reconciliation views
+
+What should stay visually stable:
+- transaction table structure
+- detail sidebar pattern
+- existing status badge treatment
+- shared filter and search layout
+
+Recommended Figma-safe approach:
+- keep `transactions.tsx` recognizable as the same page
+- add finance depth through additional filters, cards, and side-panel detail rather than a new layout concept
+
+#### Phase 4: Auth-Ready Login and Routing
+Expected UI impact: low
+
+This is mostly behavioral and structural, not visual.
+
+What changes visually:
+- login error states
+- loading states
+- maybe an MFA or verification step
+- route guard behavior and session-expired UX
+
+What should stay visually stable:
+- current login visual identity
+- core form layout
+- overall route structure feel
+
+Recommended Figma-safe approach:
+- add auth states as variants of the existing login screen
+- only introduce a second auth screen if the product truly requires MFA
+
+### Overall Change Size
+If we stay disciplined, the overall change should be:
+- visual redesign level: low
+- layout change level: moderate
+- workflow change level: high
+- information architecture change level: moderate to high
+- domain model change level: high
+
+In plain terms: the app should look like the same product, but behave like a much more operationally mature admin tool.
+
+### Safe Rules To Avoid Straying From Figma
+- Reuse existing component patterns first.
+- Prefer adding states over inventing new components.
+- Extend existing page templates before introducing new layouts.
+- Treat Figma as the visual source of truth and PRD as the workflow source of truth.
+- When PRD introduces a missing admin capability and Figma has no exact screen for it, build it as the closest possible extension of an existing Figma-backed screen.
+- Keep new status colors, badges, and panel structures aligned with the current design tokens and interaction patterns.
+
+### Recommended Build Strategy Under Figma Constraints
+1. Do not start with new visuals. Start with data model and workflow mapping.
+2. For each planned phase, identify which current page pattern it is closest to.
+3. Expand using existing primitives: cards, tables, tabs, drawers, filters, modals, badges.
+4. Only request new Figma designs where a completely new surface is unavoidable, such as a complex disputes workspace or pricing-rule builder.
+5. Keep naming and status systems backend-ready even if the visuals remain conservative.
+
+## Conclusion
+The current frontend does not yet fully meet the PRD, but it gives us a good starting point. The best path forward is not to polish the existing pages in isolation. Instead, we should reorganize the admin frontend around operations, trust, finance, and marketplace configuration so the backend can later plug into a stable, production-minded UI model.
