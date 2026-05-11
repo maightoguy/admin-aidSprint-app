@@ -3,9 +3,17 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import RequestsPage from "./requests";
 import { useRequestsStore } from "./requests.store";
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
 
 function setViewport(width: number, height: number) {
   Object.defineProperty(window, "innerWidth", {
@@ -24,7 +32,14 @@ function setViewport(width: number, height: number) {
 }
 
 afterEach(() => {
-  useRequestsStore.getState().closeAll();
+  setViewport(1440, 900);
+  useRequestsStore.setState({
+    selectedRequestId: null,
+    isSidebarOpen: false,
+    isMapOpen: false,
+    requestStatusById: {},
+    requestOpsById: {},
+  });
   cleanup();
 });
 
@@ -90,4 +105,91 @@ describe("RequestsPage", () => {
       await screen.findByRole("dialog", { name: "Request details" }),
     ).toBeTruthy();
   });
+
+  it("requires a reason to cancel a request from the details sidebar", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/requests"]}>
+        <Routes>
+          <Route path="/requests" element={<RequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /Open request actions for/i,
+      })[0],
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "View request" }),
+    );
+
+    const details = await screen.findByRole("dialog", {
+      name: "Request details",
+    });
+    await user.click(
+      within(details).getByRole("button", { name: "Update request status" }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: /cancel order/i }),
+    );
+
+    const cancelDialog = await screen.findByRole("dialog", {
+      name: "Cancel request",
+    });
+    const confirm = within(cancelDialog).getByRole("button", {
+      name: "Confirm cancellation",
+    });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+
+    await user.type(
+      within(cancelDialog).getByLabelText("Cancellation reason"),
+      "Duplicate request.",
+    );
+    expect(confirm.hasAttribute("disabled")).toBe(false);
+    await user.click(confirm);
+
+    expect(
+      await within(details).findByText("Cancellation reason"),
+    ).toBeTruthy();
+    expect(await within(details).findByText("Duplicate request.")).toBeTruthy();
+  }, 10000);
+
+  it("allows pausing and resuming monitoring from the live tracker overlay", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/requests"]}>
+        <Routes>
+          <Route path="/requests" element={<RequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /Open request actions for/i,
+      })[0],
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "View request" }),
+    );
+
+    const details = await screen.findByRole("dialog", {
+      name: "Request details",
+    });
+    await user.click(
+      within(details).getByRole("button", { name: "Open live tracker" }),
+    );
+
+    const tracker = await screen.findByRole("dialog", { name: "Live tracker" });
+    await user.click(
+      within(tracker).getByRole("button", { name: "Pause monitoring" }),
+    );
+    expect(
+      within(tracker).getByRole("button", { name: "Resume monitoring" }),
+    ).toBeTruthy();
+  }, 10000);
 });

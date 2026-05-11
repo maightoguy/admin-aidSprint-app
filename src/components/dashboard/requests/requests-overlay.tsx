@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { AlertTriangle, PauseCircle, PlayCircle, Radio, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { useRequestsStore } from "./requests.store";
 import { liveTrackerJobs } from "../live-tracker/live-tracker.data";
 import {
@@ -20,6 +21,11 @@ export function RequestsLiveTrackerOverlay({
 }) {
   const isMapOpen = useRequestsStore((state) => state.isMapOpen);
   const closeMap = useRequestsStore((state) => state.closeMap);
+  const ops = useRequestsStore((state) =>
+    requestId ? state.requestOpsById[requestId] : undefined,
+  );
+  const monitoringState = ops?.monitoringState ?? "live";
+  const setMonitoringState = useRequestsStore((state) => state.setMonitoringState);
 
   const job = requestId
     ? (liveTrackerJobs.find((item) => item.requestId === requestId) ?? null)
@@ -60,6 +66,60 @@ export function RequestsLiveTrackerOverlay({
           >
             <X className="h-5 w-5" />
           </button>
+          {requestId ? (
+            <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-2 sm:left-6 sm:top-6">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                <Radio className="h-3.5 w-3.5" aria-hidden="true" />
+                Live monitoring
+              </span>
+              {monitoringState === "paused" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonitoringState(requestId, "live");
+                    toast.success("Monitoring resumed", {
+                      description: "Live tracker monitoring is active again.",
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#071B58] shadow-sm transition hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  aria-label="Resume monitoring"
+                >
+                  <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Resume
+                </button>
+              ) : monitoringState === "lostSignal" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonitoringState(requestId, "live");
+                    toast.success("Signal restored", {
+                      description: "Monitoring state updated back to live.",
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FEF3F2] px-3 py-1 text-xs font-semibold text-[#B42318] shadow-sm transition hover:bg-[#FEE4E2] focus:outline-none focus:ring-2 focus:ring-white/40"
+                  aria-label="Retry monitoring"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Retry
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonitoringState(requestId, "paused");
+                    toast.success("Monitoring paused", {
+                      description: "Live tracker monitoring has been paused.",
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/30"
+                  aria-label="Pause monitoring"
+                >
+                  <PauseCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Pause
+                </button>
+              )}
+            </div>
+          ) : null}
           <div className="absolute inset-0 p-4 sm:p-6">
             <LiveTrackerMap
               jobs={job ? [job] : []}

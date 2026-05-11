@@ -10,12 +10,19 @@
 - Added a Figma-safe planning note that estimates UI impact by phase and recommends preserving the current dashboard design language while deepening workflows and domain modeling.
 - Added a phase-based Trae prompt bank for implementation chunking across Phase 1 through Phase 4.
 - Confirmed the roadmap remains low redesign / high workflow if the team keeps reusing current cards, tables, sidebars, filters, modals, badges, and responsive breakpoints.
+- Completed Phase 1 Prompt 2 (Requests dispatch workflow) upgrades across `requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` while preserving the existing Figma-backed UI patterns.
+  - Added operational queues (urgent/awaiting-dispatch/needs-review/delayed) and operational badges.
+  - Added interventions with confirmation + reason capture (cancel, delay, dispute, escalation) and session-persisted operational state.
+  - Added live-monitoring controls (pause/resume/lost-signal) in both sidebar and overlay.
+  - Updated tests in `requests.test.tsx` for the new workflows.
 
 ## Current Context:
 - The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.
 - The strongest existing frontend foundations are reusable filters, pagination, table/detail patterns, and the current `Users`, `Contractors`, `Requests`, `Transactions`, and `Support` screens.
 - The largest PRD gap is that the current admin app behaves like a generic dashboard rather than an operations-first help-on-demand control center.
-- `contractor-kyc-tab.tsx` still contains a testing-only admin upload behavior that should be removed or disabled before production-aligned implementation continues.
+- Phase 1 progress:
+  - Prompt 4: Contractor KYC read-only review is done.
+  - Prompt 2: Requests dispatch + live monitoring workflow is done.
 - Planning direction is to keep visuals close to current Figma-backed patterns and concentrate most changes in workflow depth, status modeling, routing, and information density rather than redesign.
 - Current planning assessment:
   - Phase 1 = moderate UI shift, high workflow change
@@ -27,7 +34,6 @@
 ## Next Steps:
 - Phase 1 prompt chunks:
   - overview operations control center
-  - requests dispatch workflow
   - contractor operations surface
   - contractor KYC read-only approve/reject cleanup
 - Phase 2 prompt chunks:

@@ -5,6 +5,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +18,14 @@ import {
   Clock3,
   CircleAlert,
   MapPinned,
+  PauseCircle,
+  PlayCircle,
+  Radio,
+  ShieldAlert,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 import {
   RequestsChevronDownIcon,
   RequestsCloseIcon,
@@ -31,6 +39,8 @@ import {
   getRequestPanelState,
   type RequestPanelState,
   type RequestStatusAction,
+  type RequestMonitoringState,
+  useRequestsStore,
 } from "./requests.store";
 
 const requestStatusActions: Array<{
@@ -148,6 +158,105 @@ function getStatusLabel(state: RequestPanelState) {
   }
 
   return "Current";
+}
+
+function ReasonDialog({
+  open,
+  onOpenChange,
+  title,
+  label,
+  placeholder,
+  confirmLabel,
+  confirmTone = "primary",
+  reason,
+  onReasonChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  label: string;
+  placeholder: string;
+  confirmLabel: string;
+  confirmTone?: "primary" | "danger";
+  reason: string;
+  onReasonChange: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="z-[90] w-[calc(100vw-32px)] max-w-[520px] rounded-[18px] p-6">
+        <DialogTitle className="text-[18px] font-bold text-[#101828]">
+          {title}
+        </DialogTitle>
+        <DialogDescription className="mt-2 text-sm leading-6 text-[#667085]">
+          Provide a reason that can be stored for audit and backend integration.
+        </DialogDescription>
+        <div className="mt-5">
+          <label className="text-sm font-semibold text-[#101828]">{label}</label>
+          <Textarea
+            value={reason}
+            onChange={(event) => onReasonChange(event.target.value)}
+            aria-label={label}
+            className="mt-2 min-h-[132px]"
+            placeholder={placeholder}
+          />
+          {!reason.trim() ? (
+            <p className="mt-2 text-xs font-medium text-[#B42318]">
+              A reason is required.
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onReasonChange("");
+            }}
+            className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!reason.trim()}
+            className={cn(
+              "inline-flex items-center justify-center rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
+              confirmTone === "danger"
+                ? "bg-[#F04438] hover:bg-[#D92D20]"
+                : "bg-[#041133] hover:bg-[#0A1C4E]",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MonitoringStatusPill({ state }: { state: RequestMonitoringState }) {
+  const label =
+    state === "paused" ? "Paused" : state === "lostSignal" ? "Lost signal" : "Live";
+  const className =
+    state === "paused"
+      ? "bg-[#FFF4DB] text-[#B7791F]"
+      : state === "lostSignal"
+        ? "bg-[#FEE4E2] text-[#B42318]"
+        : "bg-[#E9F9EF] text-[#15803D]";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+        className,
+      )}
+    >
+      {label}
+    </span>
+  );
 }
 
 function UploadedImageCard({
@@ -274,6 +383,33 @@ export function RequestsCore({
   const panelState = getRequestPanelState(request);
   const stateCopy = requestStateCopy[panelState];
   const isTrackerDisabled = panelState === "cancelled" || !onOpenLiveTracker;
+  const ops = useRequestsStore((state) => state.requestOpsById[request.id]);
+  const monitoringState = ops?.monitoringState ?? "live";
+  const setMonitoringState = useRequestsStore((state) => state.setMonitoringState);
+  const flagDelayed = useRequestsStore((state) => state.flagDelayed);
+  const clearDelayed = useRequestsStore((state) => state.clearDelayed);
+  const openDispute = useRequestsStore((state) => state.openDispute);
+  const resolveDispute = useRequestsStore((state) => state.resolveDispute);
+  const escalateSupport = useRequestsStore((state) => state.escalateSupport);
+  const setCancellationReason = useRequestsStore((state) => state.setCancellationReason);
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [delayOpen, setDelayOpen] = useState(false);
+  const [delayReason, setDelayReason] = useState("");
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportReason, setSupportReason] = useState("");
+
+  const handleStatusUpdate = (action: RequestStatusAction) => {
+    if (action === "Cancel order") {
+      setCancelOpen(true);
+      return;
+    }
+
+    onUpdateStatus?.(action);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -417,6 +553,147 @@ export function RequestsCore({
           </div>
         </div>
         <div>
+          <p className="text-[12px] font-medium text-[#6B7280]">Live monitoring</p>
+          <div className="mt-2 rounded-[14px] border border-[#EAECF0] bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Radio className="h-4 w-4 text-[#071B58]" aria-hidden="true" />
+                <p className="text-sm font-semibold text-[#101828]">
+                  Tracker status
+                </p>
+              </div>
+              <MonitoringStatusPill state={monitoringState} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonitoringState(request.id, monitoringState === "paused" ? "live" : "paused");
+                  toast.success("Monitoring updated", {
+                    description:
+                      monitoringState === "paused"
+                        ? "Live monitoring has been resumed."
+                        : "Live monitoring has been paused.",
+                  });
+                }}
+                className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                aria-label={monitoringState === "paused" ? "Resume tracking" : "Pause tracking"}
+              >
+                {monitoringState === "paused" ? (
+                  <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <PauseCircle className="h-4 w-4" aria-hidden="true" />
+                )}
+                {monitoringState === "paused" ? "Resume" : "Pause"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonitoringState(request.id, "lostSignal");
+                  toast.success("Signal updated", {
+                    description: "Marked as lost signal for operational follow-up.",
+                  });
+                }}
+                className="inline-flex items-center gap-2 rounded-[10px] border border-[#F04438]/25 bg-[#FEF3F2] px-3 py-2 text-[12px] font-semibold text-[#B42318] transition hover:bg-[#FEE4E2]"
+                aria-label="Report lost signal"
+              >
+                <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                Lost signal
+              </button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="text-[12px] font-medium text-[#6B7280]">Interventions</p>
+          <div className="mt-2 rounded-[14px] border border-[#EAECF0] bg-white p-4">
+            <div className="flex flex-wrap gap-2">
+              {ops?.delayedReason ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearDelayed(request.id);
+                    toast.success("Delay cleared", {
+                      description: "Removed the delayed flag for this request.",
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  aria-label="Clear delayed flag"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  Clear delay
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDelayOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  aria-label="Flag request as delayed"
+                >
+                  <Clock3 className="h-4 w-4" aria-hidden="true" />
+                  Flag delayed
+                </button>
+              )}
+              {ops?.disputeReason ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    resolveDispute(request.id);
+                    toast.success("Dispute resolved", {
+                      description: "Marked this request as dispute cleared.",
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  aria-label="Resolve dispute"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  Resolve dispute
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDisputeOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#175CD3]/20 bg-[#EFF8FF] px-3 py-2 text-[12px] font-semibold text-[#175CD3] transition hover:bg-[#DDEEFE]"
+                  aria-label="Open dispute review"
+                >
+                  <CircleAlert className="h-4 w-4" aria-hidden="true" />
+                  Dispute
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSupportOpen(true)}
+                className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                aria-label="Escalate to support"
+              >
+                <MapPinned className="h-4 w-4" aria-hidden="true" />
+                Escalate
+              </button>
+            </div>
+            {ops?.delayedReason ? (
+              <p className="mt-3 text-[12px] leading-5 text-[#667085]">
+                <span className="font-semibold text-[#101828]">Delay reason:</span>{" "}
+                {ops.delayedReason}
+              </p>
+            ) : null}
+            {ops?.disputeReason ? (
+              <p className="mt-2 text-[12px] leading-5 text-[#667085]">
+                <span className="font-semibold text-[#101828]">
+                  Dispute note:
+                </span>{" "}
+                {ops.disputeReason}
+              </p>
+            ) : null}
+            {ops?.supportEscalationReason ? (
+              <p className="mt-2 text-[12px] leading-5 text-[#667085]">
+                <span className="font-semibold text-[#101828]">
+                  Escalation:
+                </span>{" "}
+                {ops.supportEscalationReason}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div>
           <p className="text-[12px] font-medium text-[#6B7280]">
             Additional details
           </p>
@@ -430,6 +707,9 @@ export function RequestsCore({
               ["Platform fee", request.platformFee],
               ["Total payment", request.totalPayment],
               ["Status", `• ${getStatusLabel(panelState)}`],
+              ...(ops?.cancellationReason
+                ? [["Cancellation reason", ops.cancellationReason] as const]
+                : []),
             ].map(([label, value], index, rows) => (
               <div
                 key={label}
@@ -487,8 +767,95 @@ export function RequestsCore({
             </div>
           ))}
         </div>
-        <RequestStatusMenu onUpdateStatus={onUpdateStatus} />
+        <RequestStatusMenu onUpdateStatus={handleStatusUpdate} />
       </div>
+
+      <ReasonDialog
+        open={cancelOpen}
+        onOpenChange={(open) => {
+          setCancelOpen(open);
+          if (!open) setCancelReason("");
+        }}
+        title="Cancel request"
+        label="Cancellation reason"
+        placeholder="Explain why this request is being cancelled"
+        confirmLabel="Confirm cancellation"
+        confirmTone="danger"
+        reason={cancelReason}
+        onReasonChange={setCancelReason}
+        onConfirm={() => {
+          setCancellationReason(request.id, cancelReason);
+          onUpdateStatus?.("Cancel order");
+          toast.success("Request cancelled", {
+            description: "The request has been cancelled and recorded.",
+          });
+          setCancelOpen(false);
+          setCancelReason("");
+        }}
+      />
+      <ReasonDialog
+        open={delayOpen}
+        onOpenChange={(open) => {
+          setDelayOpen(open);
+          if (!open) setDelayReason("");
+        }}
+        title="Flag request as delayed"
+        label="Delay reason"
+        placeholder="Describe what caused the delay and what operations should do next"
+        confirmLabel="Confirm delay flag"
+        reason={delayReason}
+        onReasonChange={setDelayReason}
+        onConfirm={() => {
+          flagDelayed(request.id, delayReason);
+          toast.success("Delay flagged", {
+            description: "This request has been flagged as delayed.",
+          });
+          setDelayOpen(false);
+          setDelayReason("");
+        }}
+      />
+      <ReasonDialog
+        open={disputeOpen}
+        onOpenChange={(open) => {
+          setDisputeOpen(open);
+          if (!open) setDisputeReason("");
+        }}
+        title="Open dispute review"
+        label="Dispute note"
+        placeholder="Capture the dispute trigger and what evidence is expected"
+        confirmLabel="Open dispute"
+        reason={disputeReason}
+        onReasonChange={setDisputeReason}
+        onConfirm={() => {
+          openDispute(request.id, disputeReason);
+          toast.success("Dispute opened", {
+            description: "This request is now marked for dispute review.",
+          });
+          setDisputeOpen(false);
+          setDisputeReason("");
+        }}
+      />
+      <ReasonDialog
+        open={supportOpen}
+        onOpenChange={(open) => {
+          setSupportOpen(open);
+          if (!open) setSupportReason("");
+        }}
+        title="Escalate to support"
+        label="Escalation reason"
+        placeholder="Describe why support intervention is required"
+        confirmLabel="Escalate"
+        reason={supportReason}
+        onReasonChange={setSupportReason}
+        onConfirm={() => {
+          escalateSupport(request.id, supportReason);
+          toast.success("Escalated to support", {
+            description: "The escalation has been recorded for follow-up.",
+          });
+          setSupportOpen(false);
+          setSupportReason("");
+        }}
+      />
     </div>
   );
 }

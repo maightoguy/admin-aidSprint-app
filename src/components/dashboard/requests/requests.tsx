@@ -32,6 +32,8 @@ import {
 } from "./requests.store";
 import {
   filterRequestRows,
+  getRequestOperationalBadges,
+  getRequestOperationalQueue,
   type RequestFilterPriority,
   type RequestFilterStatus,
 } from "./requests.utils";
@@ -98,6 +100,14 @@ type RequestsSummaryCard = {
   value: string;
 };
 
+type RequestsQueueCard = {
+  title: string;
+  description: string;
+  value: string;
+  tone: "neutral" | "warning" | "danger";
+  onClick: () => void;
+};
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -130,6 +140,58 @@ function RequestsSummaryCard({ title, value }: RequestsSummaryCard) {
         </span>
       </div>
     </article>
+  );
+}
+
+function RequestsQueueCard({
+  title,
+  description,
+  value,
+  tone,
+  onClick,
+}: RequestsQueueCard) {
+  const toneStyles =
+    tone === "danger"
+      ? {
+          badge: "bg-[#FEE4E2] text-[#B42318]",
+          border: "border-[#F04438]/20",
+        }
+      : tone === "warning"
+        ? {
+            badge: "bg-[#FFF4DB] text-[#B7791F]",
+            border: "border-[#F79009]/20",
+          }
+        : {
+            badge: "bg-[#F2F4F7] text-[#344054]",
+            border: "border-[#EAECF0]",
+          };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex w-full items-start justify-between gap-4 rounded-[16px] border bg-white p-4 text-left shadow-sm transition",
+        "hover:bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15",
+        toneStyles.border,
+      ].join(" ")}
+      aria-label={`${title} queue`}
+    >
+      <div className="min-w-0">
+        <p className="text-[14px] font-semibold text-[#101828]">{title}</p>
+        <p className="mt-1 text-[12px] leading-5 text-[#667085]">
+          {description}
+        </p>
+      </div>
+      <span
+        className={[
+          "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-[12px] font-semibold",
+          toneStyles.badge,
+        ].join(" ")}
+      >
+        {value}
+      </span>
+    </button>
   );
 }
 
@@ -191,7 +253,11 @@ export default function RequestsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
   const pageSize = expanded ? 10 : 5;
-  const { filters: urlFilters } = useUrlFilters({
+  const {
+    filters: urlFilters,
+    setMany: setManyFilters,
+    reset: resetFilters,
+  } = useUrlFilters({
     schema: requestsFiltersSchema,
     defaults: requestsFilterDefaults,
   });
@@ -225,6 +291,7 @@ export default function RequestsPage() {
   const requestStatusById = useRequestsStore(
     (state) => state.requestStatusById,
   );
+  const requestOpsById = useRequestsStore((state) => state.requestOpsById);
 
   useEffect(() => {
     closeAll();
@@ -254,6 +321,86 @@ export default function RequestsPage() {
       })),
     );
   }, [requestStatusById]);
+
+  const queueCounts = useMemo(() => {
+    const counts = {
+      urgent: 0,
+      awaitingDispatch: 0,
+      needsReview: 0,
+      delayed: 0,
+    };
+
+    for (const row of rows) {
+      const queue = getRequestOperationalQueue(
+        row.request as any,
+        requestOpsById[row.id],
+      );
+      if (queue === "urgent") counts.urgent += 1;
+      if (queue === "awaiting-dispatch") counts.awaitingDispatch += 1;
+      if (queue === "needs-review") counts.needsReview += 1;
+      if (queue === "delayed") counts.delayed += 1;
+    }
+
+    return counts;
+  }, [requestOpsById, rows]);
+
+  const queueCards = useMemo<RequestsQueueCard[]>(() => {
+    return [
+      {
+        title: "Urgent queue",
+        description: "Emergency requests that need immediate attention.",
+        value: queueCounts.urgent.toLocaleString(),
+        tone: "danger",
+        onClick: () => {
+          setSearchQuery("");
+          setExpanded(false);
+          setManyFilters({
+            ...requestsFilterDefaults,
+            priority: "Emergency",
+          });
+        },
+      },
+      {
+        title: "Awaiting dispatch",
+        description: "Assigned requests waiting for the next dispatch step.",
+        value: queueCounts.awaitingDispatch.toLocaleString(),
+        tone: "warning",
+        onClick: () => {
+          setSearchQuery("");
+          setExpanded(false);
+          setManyFilters({
+            ...requestsFilterDefaults,
+            status: "Pending",
+          });
+        },
+      },
+      {
+        title: "Needs review",
+        description: "Pending requests blocked on operations decisions.",
+        value: queueCounts.needsReview.toLocaleString(),
+        tone: "neutral",
+        onClick: () => {
+          setSearchQuery("");
+          setExpanded(false);
+          setManyFilters({
+            ...requestsFilterDefaults,
+            status: "Pending",
+          });
+        },
+      },
+      {
+        title: "Delayed",
+        description: "Requests flagged as delayed or requiring follow-up.",
+        value: queueCounts.delayed.toLocaleString(),
+        tone: "warning",
+        onClick: () => {
+          setSearchQuery("");
+          setExpanded(false);
+          resetFilters();
+        },
+      },
+    ];
+  }, [queueCounts, resetFilters, setManyFilters]);
 
   const filteredRows = useMemo(
     () =>
@@ -340,6 +487,22 @@ export default function RequestsPage() {
           ))}
         </div>
 
+        <section className="rounded-[20px] border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-semibold text-[#667085]">
+              Operational queues
+            </h2>
+            <p className="text-xs text-[#98A2B3]">
+              Prioritize urgent and blocked requests first.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {queueCards.map((card) => (
+              <RequestsQueueCard key={card.title} {...card} />
+            ))}
+          </div>
+        </section>
+
         <section className="rounded-[20px] border border-[#EAECF0] bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-[#EAECF0] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-sm font-semibold text-[#667085]">
@@ -421,14 +584,30 @@ export default function RequestsPage() {
                       {row.request.date}
                     </td>
                     <td className="px-5 py-4">
-                      <span
-                        className={[
-                          "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold",
-                          getRequestStatusClasses(row.request.status),
-                        ].join(" ")}
-                      >
-                        {row.request.status}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold",
+                            getRequestStatusClasses(row.request.status),
+                          ].join(" ")}
+                        >
+                          {row.request.status}
+                        </span>
+                        {getRequestOperationalBadges(
+                          row.request as any,
+                          requestOpsById[row.id],
+                        ).map((badge) => (
+                          <span
+                            key={badge.label}
+                            className={[
+                              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                              badge.className,
+                            ].join(" ")}
+                          >
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-right">
                       <RequestRowActions
@@ -493,6 +672,22 @@ export default function RequestsPage() {
                         >
                           {row.request.status}
                         </span>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {getRequestOperationalBadges(
+                            row.request as any,
+                            requestOpsById[row.id],
+                          ).map((badge) => (
+                            <span
+                              key={badge.label}
+                              className={[
+                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                                badge.className,
+                              ].join(" ")}
+                            >
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>

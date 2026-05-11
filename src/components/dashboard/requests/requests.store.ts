@@ -13,22 +13,41 @@ export type RequestPanelState =
   | "completed"
   | "cancelled";
 
+export type RequestMonitoringState = "live" | "paused" | "lostSignal";
+
 type StoredRequestStatus = Pick<
   UserRequestHistoryItem,
   "status" | "lifecycleStatus" | "etaLabel"
 >;
+
+export type StoredRequestOps = {
+  monitoringState?: RequestMonitoringState;
+  delayedReason?: string | null;
+  disputeReason?: string | null;
+  supportEscalationReason?: string | null;
+  cancellationReason?: string | null;
+  updatedAtIso?: string;
+};
 
 type RequestsState = {
   selectedRequestId: string | null;
   isSidebarOpen: boolean;
   isMapOpen: boolean;
   requestStatusById: Record<string, StoredRequestStatus>;
+  requestOpsById: Record<string, StoredRequestOps>;
   openRequest: (requestId: string) => void;
   closeSidebar: () => void;
   openMap: () => void;
   closeMap: () => void;
   closeAll: () => void;
   updateRequestStatus: (requestId: string, action: RequestStatusAction) => void;
+  setMonitoringState: (requestId: string, state: RequestMonitoringState) => void;
+  flagDelayed: (requestId: string, reason: string) => void;
+  clearDelayed: (requestId: string) => void;
+  openDispute: (requestId: string, reason: string) => void;
+  resolveDispute: (requestId: string) => void;
+  escalateSupport: (requestId: string, reason: string) => void;
+  setCancellationReason: (requestId: string, reason: string) => void;
 };
 
 const requestStatusActions: Record<RequestStatusAction, StoredRequestStatus> = {
@@ -63,6 +82,33 @@ export function applyRequestStatusOverride(
   };
 }
 
+export function applyRequestOpsOverride(
+  request: UserRequestHistoryItem,
+  override?: StoredRequestOps,
+): UserRequestHistoryItem {
+  if (!override) {
+    return request;
+  }
+
+  const next: UserRequestHistoryItem = {
+    ...request,
+  };
+
+  if (override.delayedReason) {
+    next.etaLabel = "Delayed";
+  }
+
+  if (override.disputeReason) {
+    next.status = "Pending";
+  }
+
+  if (override.monitoringState === "paused") {
+    next.lifecycleStatus = "Assigned";
+  }
+
+  return next;
+}
+
 export function getRequestPanelState(request: UserRequestHistoryItem): RequestPanelState {
   if (request.status === "Cancelled" || request.lifecycleStatus === "Cancelled") {
     return "cancelled";
@@ -94,6 +140,7 @@ export const useRequestsStore = create<RequestsState>()(
       isSidebarOpen: false,
       isMapOpen: false,
       requestStatusById: {},
+      requestOpsById: {},
       openRequest: (requestId) =>
         set({
           selectedRequestId: requestId,
@@ -123,6 +170,83 @@ export const useRequestsStore = create<RequestsState>()(
             [requestId]: requestStatusActions[action],
           },
         })),
+      setMonitoringState: (requestId, monitoringState) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              monitoringState,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      flagDelayed: (requestId, delayedReason) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              delayedReason,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      clearDelayed: (requestId) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              delayedReason: null,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      openDispute: (requestId, disputeReason) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              disputeReason,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      resolveDispute: (requestId) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              disputeReason: null,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      escalateSupport: (requestId, supportEscalationReason) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              supportEscalationReason,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
+      setCancellationReason: (requestId, cancellationReason) =>
+        set((state) => ({
+          requestOpsById: {
+            ...state.requestOpsById,
+            [requestId]: {
+              ...state.requestOpsById[requestId],
+              cancellationReason,
+              updatedAtIso: new Date().toISOString(),
+            },
+          },
+        })),
     }),
     {
       name: "requests-session",
@@ -130,6 +254,7 @@ export const useRequestsStore = create<RequestsState>()(
       partialize: (state) => ({
         selectedRequestId: state.selectedRequestId,
         requestStatusById: state.requestStatusById,
+        requestOpsById: state.requestOpsById,
       }),
     },
   ),
