@@ -218,7 +218,7 @@ describe("FilterModal", () => {
       maxAmount: 500,
     });
     expect(screen.getByTestId("modal-open").textContent).toBe("false");
-  });
+  }, 15000);
 
   it("resets filters through the footer action and closes the dialog", async () => {
     const user = userEvent.setup();

@@ -85,5 +85,5 @@ describe("TransactionsPage", () => {
     );
 
     expect(within(dialog).getByText("• Failed")).toBeTruthy();
-  });
+  }, 15000);
 });

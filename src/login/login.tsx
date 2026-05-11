@@ -1,20 +1,77 @@
-import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import secLogo from "@/assets/overview/sec-logo.png";
+import { useEffect, useMemo, useState, FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { useAuthStore } from "@/auth/auth.store";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { status, session, isSigningIn, lastMessage, signIn } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
 
-  const isActive = email.trim() !== "" && password.trim() !== "";
+  const redirectPath = useMemo(() => {
+    const from = location.state?.from as { pathname?: string } | undefined;
+    if (from?.pathname && from.pathname !== "/") {
+      return from.pathname;
+    }
+    return "/overview";
+  }, [location.state]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const bannerMessage = useMemo(() => {
+    const reason = (location.state as { reason?: string } | undefined)?.reason;
+    if (reason === "expired") {
+      return "Session expired. Please sign in again.";
+    }
+    return null;
+  }, [location.state]);
+
+  const emailError = useMemo(() => {
+    if (email.trim() === "") return null;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : "Invalid email format.";
+  }, [email]);
+
+  const passwordError = useMemo(() => {
+    if (password.trim() === "") return null;
+    return password.trim().length >= 6 ? null : "Minimum 6 characters.";
+  }, [password]);
+
+  const canSubmit =
+    !isSigningIn &&
+    email.trim() !== "" &&
+    password.trim() !== "" &&
+    !emailError &&
+    !passwordError;
+
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [navigate, redirectPath, session, status]);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isActive) return;
-    navigate("/overview");
+    if (!canSubmit) return;
+
+    const result = await signIn({
+      email,
+      password,
+      rememberDevice,
+    });
+
+    if (result.ok) {
+      toast.success("Signed in", {
+        description: "Welcome back.",
+      });
+      navigate(redirectPath, { replace: true });
+      return;
+    }
+
+    toast.error("Unable to sign in", {
+      description: result.message,
+    });
   };
 
   return (
@@ -159,6 +216,22 @@ export default function Login() {
                 </p>
               </div>
 
+              {(bannerMessage || lastMessage) && (
+                <div
+                  className="rounded-[10px] px-3 py-2"
+                  style={{
+                    border: "1px solid #FECACA",
+                    background: "#FEF2F2",
+                    fontFamily: "'Open Sans', sans-serif",
+                    color: "#991B1B",
+                    fontSize: "12px",
+                  }}
+                  role="status"
+                >
+                  {bannerMessage ?? lastMessage}
+                </div>
+              )}
+
               {/* Fields */}
               <div className="flex flex-col gap-6">
                 {/* Email */}
@@ -179,6 +252,7 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="E.g john@mail.com"
+                    disabled={isSigningIn}
                     className="w-full rounded-[10px] px-2.5 py-3.5 text-xs outline-none focus:ring-2 focus:ring-blue-900/30 transition-all"
                     style={{
                       fontFamily: "'Open Sans', sans-serif",
@@ -187,6 +261,17 @@ export default function Login() {
                       background: "#FAFAFA",
                     }}
                   />
+                  {emailError && (
+                    <span
+                      className="text-xs"
+                      style={{
+                        fontFamily: "'Open Sans', sans-serif",
+                        color: "#DC2626",
+                      }}
+                    >
+                      {emailError}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2.5">
@@ -216,6 +301,7 @@ export default function Login() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
+                        disabled={isSigningIn}
                         className="flex-1 bg-transparent text-xs outline-none"
                         style={{
                           fontFamily: "'Open Sans', sans-serif",
@@ -265,6 +351,17 @@ export default function Login() {
                         )}
                       </button>
                     </div>
+                    {passwordError && (
+                      <span
+                        className="text-xs"
+                        style={{
+                          fontFamily: "'Open Sans', sans-serif",
+                          color: "#DC2626",
+                        }}
+                      >
+                        {passwordError}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -276,7 +373,11 @@ export default function Login() {
                       border: "1px solid #CBD5E1",
                       background: rememberDevice ? "#041133" : "#FFF",
                     }}
-                    onClick={() => setRememberDevice(!rememberDevice)}
+                    onClick={() => {
+                      if (!isSigningIn) {
+                        setRememberDevice(!rememberDevice);
+                      }
+                    }}
                   >
                     {rememberDevice && (
                       <svg
@@ -302,7 +403,11 @@ export default function Login() {
                       fontFamily: "'Open Sans', sans-serif",
                       color: "#6B7280",
                     }}
-                    onClick={() => setRememberDevice(!rememberDevice)}
+                    onClick={() => {
+                      if (!isSigningIn) {
+                        setRememberDevice(!rememberDevice);
+                      }
+                    }}
                   >
                     Remember this device
                   </span>
@@ -311,15 +416,15 @@ export default function Login() {
                 {/* Submit button */}
                 <button
                   type="submit"
-                  disabled={!isActive}
+                  disabled={!canSubmit}
                   className="w-full rounded-[10px] py-3.5 text-sm font-semibold text-white transition-colors duration-200"
                   style={{
                     fontFamily: "'Open Sans', sans-serif",
-                    background: isActive ? "#041133" : "#B1B5C0",
-                    cursor: isActive ? "pointer" : "default",
+                    background: canSubmit ? "#041133" : "#B1B5C0",
+                    cursor: canSubmit ? "pointer" : "default",
                   }}
                 >
-                  Login to dashboard
+                  {isSigningIn ? "Signing in..." : "Login to dashboard"}
                 </button>
               </div>
 

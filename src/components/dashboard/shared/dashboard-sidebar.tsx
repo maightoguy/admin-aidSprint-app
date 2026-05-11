@@ -1,7 +1,8 @@
 import { LogOut, X } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { dashboardNavigationItems } from "./dashboard-navigation";
-import secLogo from "@/assets/overview/sec-logo.png";
+import { useAuthStore } from "@/auth/auth.store";
 
 function AidSprintLogo() {
   return (
@@ -74,6 +75,9 @@ export function DashboardSidebar({
   mobile?: boolean;
   onClose?: () => void;
 }) {
+  const navigate = useNavigate();
+  const signOut = useAuthStore((state) => state.signOut);
+
   return (
     <aside
       className={[
@@ -159,6 +163,13 @@ export function DashboardSidebar({
         </div>
         <button
           type="button"
+          onClick={() => {
+            signOut();
+            toast.success("Signed out", {
+              description: "Your session has been cleared.",
+            });
+            navigate("/", { replace: true });
+          }}
           className="rounded-full p-2 text-[#FF5F77] transition hover:bg-white/10"
           aria-label="Logout"
         >
