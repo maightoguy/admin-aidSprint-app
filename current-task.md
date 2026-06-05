@@ -20,21 +20,21 @@ Keep visuals aligned to the current Figma-backed dashboard shell. Treat Figma as
 
 ### Prompt Index (Sorted)
 
-#### Phase 1 (Operations Surfaces)
+#### Phase 1 (Operations Surfaces) — Done
 
-- Prompt 1: Overview operations control center (overview.tsx)
+- Prompt 1: Overview operations control center (overview.tsx) — Done
 - Prompt 2: Requests dispatch + live monitoring workflow (requests.tsx + sidebar + overlay) — Done
 - Prompt 3: Contractor operations surface (contractors area) — Done
 - Prompt 4: Contractor KYC read-only review + approve/reject (contractor-kyc-tab.tsx) — Done
 
-#### Phase 2 (Marketplace + Disputes)
+#### Phase 2 (Marketplace + Disputes) — Done
 
-- Prompt 5: Settings marketplace configuration (settings.tsx)
-- Prompt 6: Dedicated disputes surface (new route or support-branch section)
+- Prompt 5: Settings marketplace configuration (settings.tsx) — Done
+- Prompt 6: Dedicated disputes surface (new route or support-branch section) — Done
 
-#### Phase 3 (Finance Ops)
+#### Phase 3 (Finance Ops) — Done
 
-- Prompt 7: Transactions finance operations (transactions.tsx)
+- Prompt 7: Transactions finance operations (transactions.tsx) — Done
 
 #### Phase 4 (Auth + Routes) — Done
 
@@ -212,6 +212,10 @@ Best-Practice Direction
 - Kept this as planning-only, added a Figma-safe UI impact assessment to both handover files, and mapped each phase by how much visible UI change it should require while preserving the current design language.
 
 
-Weve done Phase 1 Prompt 2, Prompt 3, and Prompt 4.
+Weve done Phase 1 Prompt 1, Prompt 2, Prompt 3, and Prompt 4, so Phase 1 is complete.
 
 Weve done Phase 4 Prompt 8 and Prompt 9, so Phase 4 is complete.
+
+Weve done Phase 2 Prompt 5 and Prompt 6, so Phase 2 is complete.
+
+Weve done Phase 3 Prompt 7, so Phase 3 is complete.

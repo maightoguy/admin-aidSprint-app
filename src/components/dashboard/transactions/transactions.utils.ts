@@ -10,10 +10,11 @@ export type TransactionFilterableRecord = {
   contractorEmail: string;
   type: string;
   amount: number;
-  dateJoined: string;
+  createdAtLabel: string;
   status: string;
   accountName: string;
   bankName: string;
+  payoutReadiness?: string;
 };
 
 export type TransactionTableFilters = {
@@ -59,7 +60,7 @@ export function filterTransactions<T extends TransactionFilterableRecord>(
     }
 
     if (fromDate || toDate) {
-      const transactionDate = parseDateForFilter(transaction.dateJoined);
+      const transactionDate = parseDateForFilter(transaction.createdAtLabel);
       if (!transactionDate) {
         return false;
       }
@@ -79,9 +80,10 @@ export function filterTransactions<T extends TransactionFilterableRecord>(
       transaction.contractorEmail,
       transaction.type,
       transaction.status,
+      transaction.payoutReadiness ?? "",
       transaction.accountName,
       transaction.bankName,
-      transaction.dateJoined,
+      transaction.createdAtLabel,
       String(absoluteAmount),
     ]
       .join(" ")

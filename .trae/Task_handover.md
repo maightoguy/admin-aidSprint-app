@@ -1,6 +1,6 @@
 # Task Handover - AidSprint Admin App
 
-## Status: Completed
+## Status: In-Progress
 
 ## Latest Changes:
 - Replaced the outdated root `Task_handover.md` with a PRD-based frontend assessment instead of speculative backend/auth documentation.
@@ -37,6 +37,45 @@
   - Upgraded `contractor-details-page.tsx` with operations snapshot cards, trust/risk review, payout readiness visibility, and the same lifecycle management flow.
   - Extended `contractor-request-history-tab.tsx` and `contractor-transaction-history-tab.tsx` with operational context and payout blocker visibility.
   - Updated `contractors.test.tsx` and `contractors.utils.test.ts`, then verified with `npm test -- contractors.test.tsx` and `npm run typecheck`.
+- Completed Phase 1 Prompt 1 (Overview operations control center) while preserving the existing dashboard shell and visual language.
+  - Refactored `overview.tsx` to put urgent operational queues first: delayed jobs, disputed jobs, failed payouts/blocked payouts, KYC blockers, and high-risk contractors.
+  - Replaced generic top KPI cards with live operational KPIs (jobs in queue, active contractors, avg response time, completion rate) using existing summary card styling.
+  - Switched the “Recent requests” surface to use backend-ready request models from `userDetailsRecords` plus Requests store overrides (`delayedReason`, `disputeReason`, etc.) to keep ops status consistent across modules.
+  - Verified with `npm run typecheck`.
+- Completed Phase 2 Prompt 5 (Settings marketplace configuration) while preserving the Settings route and dashboard visual language.
+  - Added a new Marketplace tab in `settings.tsx` and kept existing Integrations + Security tabs intact.
+  - Implemented marketplace configuration sections for service categories, urgency tier multipliers, promos, and notification campaigns in `marketplace-config.tsx`.
+  - Added backend-ready types and mock-data seeds in `marketplace-config.types.ts` and `marketplace-config.data.ts`.
+  - Added confirmation + reason capture for disabling/enabling categories, tiers, promos, and notification campaigns; added reason capture for deleting promos.
+  - Verified with `npm test -- src/components/dashboard/setting/settings.test.tsx` and `npm run typecheck`.
+- Completed Phase 2 Prompt 6 (Dedicated disputes surface) while preserving the dashboard shell and reusing Support/Requests table + sidebar patterns.
+  - Replaced the `/disputes` placeholder route with a real Disputes page in `src/components/dashboard/disputes/disputes.tsx` and wired it in `src/App.tsx`.
+  - Added backend-ready disputes modeling and mock seeds in `disputes.types.ts` and `disputes.data.ts` (explicit lifecycle states, reasons, resolution types, payout impact).
+  - Implemented a disputes details sidebar with evidence review, linked request context, audit timeline, and reason-captured admin actions (request evidence, propose resolution, resolve, reject) in `disputes-sidebar.tsx`.
+  - Added focused interaction tests in `disputes.test.tsx`, then verified with `npm test -- src/components/dashboard/disputes/disputes.test.tsx` and `npm run typecheck`.
+- Fixed desktop table rendering issues across the affected dashboard tables without changing mobile/tablet layouts.
+  - Increased desktop table minimum widths and assigned safer column widths in `disputes.tsx`, `contractors.tsx`, `requests.tsx`, `support.tsx`, `transactions.tsx`, `contractor-request-history-tab.tsx`, `contractor-transaction-history-tab.tsx`, and `overview.tsx`.
+  - Added single-line protection to status chips and operational badges using `whitespace-nowrap`/`shrink-0` so labels like `Suspended`, lifecycle states, and payout badges no longer break mid-word.
+  - Cleaned up contractor desktop cell flow by giving multi-line content blocks stable widths and line-height so performance, payout, trust/risk, and lifecycle data stack cleanly instead of collapsing.
+  - Verified with `npm test -- src/components/dashboard/disputes/disputes.test.tsx src/components/dashboard/contractors/contractors.test.tsx src/components/dashboard/transactions/transactions.test.tsx src/components/dashboard/support/support.test.tsx` and `npm run typecheck`.
+- Completed Phase 3 Prompt 7 (Transactions finance operations) while preserving the existing dashboard shell, table styling, and right-side detail panel pattern.
+  - Rebuilt `transactions.tsx` into a finance-operations workspace with explicit payout/service-payment lifecycle states, urgent queue cards, queue presets, and summary cards for total payouts, pending payouts, failed payouts, and blocked/review work.
+  - Added frontend-only CSV export for the filtered finance queue and backend-ready transaction modeling for payout readiness, reconciliation state, blocker reasons, and audit trail entries.
+  - Expanded the transaction details sidebar with payout metadata, readiness/reconciliation visibility, audit trail cards, and reason-captured finance actions for approve, reject, reconcile, flag for review, and reverse payout.
+  - Updated `transactions.utils.ts` / `transactions.utils.test.ts` for the new `createdAtLabel` filter contract and added focused interaction tests in `transactions.test.tsx`.
+  - Verified with `npm test -- src/components/dashboard/transactions/transactions.test.tsx src/components/dashboard/transactions/transactions.utils.test.ts` and `npm run typecheck`.
+- Added `Integration-task-readiness-plan.md` at the repo root as the post-roadmap backend integration plan.
+  - Mapped integration goals directly from the PRD and tied them to the current Supabase schema and completed frontend execution board.
+  - Defined a phased integration sequence that starts small with real admin auth, then shared Supabase plumbing, then module-by-module live fetch/write replacement.
+  - Documented which areas are ready now (requests, contractors, settings) versus which need backend contract decisions first (admin roles, disputes, promos, finance audit/reconciliation).
+- Expanded `Integration-task-readiness-plan.md` with a chunked Trae prompt bank for every integration phase.
+  - Split each phase into smaller paste-ready execution prompts that can run individually or be combined into safer bundled packs.
+  - Added a recommended small-start order and combined-pack suggestions to help reduce large one-shot prompt runs and save credits.
+- Started integration Phase A Chunk A1 (Supabase auth plumbing).
+  - Added `@supabase/supabase-js` and created a minimal shared Supabase client/env layer in `src/lib/supabase/` (`env.ts`, `client.ts`) without changing the login UI or protected route behavior.
+  - Added `.env.example` with the required `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` placeholders and typed the variables in `src/vite-env.d.ts`.
+  - Added an optional SQL migration `supabase/migrations/20260605153000_profiles_allow_admin_role.sql` to extend `profiles.role` to allow `admin` when Phase A authorization hardening begins.
+  - Updated the integration plan with a note to paste/provide SQL for any schema/policy changes and store them under `supabase/migrations/`.
 
 ## Current Context:
 - The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.
@@ -47,23 +86,23 @@
   - Prompt 4: Contractor KYC read-only review is done.
   - Prompt 2: Requests dispatch + live monitoring workflow is done.
   - Prompt 3: Contractor operations surface is done.
+  - Prompt 1: Overview operations control center is done.
+  - Phase 2 Prompt 5: Settings marketplace configuration is done.
   - Prompt 8: Auth-ready login and protected states is done.
   - Prompt 9: Admin route architecture cleanup is done.
 - The contractor module now exposes explicit lifecycle states, verification states, payout readiness, risk flags, queue counts, and reason-captured suspension/restore actions while remaining mock-data driven.
+- The transactions module now exposes explicit finance lifecycle states, urgent payout queues, CSV export, reconciliation state, payout readiness blockers, and reason-captured admin actions while remaining mock-data driven.
+- A dedicated integration plan file now exists to guide the next phase of work from mock frontend to phased Supabase integration.
+- That integration plan file now also serves as the chunked execution prompt bank for backend hookup work.
 - Planning direction is to keep visuals close to current Figma-backed patterns and concentrate most changes in workflow depth, status modeling, routing, and information density rather than redesign.
 - Current planning assessment:
   - Phase 1 = moderate UI shift, high workflow change
   - Phase 2 = moderate to high UI shift, mostly because of settings expansion and disputes
   - Phase 3 = low to moderate UI shift
   - Phase 4 = low UI shift
-- Highest-risk areas for needing fresh Figma thinking are disputes, pricing/promo management, and deeper finance reporting, but even those should begin as extensions of current patterns.
+- Highest-risk areas for needing fresh Figma thinking are pricing/promo management and deeper finance reporting, but even those should begin as extensions of current patterns.
+- Desktop tables now prefer horizontal scrolling at constrained widths rather than compressing badge/status text into broken multi-line fragments.
 
 ## Next Steps:
-- Phase 1 prompt chunks:
-  - overview operations control center
-- Phase 2 prompt chunks:
-  - settings marketplace configuration
-  - dedicated disputes surface
-- Phase 3 prompt chunks:
-  - transactions finance operations
+- Start the first integration slice with real Supabase-backed admin auth, then add shared query/mutation infrastructure before converting modules from mock to live data.
 - When implementation starts, keep treating Figma as the visual source of truth and the PRD as the workflow source of truth.

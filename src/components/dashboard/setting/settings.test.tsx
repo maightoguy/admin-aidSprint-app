@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("SettingsPage", () => {
-  it("switches between Integrations and Security tabs", async () => {
+  it("switches between Marketplace, Integrations and Security tabs", async () => {
     const user = userEvent.setup();
 
     render(
@@ -28,6 +28,10 @@ describe("SettingsPage", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByText("Service categories")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /integrations/i }));
+
     expect(screen.getByText("Services Intergration")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /security/i }));
@@ -35,9 +39,9 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Security")).toBeTruthy();
     expect(screen.getByLabelText("Old password")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: /integrations/i }));
+    await user.click(screen.getByRole("button", { name: /marketplace/i }));
 
-    expect(screen.getByText("Services Intergration")).toBeTruthy();
+    expect(screen.getByText("Service categories")).toBeTruthy();
   });
 
   it("filters integrations and toggles an item", async () => {
@@ -48,6 +52,8 @@ describe("SettingsPage", () => {
         <SettingsPage />
       </MemoryRouter>,
     );
+
+    await user.click(screen.getByRole("button", { name: /integrations/i }));
 
     const search = screen.getByLabelText("Search integrations");
     await user.type(search, "plumb");
@@ -95,5 +101,32 @@ describe("SettingsPage", () => {
     expect(submit.hasAttribute("disabled")).toBe(false);
 
     await user.click(submit);
+  });
+
+  it("requires a reason to disable a marketplace category", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Service categories")).toBeTruthy();
+
+    const actionButtons = screen.getAllByLabelText(/category actions for/i);
+    await user.click(actionButtons[0]);
+
+    await user.click(await screen.findByText("Disable category"));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("A reason is required.")).toBeTruthy();
+
+    await user.type(
+      screen.getByLabelText("Disable reason"),
+      "Temporarily paused while we review compliance issues.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Confirm disable" }));
   });
 });

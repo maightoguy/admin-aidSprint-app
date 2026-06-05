@@ -14,7 +14,7 @@ function createTransaction(
     contractorEmail: "emery@example.com",
     type: "Withdrawal",
     amount: -500,
-    dateJoined: "Apr 12, 2023",
+    createdAtLabel: "Apr 12, 2023",
     status: "Pending",
     accountName: "Emery Torff",
     bankName: "Access Bank",
@@ -33,7 +33,7 @@ describe("filterTransactions", () => {
         contractorEmail: "maren@example.com",
         type: "Service payment",
         amount: 850,
-        dateJoined: "Jun 10, 2023",
+        createdAtLabel: "Jun 10, 2023",
         status: "Completed",
       }),
       createTransaction({
@@ -42,7 +42,7 @@ describe("filterTransactions", () => {
         contractorName: "Cooper Siphron",
         contractorEmail: "cooper@example.com",
         amount: -1200,
-        dateJoined: "Jul 18, 2023",
+        createdAtLabel: "Jul 18, 2023",
         status: "Failed",
       }),
     ];

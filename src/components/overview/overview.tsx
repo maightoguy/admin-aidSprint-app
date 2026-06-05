@@ -33,6 +33,15 @@ import {
 import { toast } from "sonner";
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ROUTES } from "@/components/dashboard/shared/dashboard-navigation";
+import { userDetailsRecords } from "@/components/dashboard/user-details/user-details.data";
+import type { UserRequestHistoryItem } from "@/components/dashboard/user-details/user-details.types";
+import {
+  applyRequestOpsOverride,
+  applyRequestStatusOverride,
+  useRequestsStore,
+} from "@/components/dashboard/requests/requests.store";
+import { contractorRecords } from "@/components/dashboard/contractors/contractors.data";
 
 const totalRevenuePattern = summaryCardPattern;
 const requestsCardPattern = summaryCardPattern;
@@ -46,46 +55,6 @@ type OverviewStatistic = {
   patternSrc: string;
   patternClassName: string;
 };
-
-const statistics: OverviewStatistic[] = [
-  {
-    title: "Total Revenue",
-    value: "$15,837",
-    trend: "+ 2.3% vs Yesterday",
-    Icon: TotalRevenueIcon,
-    highlighted: true,
-    patternSrc: totalRevenuePattern,
-    patternClassName:
-      "absolute -left-[27px] -top-[14px] hidden h-[156px] w-[318px] max-w-none rotate-180 opacity-80 lg:block",
-  },
-  {
-    title: "Total users",
-    value: "100,000",
-    trend: "+ 2.3% vs Yesterday",
-    Icon: TotalUsersIcon,
-    patternSrc: summaryCardPattern,
-    patternClassName:
-      "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
-  },
-  {
-    title: "Total Contractors",
-    value: "100,000",
-    trend: "+ 2.3% vs Yesterday",
-    Icon: TotalContractorsIcon,
-    patternSrc: summaryCardPattern,
-    patternClassName:
-      "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
-  },
-  {
-    title: "Total Request",
-    value: "100,000",
-    trend: "+ 2.3% vs Yesterday",
-    Icon: TotalRequestsIcon,
-    patternSrc: requestsCardPattern,
-    patternClassName:
-      "absolute -left-[81px] -top-[14px] hidden h-[156px] w-[428px] max-w-none rotate-180 opacity-80 lg:block",
-  },
-];
 
 type RevenueGranularity = "daily" | "monthly" | "yearly";
 
@@ -294,64 +263,43 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-const requests = [
-  {
-    id: "emery-torff",
-    name: "Emery Torff",
-    email: "thekdfisher@email.com",
-    service: "Plumbing",
-    location: "163 Owode-Sango Road",
-    date: "Apr 12, 2023",
-    status: "Active",
-  },
-  {
-    id: "maren-dokidis",
-    name: "Maren Dokidis",
-    email: "thekdfisher@email.com",
-    service: "Cleaning",
-    location: "34 Awgu-Mgbidi Road",
-    date: "Apr 12, 2023",
-    status: "Pending",
-  },
-  {
-    id: "cooper-siphron",
-    name: "Cooper Siphron",
-    email: "thekdfisher@email.com",
-    service: "Baby sitting",
-    location: "170 Ejigbo-Apomu Road",
-    date: "Apr 12, 2023",
-    status: "Active",
-  },
-  {
-    id: "marcus-dias",
-    name: "Marcus Dias",
-    email: "thekdfisher@email.com",
-    service: "Electrician",
-    location: "178 Omu-Aran Township",
-    date: "Apr 12, 2023",
-    status: "Pending",
-  },
-  {
-    id: "ahmad-stanton-1",
-    name: "Ahmad Stanton",
-    email: "thekdfisher@email.com",
-    service: "Plumbing",
-    location: "113 Gashua-Bursari Road",
-    date: "Apr 12, 2023",
-    status: "Active",
-  },
-];
+type OpsRequestRow = {
+  requestId: string;
+  requestCode: string;
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  service: string;
+  location: string;
+  date: string;
+  status: UserRequestHistoryItem["status"];
+  lifecycleStatus: UserRequestHistoryItem["lifecycleStatus"];
+  etaLabel: string;
+  urgencyLabel: string;
+};
 
-function StatusPill({ status }: { status: string }) {
-  const isActive = status === "Active";
+function getRequestStatusClasses(status: OpsRequestRow["status"]) {
+  if (status === "Active") {
+    return "bg-[#DCFCE7] text-[#15803D]";
+  }
 
+  if (status === "Pending") {
+    return "bg-[#FFF4DB] text-[#B7791F]";
+  }
+
+  if (status === "Completed") {
+    return "bg-[#EEF2F6] text-[#475467]";
+  }
+
+  return "bg-[#FEE4E2] text-[#B42318]";
+}
+
+function StatusPill({ status }: { status: OpsRequestRow["status"] }) {
   return (
     <span
       className={[
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
-        isActive
-          ? "bg-[#DCFCE7] text-[#22A75A]"
-          : "bg-[#FFF4DB] text-[#F59E0B]",
+        getRequestStatusClasses(status),
       ].join(" ")}
     >
       {status}
@@ -359,52 +307,71 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function RequestActionsMenu({
-  request,
-  onAction,
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function parseMinutes(label: string) {
+  const match = label.match(/(\d+)\s*min/i);
+  if (!match) {
+    return null;
+  }
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getAverageMinutes(labels: string[]) {
+  const values = labels
+    .map((label) => parseMinutes(label))
+    .filter((value): value is number => typeof value === "number");
+
+  if (!values.length) {
+    return null;
+  }
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Math.round(total / values.length);
+}
+
+type OpsQueueCardTone = "warning" | "danger" | "neutral";
+
+function OpsQueueCard({
+  title,
+  description,
+  value,
+  tone,
+  onClick,
 }: {
-  request: (typeof requests)[0];
-  onAction: (action: string, id: string) => void;
+  title: string;
+  description: string;
+  value: string;
+  tone: OpsQueueCardTone;
+  onClick: () => void;
 }) {
+  const toneClasses =
+    tone === "danger"
+      ? "border-[#F04438]/20 bg-[#FEF3F2]"
+      : tone === "warning"
+        ? "border-[#F79009]/20 bg-[#FFF7ED]"
+        : "border-[#EAECF0] bg-white";
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-11 min-h-11 w-11 min-w-11 touch-manipulation items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] active:bg-[#EEF2F6] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
-          aria-label={`More actions for ${request.name}`}
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        sideOffset={8}
-        collisionPadding={12}
-        className="w-[190px] rounded-[10px] border border-[#EAECF0] bg-white p-[10px] shadow-[0_18px_38px_rgba(15,23,42,0.14)]"
-      >
-        <DropdownMenuItem
-          onClick={() => onAction("View profile", request.id)}
-          className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#2D3036] focus:bg-transparent focus:text-[#2D3036]"
-        >
-          View profile
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
-        <DropdownMenuItem
-          onClick={() => onAction("Activate account", request.id)}
-          className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#22C55E] focus:bg-transparent focus:text-[#22C55E]"
-        >
-          Activate account
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
-        <DropdownMenuItem
-          onClick={() => onAction("Deactivate account", request.id)}
-          className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#EF4444] focus:bg-transparent focus:text-[#EF4444]"
-        >
-          Deactivate account
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex w-full items-start justify-between gap-4 rounded-[16px] border p-4 text-left shadow-sm transition hover:bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15",
+        toneClasses,
+      ].join(" ")}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-[#101828]">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-[#667085]">{description}</p>
+      </div>
+      <span className="inline-flex shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#344054]">
+        {value}
+      </span>
+    </button>
   );
 }
 
@@ -426,7 +393,6 @@ export default function Overview() {
     return parseDateForFilter(value);
   }, [dateFilters.to]);
 
-  const [requestList, setRequestList] = useState(requests);
   const [hoveredServiceLabel, setHoveredServiceLabel] = useState<string | null>(
     null,
   );
@@ -434,35 +400,43 @@ export default function Overview() {
   const [requestPage, setRequestPage] = useState(1);
   const requestPageSize = requestsExpanded ? 10 : 5;
 
-  const handleAction = (action: string, id: string) => {
-    const request = requestList.find((r) => r.id === id);
-    if (!request) return;
+  const requestStatusById = useRequestsStore(
+    (state) => state.requestStatusById,
+  );
+  const requestOpsById = useRequestsStore((state) => state.requestOpsById);
 
-    if (action === "View profile") {
-      navigate(`/users/${id}`);
-      return;
-    }
+  const opsRequestRows = useMemo<OpsRequestRow[]>(() => {
+    return userDetailsRecords.flatMap((user) =>
+      user.requestHistory.map((request) => {
+        const statusOverride = requestStatusById[request.id];
+        const opsOverride = requestOpsById[request.id];
 
-    if (action === "Activate account" || action === "Deactivate account") {
-      const nextStatus =
-        action === "Activate account" ? "Active" : "Deactivated";
+        const statusAdjusted = applyRequestStatusOverride(
+          request,
+          statusOverride,
+        );
+        const opsAdjusted = applyRequestOpsOverride(
+          statusAdjusted,
+          opsOverride,
+        );
 
-      if (request.status === nextStatus) {
-        toast.info("No change", {
-          description: `${request.name} is already ${nextStatus.toLowerCase()}.`,
-        });
-        return;
-      }
-
-      setRequestList((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: nextStatus } : r)),
-      );
-
-      toast.success(action, {
-        description: `${request.name} has been ${nextStatus.toLowerCase()}.`,
-      });
-    }
-  };
+        return {
+          requestId: opsAdjusted.id,
+          requestCode: opsAdjusted.requestCode,
+          userId: user.id,
+          customerName: user.name,
+          customerEmail: user.email,
+          service: opsAdjusted.service,
+          location: opsAdjusted.location,
+          date: opsAdjusted.date,
+          status: opsAdjusted.status,
+          lifecycleStatus: opsAdjusted.lifecycleStatus,
+          etaLabel: opsAdjusted.etaLabel,
+          urgencyLabel: opsAdjusted.urgencyLabel,
+        };
+      }),
+    );
+  }, [requestOpsById, requestStatusById]);
 
   const filteredRevenueRecords = useMemo(() => {
     if (!fromDate && !toDate) return revenueRecords;
@@ -568,12 +542,12 @@ export default function Overview() {
     null;
 
   const filteredRequestsByDate = useMemo(() => {
-    if (!fromDate && !toDate) return requestList;
-    return requestList.filter((request) => {
+    if (!fromDate && !toDate) return opsRequestRows;
+    return opsRequestRows.filter((request) => {
       const parsed = parseDateForFilter(request.date);
       return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
     });
-  }, [fromDate, requestList, toDate]);
+  }, [fromDate, opsRequestRows, toDate]);
 
   const requestsTotalPages = Math.max(
     1,
@@ -585,9 +559,195 @@ export default function Overview() {
     requestPage * requestPageSize,
   );
 
+  const opsSnapshot = useMemo(() => {
+    const delayedJobs = Object.values(requestOpsById).filter((entry) =>
+      Boolean(entry?.delayedReason),
+    ).length;
+    const disputedJobs = Object.values(requestOpsById).filter((entry) =>
+      Boolean(entry?.disputeReason),
+    ).length;
+
+    const payoutBlocked = contractorRecords.filter(
+      (contractor) => contractor.payoutStatus === "Blocked",
+    ).length;
+
+    const kycBlockers = contractorRecords.filter(
+      (contractor) => contractor.verificationState === "Pending review",
+    ).length;
+
+    const highRiskContractors = contractorRecords.filter(
+      (contractor) => contractor.riskLevel === "High" || contractor.rating < 4,
+    ).length;
+
+    const activeContractorsNow = contractorRecords.filter(
+      (contractor) => contractor.currentStatus === "Online",
+    ).length;
+
+    const avgResponseMinutes = getAverageMinutes(
+      contractorRecords.map((contractor) => contractor.responseTimeLabel),
+    );
+
+    const completionRates = contractorRecords
+      .map((contractor) => contractor.completionRate)
+      .filter((value) => Number.isFinite(value));
+    const avgCompletionRate = completionRates.length
+      ? completionRates.reduce((sum, value) => sum + value, 0) /
+        completionRates.length
+      : 0;
+
+    const jobsToday = opsRequestRows.filter(
+      (request) => request.status === "Active" || request.status === "Pending",
+    ).length;
+
+    return {
+      delayedJobs,
+      disputedJobs,
+      payoutBlocked,
+      kycBlockers,
+      highRiskContractors,
+      jobsToday,
+      activeContractorsNow,
+      avgResponseMinutes,
+      avgCompletionRate,
+    };
+  }, [opsRequestRows, requestOpsById]);
+
+  const statistics = useMemo<OverviewStatistic[]>(
+    () => [
+      {
+        title: "Jobs today",
+        value: opsSnapshot.jobsToday.toLocaleString("en-US"),
+        trend: "+ 2.3% vs Yesterday",
+        Icon: TotalRequestsIcon,
+        highlighted: true,
+        patternSrc: totalRevenuePattern,
+        patternClassName:
+          "absolute -left-[27px] -top-[14px] hidden h-[156px] w-[318px] max-w-none rotate-180 opacity-80 lg:block",
+      },
+      {
+        title: "Active contractors now",
+        value: opsSnapshot.activeContractorsNow.toLocaleString("en-US"),
+        trend: "+ 2.3% vs Yesterday",
+        Icon: TotalContractorsIcon,
+        patternSrc: summaryCardPattern,
+        patternClassName:
+          "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
+      },
+      {
+        title: "Avg response time",
+        value:
+          opsSnapshot.avgResponseMinutes !== null
+            ? `${opsSnapshot.avgResponseMinutes} min avg`
+            : "—",
+        trend: "+ 2.3% vs Yesterday",
+        Icon: TotalRevenueIcon,
+        patternSrc: summaryCardPattern,
+        patternClassName:
+          "absolute -left-[25px] -top-[14px] hidden h-[156px] w-[317px] max-w-none rotate-180 opacity-80 lg:block",
+      },
+      {
+        title: "Completion rate",
+        value: formatPercent(opsSnapshot.avgCompletionRate),
+        trend: "+ 2.3% vs Yesterday",
+        Icon: TotalUsersIcon,
+        patternSrc: requestsCardPattern,
+        patternClassName:
+          "absolute -left-[81px] -top-[14px] hidden h-[156px] w-[428px] max-w-none rotate-180 opacity-80 lg:block",
+      },
+    ],
+    [opsSnapshot],
+  );
+
   return (
     <DashboardLayout title="Dashboard">
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-[14px]">
+      <section className="rounded-2xl border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#667085]">
+              Operational queues
+            </h2>
+            <p className="mt-1 text-sm text-[#98A2B3]">
+              Prioritize urgent blockers before diving into analytics.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.requests)}
+            className="inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#667085] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+          >
+            Open requests
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <OpsQueueCard
+            title="Delayed jobs"
+            description="SLA breach, missing check-ins, or overdue arrivals."
+            value={opsSnapshot.delayedJobs.toLocaleString("en-US")}
+            tone="warning"
+            onClick={() => {
+              toast.info("Delayed queue", {
+                description:
+                  "Open Requests to review delayed jobs and capture reasons.",
+              });
+              navigate(ROUTES.requests);
+            }}
+          />
+          <OpsQueueCard
+            title="Disputed jobs"
+            description="Open disputes requiring evidence review and resolution."
+            value={opsSnapshot.disputedJobs.toLocaleString("en-US")}
+            tone="danger"
+            onClick={() => {
+              toast.info("Disputed queue", {
+                description:
+                  "Open Requests to review disputed jobs and escalation notes.",
+              });
+              navigate(ROUTES.requests);
+            }}
+          />
+          <OpsQueueCard
+            title="Failed payouts / blocked"
+            description="Contractors blocked from payout until readiness issues are resolved."
+            value={opsSnapshot.payoutBlocked.toLocaleString("en-US")}
+            tone="danger"
+            onClick={() => {
+              toast.info("Payout blockers", {
+                description:
+                  "Open Transactions to review payout failures and blockers.",
+              });
+              navigate(ROUTES.transactions);
+            }}
+          />
+          <OpsQueueCard
+            title="KYC blockers"
+            description="Contractors awaiting verification review before unrestricted dispatch."
+            value={opsSnapshot.kycBlockers.toLocaleString("en-US")}
+            tone="warning"
+            onClick={() => {
+              toast.info("KYC blockers", {
+                description:
+                  "Open Contractors to review pending verification states.",
+              });
+              navigate(ROUTES.contractors);
+            }}
+          />
+          <OpsQueueCard
+            title="High-risk contractors"
+            description="Low-rated, complaint-heavy, or flagged contractors needing follow-up."
+            value={opsSnapshot.highRiskContractors.toLocaleString("en-US")}
+            tone="neutral"
+            onClick={() => {
+              toast.info("Trust watchlist", {
+                description:
+                  "Open Contractors to review risk watchlists and lifecycle actions.",
+              });
+              navigate(ROUTES.contractors);
+            }}
+          />
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-[14px]">
         {statistics.map((item) => (
           <article
             key={item.title}
@@ -876,31 +1036,31 @@ export default function Overview() {
           </button>
         </div>
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-full divide-y divide-[#EAECF0]">
+          <table className="w-full min-w-[980px] divide-y divide-[#EAECF0]">
             <thead className="bg-[#F9FAFB]">
               <tr className="text-left text-xs font-semibold text-[#667085]">
-                <th className="px-5 py-4">Name</th>
-                <th className="px-5 py-4">Service</th>
-                <th className="px-5 py-4">Location</th>
-                <th className="px-5 py-4">Date and time</th>
-                <th className="px-5 py-4">Status</th>
+                <th className="w-[260px] px-5 py-4">Customer</th>
+                <th className="w-[180px] px-5 py-4">Service</th>
+                <th className="w-[240px] px-5 py-4">Location</th>
+                <th className="w-[180px] px-5 py-4">Date and time</th>
+                <th className="w-[140px] px-5 py-4">Status</th>
                 <th className="px-5 py-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAECF0]">
               {currentRequestRows.map((request) => (
-                <tr key={request.id}>
+                <tr key={request.requestId}>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
-                        {request.name.charAt(0)}
+                        {request.customerName.charAt(0)}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[#101828]">
-                          {request.name}
+                          {request.customerName}
                         </p>
                         <p className="truncate text-xs text-[#98A2B3]">
-                          {request.email}
+                          {request.customerEmail}
                         </p>
                       </div>
                     </div>
@@ -918,10 +1078,41 @@ export default function Overview() {
                     <StatusPill status={request.status} />
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <RequestActionsMenu
-                      request={request}
-                      onAction={handleAction}
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-11 min-h-11 w-11 min-w-11 touch-manipulation items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] active:bg-[#EEF2F6] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                          aria-label={`More actions for ${request.customerName}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        sideOffset={8}
+                        collisionPadding={12}
+                        className="w-[190px] rounded-[10px] border border-[#EAECF0] bg-white p-[10px] shadow-[0_18px_38px_rgba(15,23,42,0.14)]"
+                      >
+                        <DropdownMenuItem
+                          onClick={() =>
+                            navigate(
+                              `/users/${request.userId}?tab=request-history&requestId=${request.requestId}`,
+                            )
+                          }
+                          className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#2D3036] focus:bg-transparent focus:text-[#2D3036]"
+                        >
+                          View details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
+                        <DropdownMenuItem
+                          onClick={() => navigate(ROUTES.requests)}
+                          className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#071B58] focus:bg-transparent focus:text-[#071B58]"
+                        >
+                          Open requests
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -931,22 +1122,56 @@ export default function Overview() {
         <div className="grid gap-3 p-4 md:hidden">
           {currentRequestRows.map((request) => (
             <article
-              key={request.id}
+              key={request.requestId}
               className="relative rounded-2xl border border-[#EAECF0] p-4"
             >
               <div className="absolute right-4 top-4 z-10">
-                <RequestActionsMenu request={request} onAction={handleAction} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-11 min-h-11 w-11 min-w-11 touch-manipulation items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white text-[#667085] shadow-sm transition hover:bg-[#F8FAFC] active:bg-[#EEF2F6] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15"
+                      aria-label={`More actions for ${request.customerName}`}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={8}
+                    collisionPadding={12}
+                    className="w-[190px] rounded-[10px] border border-[#EAECF0] bg-white p-[10px] shadow-[0_18px_38px_rgba(15,23,42,0.14)]"
+                  >
+                    <DropdownMenuItem
+                      onClick={() =>
+                        navigate(
+                          `/users/${request.userId}?tab=request-history&requestId=${request.requestId}`,
+                        )
+                      }
+                      className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#2D3036] focus:bg-transparent focus:text-[#2D3036]"
+                    >
+                      View details
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="my-[10px] bg-[#F0F1F2]" />
+                    <DropdownMenuItem
+                      onClick={() => navigate(ROUTES.requests)}
+                      className="cursor-pointer rounded-none px-0 py-0 text-[12px] font-semibold text-[#071B58] focus:bg-transparent focus:text-[#071B58]"
+                    >
+                      Open requests
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="flex min-w-0 items-start gap-3 pr-16">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
-                  {request.name.charAt(0)}
+                  {request.customerName.charAt(0)}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#101828]">
-                    {request.name}
+                    {request.customerName}
                   </p>
                   <p className="truncate text-xs text-[#98A2B3]">
-                    {request.email}
+                    {request.customerEmail}
                   </p>
                 </div>
               </div>

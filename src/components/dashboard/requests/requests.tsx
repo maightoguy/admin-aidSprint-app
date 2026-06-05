@@ -552,14 +552,14 @@ export default function RequestsPage() {
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="min-w-full">
+            <table className="w-full min-w-[1080px]">
               <thead className="bg-[#F9FAFB]">
                 <tr className="text-left text-sm font-semibold text-[#475467]">
-                  <th className="px-5 py-4">Name of users</th>
-                  <th className="px-5 py-4">Location</th>
-                  <th className="px-5 py-4">Service</th>
-                  <th className="px-5 py-4">Date Joined</th>
-                  <th className="px-5 py-4">Account Status</th>
+                  <th className="w-[260px] px-5 py-4">Name of users</th>
+                  <th className="w-[240px] px-5 py-4">Location</th>
+                  <th className="w-[180px] px-5 py-4">Service</th>
+                  <th className="w-[170px] px-5 py-4">Date Joined</th>
+                  <th className="w-[230px] px-5 py-4">Account Status</th>
                   <th className="px-5 py-4" />
                 </tr>
               </thead>
@@ -584,10 +584,10 @@ export default function RequestsPage() {
                       {row.request.date}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex min-w-[220px] flex-wrap items-center gap-2">
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold",
                             getRequestStatusClasses(row.request.status),
                           ].join(" ")}
                         >
@@ -600,7 +600,7 @@ export default function RequestsPage() {
                           <span
                             key={badge.label}
                             className={[
-                              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                              "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                               badge.className,
                             ].join(" ")}
                           >

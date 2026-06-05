@@ -18,6 +18,7 @@ import RequestsPage from "./components/dashboard/requests/requests";
 import SupportPage from "./components/dashboard/support/support";
 import TransactionsPage from "./components/dashboard/transactions/transactions";
 import SettingsPage from "./components/dashboard/setting/settings";
+import DisputesPage from "./components/dashboard/disputes/disputes";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
 
@@ -58,15 +59,7 @@ const App = () => (
             <Route path={ROUTES.requests} element={<RequestsPage />} />
             <Route path={ROUTES.transactions} element={<TransactionsPage />} />
             <Route path={ROUTES.support} element={<SupportPage />} />
-            <Route
-              path={ROUTES.disputes}
-              element={
-                <PlannedModulePlaceholder
-                  title="Disputes"
-                  description="This module is planned. It will become the evidence review and refund/reversal-ready disputes workspace."
-                />
-              }
-            />
+            <Route path={ROUTES.disputes} element={<DisputesPage />} />
             <Route path={ROUTES.settings} element={<SettingsPage />} />
             <Route
               path={ROUTES.marketplace}

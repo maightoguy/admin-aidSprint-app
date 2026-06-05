@@ -9,8 +9,9 @@ import {
   type IntegrationToggleId,
 } from "./integration-toggle";
 import { SecurityForm, type SecurityFormValues } from "./security-form";
+import { MarketplaceConfigTab } from "./marketplace-config";
 
-type SettingsTab = "integrations" | "security";
+type SettingsTab = "marketplace" | "integrations" | "security";
 
 const integrationsCatalog: Array<{
   id: IntegrationToggleId;
@@ -232,6 +233,12 @@ function SettingsSidePanel({
     <aside className="w-full max-w-[260px] rounded-[14px] border border-[#EAECF0] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
       <div className="space-y-2">
         <TabButton
+          active={activeTab === "marketplace"}
+          onClick={() => onSelectTab("marketplace")}
+        >
+          - Marketplace
+        </TabButton>
+        <TabButton
           active={activeTab === "integrations"}
           onClick={() => onSelectTab("integrations")}
         >
@@ -360,7 +367,7 @@ function SecurityTab({
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<SettingsTab>("integrations");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("marketplace");
   const [searchValue, setSearchValue] = useState("");
   const [integrationState, setIntegrationState] = useState<
     Record<IntegrationToggleId, boolean>
@@ -434,7 +441,9 @@ export default function SettingsPage() {
           </div>
 
           <div className="mt-4">
-            {activeTab === "integrations" ? (
+            {activeTab === "marketplace" ? (
+              <MarketplaceConfigTab />
+            ) : activeTab === "integrations" ? (
               <IntegrationsTab
                 searchValue={searchValue}
                 onSearchChange={setSearchValue}

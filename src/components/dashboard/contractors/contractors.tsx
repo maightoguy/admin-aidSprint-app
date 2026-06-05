@@ -669,19 +669,19 @@ export default function ContractorsPage({
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[920px] text-left text-sm">
+            <table className="w-full min-w-[1360px] text-left text-sm">
               <caption className="sr-only">
                 Contractor operations surface with performance, trust, payout,
                 and lifecycle data.
               </caption>
               <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#475467]">
                 <tr className="border-b border-[#EAECF0]">
-                  <th className="px-5 py-4">Contractor</th>
-                  <th className="px-5 py-4">Availability</th>
-                  <th className="px-5 py-4">Performance</th>
-                  <th className="px-5 py-4">Verification & payout</th>
-                  <th className="px-5 py-4">Trust & risk</th>
-                  <th className="px-5 py-4">Lifecycle</th>
+                  <th className="w-[250px] px-5 py-4">Contractor</th>
+                  <th className="w-[170px] px-5 py-4">Availability</th>
+                  <th className="w-[220px] px-5 py-4">Performance</th>
+                  <th className="w-[240px] px-5 py-4">Verification & payout</th>
+                  <th className="w-[240px] px-5 py-4">Trust & risk</th>
+                  <th className="w-[170px] px-5 py-4">Lifecycle</th>
                   <th className="px-5 py-4" aria-label="Actions" />
                 </tr>
               </thead>
@@ -704,10 +704,10 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="space-y-1">
+                      <div className="min-w-[150px] space-y-1 leading-5">
                         <p
                           className={[
-                            "text-sm font-semibold",
+                            "whitespace-nowrap text-sm font-semibold",
                             getContractorCurrentStatusClasses(
                               contractor.currentStatus,
                             ),
@@ -724,7 +724,7 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="space-y-1 text-sm text-[#667085]">
+                      <div className="min-w-[210px] space-y-1 text-sm leading-5 text-[#667085]">
                         <p className="font-semibold text-[#101828]">
                           {contractor.rating.toFixed(1)} rating
                           <span className="ml-1 text-xs font-medium text-[#98A2B3]">
@@ -744,10 +744,10 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex min-w-[220px] flex-wrap gap-2">
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                             getContractorVerificationClasses(
                               contractor.verificationState,
                             ),
@@ -757,7 +757,7 @@ export default function ContractorsPage({
                         </span>
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                             getContractorPayoutClasses(contractor.payoutStatus),
                           ].join(" ")}
                         >
@@ -774,10 +774,10 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex min-w-[220px] flex-wrap gap-2">
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                             getContractorRiskClasses(contractor.riskLevel),
                           ].join(" ")}
                         >
@@ -786,7 +786,7 @@ export default function ContractorsPage({
                         {contractor.riskFlags.slice(0, 2).map((flag) => (
                           <span
                             key={flag}
-                            className="inline-flex items-center rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-semibold text-[#344054]"
+                            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-semibold text-[#344054]"
                           >
                             {flag}
                           </span>
@@ -799,10 +799,10 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="space-y-2">
+                      <div className="min-w-[150px] space-y-2">
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                             getContractorLifecycleClasses(
                               contractor.lifecycleState,
                             ),
@@ -818,7 +818,7 @@ export default function ContractorsPage({
                         </p>
                         <span
                           className={[
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold",
                             getContractorAccountStatusClasses(
                               contractor.accountStatus,
                             ),

@@ -487,14 +487,14 @@ export function ContractorTransactionHistoryTab({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
+          <table className="w-full min-w-[920px]">
             <thead className="bg-[#F9FAFB]">
               <tr className="text-left text-sm font-semibold text-[#667085]">
-                <th className="px-6 py-4">Trans ID</th>
-                <th className="px-6 py-4">Transaction Type</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Date and time</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="w-[150px] px-6 py-4">Trans ID</th>
+                <th className="w-[200px] px-6 py-4">Transaction Type</th>
+                <th className="w-[140px] px-6 py-4">Amount</th>
+                <th className="w-[180px] px-6 py-4">Date and time</th>
+                <th className="w-[150px] px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right" aria-label="Actions" />
               </tr>
             </thead>
@@ -520,7 +520,7 @@ export function ContractorTransactionHistoryTab({
                     <td className="px-6 py-6">
                       <span
                         className={[
-                          "inline-flex rounded-full px-3 py-1 text-base font-medium",
+                          "inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-base font-medium",
                           formatStatus(transaction.status),
                         ].join(" ")}
                       >

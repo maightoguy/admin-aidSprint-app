@@ -256,15 +256,15 @@ export default function SupportPage() {
 
           {/* Table Content */}
           <div className="hidden overflow-x-auto md:block">
-            <table className="min-w-full">
+            <table className="w-full min-w-[1080px]">
               <thead className="bg-[#F9FAFB]">
                 <tr className="text-left text-[14px] font-semibold leading-5 text-[#667085]">
-                  <th className="px-6 py-4">Ticket ID</th>
-                  <th className="px-6 py-4">User</th>
-                  <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Description</th>
-                  <th className="px-6 py-4">Date Created</th>
-                  <th className="px-6 py-4">Status</th>
+                  <th className="w-[140px] px-6 py-4">Ticket ID</th>
+                  <th className="w-[260px] px-6 py-4">User</th>
+                  <th className="w-[180px] px-6 py-4">Category</th>
+                  <th className="w-[260px] px-6 py-4">Description</th>
+                  <th className="w-[160px] px-6 py-4">Date Created</th>
+                  <th className="w-[140px] px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right" aria-label="Actions" />
                 </tr>
               </thead>
@@ -272,7 +272,7 @@ export default function SupportPage() {
                 {currentRows.length > 0 ? (
                   currentRows.map((ticket) => (
                     <tr key={ticket.id} className="align-middle">
-                      <td className="px-6 py-4 text-[14px] leading-5 text-[#98A2B3]">
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] leading-5 text-[#98A2B3]">
                         {ticket.ticketId}
                       </td>
                       <td className="px-6 py-4">
@@ -293,7 +293,7 @@ export default function SupportPage() {
                       <td className="px-6 py-4">
                         <span
                           className={cn(
-                            "inline-flex rounded-full px-3 py-1 text-[14px] font-medium leading-5",
+                            "inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[14px] font-medium leading-5",
                             getStatusPillClassName(ticket.status),
                           )}
                         >

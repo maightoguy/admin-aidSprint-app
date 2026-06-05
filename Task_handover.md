@@ -1,6 +1,6 @@
 # AidSprint Admin Frontend PRD Assessment and Handover
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Purpose
 This document replaces earlier speculative handover notes with a reality-based assessment of the current admin frontend against the product requirements document in `PRODUCT REQUIREMENTS DOCUMENT.md`.
@@ -97,14 +97,14 @@ Auth readiness note:
 Reviewed in [overview.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/overview/overview.tsx).
 
 Current strengths:
-- KPI-style summary cards
-- revenue chart
-- top services visualization
-- recent requests table
-- date filtering
+- operations-first queue visibility (delayed jobs, disputed jobs, payout blockers, KYC blockers, high-risk contractors)
+- live operational KPI cards (jobs in queue, active contractors, avg response time, completion rate)
+- revenue chart and top services visualization preserved
+- recent requests surface aligned to backend-ready request models via `userDetailsRecords` plus Requests store overrides
+- date filtering preserved
 
 Current limitation:
-- this is a generic summary dashboard, not yet an operations dashboard for a live help-on-demand service marketplace
+- still mock-data driven and not yet backed by live monitoring, dispute, or finance reconciliation APIs
 
 #### Users
 Reviewed in [users.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/users/users.tsx) and [user-details-page.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/user-details/user-details-page.tsx).
@@ -294,6 +294,8 @@ Quick index:
 
 ### Phase 1 Prompt A: Overview Operations Control Center (Planned)
 Refactor `src/components/overview/overview.tsx` into an operations-first control center without changing the current dashboard shell or visual language. Reuse the existing summary-card, chart, table, badge, filter, and responsive mobile-card patterns already present in `overview.tsx`, `requests.tsx`, `transactions.tsx`, and the shared dashboard primitives. Keep the page recognizably aligned to current Figma styling, but reorganize the information hierarchy so urgent operational queues appear first. Add cards and sections for delayed jobs, disputed jobs, failed payouts, KYC blockers, low-rated contractors, and live operational KPIs. Use explicit lifecycle labels and backend-ready naming. Do not invent a new design language; extend the current one. Add focused tests only where interaction logic changes materially.
+ 
+Status: Done
 
 ### Phase 1 Prompt B: Requests Dispatch Workflow (Done)
 Upgrade `src/components/dashboard/requests/requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` into a dispatch and live-monitoring workflow while preserving the current table, sidebar, and overlay styling patterns. Reuse the working status-menu, drawer, badge, filter, pagination, and responsive mobile-card behavior already established across requests, support, transactions, overview, and contractor tabs. Add explicit request lifecycle states, urgent queue visibility, intervention actions, and better operational grouping, but keep the visual styling within the current Figma-backed component system. Ensure mobile and tablet layouts continue following the same breakpoints and stacking patterns as overview/users/contractors.
@@ -304,14 +306,25 @@ Refactor the contractor area in `src/components/dashboard/contractors/` into an 
 ### Phase 1 Prompt D: Contractor KYC Review Cleanup (Done)
 Remove the testing-only admin upload behavior from `src/components/dashboard/contractors/contractor-kyc-tab.tsx` and convert the KYC tab into a read-only review plus approve/reject workflow. Preserve the current tab structure and detail-card styling. Add confirmation and reason-capture UX for rejection decisions using existing modal/drawer patterns where possible. Keep naming and state models backend-ready and aligned with explicit approval states.
 
-### Phase 2 Prompt A: Settings Marketplace Configuration (Planned)
+### Phase 2 Prompt A: Settings Marketplace Configuration (Done)
 Expand `src/components/dashboard/setting/settings.tsx` into a marketplace-configuration workspace for service categories, pricing tiers, promos, and notification management. Preserve the current settings route and visual language, but reorganize the page into clearly separated configuration sections using existing cards, forms, toggles, tabs, and panel patterns. Treat this as an extension of the existing design system, not a new admin theme. If a workflow becomes too complex for the current page pattern, structure it as clearly separated internal sections before proposing brand-new surfaces.
 
-### Phase 2 Prompt B: Disputes Planning Surface (Planned)
+Status: Done
+
+### Phase 2 Prompt B: Disputes Planning Surface (Done)
 Create a dedicated disputes surface, either as a new route or a clearly separated operational section branching from the support workflow, while staying visually aligned with `support.tsx`, `support-sidebar.tsx`, `requests-sidebar.tsx`, and the existing table/detail-sheet system. Prioritize evidence review, linked job context, refund/reversal readiness, actor/reason auditability, and explicit dispute lifecycle states. Reuse existing list, badge, drawer, and filter patterns first. Only introduce a new page-level layout if the workflow cannot fit cleanly inside current support patterns.
 
-### Phase 3 Prompt A: Transactions Finance Operations (Planned)
+Status: Done
+
+### Phase 3 Prompt A: Transactions Finance Operations (Done)
 Upgrade `src/components/dashboard/transactions/transactions.tsx` into a finance-operations workspace for payouts, exports, reporting, failures, and reconciliation while preserving the current transaction page structure, summary cards, table styling, filters, dropdowns, and right-side detail panel patterns. Expand the workflow with explicit payout states, failure buckets, export actions, and reconciliation-focused views, but keep the UI visually consistent with existing Figma-backed pages. Use backend-ready finance naming and avoid generic statuses.
+
+Status: Done
+
+Notes:
+- Introduced explicit finance lifecycle states for withdrawals and service payments instead of generic status buckets.
+- Added finance queue prioritization for failed payouts, pending review, blocked payouts, and completed records.
+- Added frontend-only CSV export, payout readiness / blocker visibility, reconciliation state, and audit trail entries so the UI can map cleanly to future backend workflows.
 
 ### Phase 4 Prompt A: Auth-Ready Login And Route Structure (Done)
 Make `src/login/login.tsx` and the app route structure auth-ready before backend integration starts. Keep the current visual language intact and limit UI changes to the states needed for real auth behavior: validation, loading, locked/unauthorized access, session expiry, and protected-route handling. Reuse existing feedback patterns such as toasts, inline messages, dialogs, and loading indicators. Focus on route guards, naming, and auth-state architecture more than visual redesign.

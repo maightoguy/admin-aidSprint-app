@@ -234,14 +234,14 @@ export function ContractorRequestHistoryTab({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
+          <table className="w-full min-w-[980px]">
             <thead className="bg-[#F9FAFB]">
               <tr className="text-left text-sm font-semibold text-[#667085]">
-                <th className="px-6 py-4">Name of users</th>
-                <th className="px-6 py-4">Service requested</th>
-                <th className="px-6 py-4">Location</th>
-                <th className="px-6 py-4">Date and time</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="w-[260px] px-6 py-4">Name of users</th>
+                <th className="w-[180px] px-6 py-4">Service requested</th>
+                <th className="w-[240px] px-6 py-4">Location</th>
+                <th className="w-[170px] px-6 py-4">Date and time</th>
+                <th className="w-[140px] px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right"> </th>
               </tr>
             </thead>
@@ -279,7 +279,7 @@ export function ContractorRequestHistoryTab({
                     <td className="px-6 py-6">
                       <span
                         className={[
-                          "inline-flex rounded-full px-3 py-1 text-base font-medium",
+                          "inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-base font-medium",
                           getRequestStatusClasses(row.status),
                         ].join(" ")}
                       >
