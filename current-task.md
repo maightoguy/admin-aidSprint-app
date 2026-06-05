@@ -24,7 +24,7 @@ Keep visuals aligned to the current Figma-backed dashboard shell. Treat Figma as
 
 - Prompt 1: Overview operations control center (overview.tsx)
 - Prompt 2: Requests dispatch + live monitoring workflow (requests.tsx + sidebar + overlay) — Done
-- Prompt 3: Contractor operations surface (contractors area)
+- Prompt 3: Contractor operations surface (contractors area) — Done
 - Prompt 4: Contractor KYC read-only review + approve/reject (contractor-kyc-tab.tsx) — Done
 
 #### Phase 2 (Marketplace + Disputes)
@@ -36,7 +36,7 @@ Keep visuals aligned to the current Figma-backed dashboard shell. Treat Figma as
 
 - Prompt 7: Transactions finance operations (transactions.tsx)
 
-#### Phase 4 (Auth + Routes)
+#### Phase 4 (Auth + Routes) — Done
 
 - Prompt 8: Auth-ready login and protected states (login.tsx + route guards) — Done
 - Prompt 9: Admin route architecture cleanup (routes + navigation normalization) — Done
@@ -71,7 +71,7 @@ Planning and implementation task: Refactor `src/components/overview/overview.tsx
 Planning and implementation task: Upgrade `src/components/dashboard/requests/requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` into a dispatch and live-monitoring workflow while preserving the current table, sidebar, and overlay styling patterns. Reuse the working status-menu, drawer, badge, filter, pagination, and responsive mobile-card behavior already established across requests, support, transactions, overview, and contractor tabs. Add explicit request lifecycle states, urgent queue visibility, intervention actions, and better operational grouping, but keep the visual styling within the current Figma-backed component system. Ensure mobile and tablet layouts continue following the same breakpoints and stacking patterns as overview/users/contractors. ---DONE
 ```
 
-- Prompt 3: Contractor operations surface
+- Prompt 3: Contractor operations surface — Done
 
 ```text
 Planning and implementation task: Refactor the contractor area in `src/components/dashboard/contractors/` into an operations-first contractor management surface without redesigning the existing Figma language. Extend the current contractor list, contractor details page, summary cards, request-history tab, and transaction-history tab with trust/risk indicators, low-rating watchlists, suspension and restore actions, performance metrics, and clearer contractor lifecycle states. Reuse existing card, tab, table, badge, menu, sidebar, and modal patterns before introducing any new layout structure. Keep the visual system consistent with current dashboard styling.
@@ -212,4 +212,6 @@ Best-Practice Direction
 - Kept this as planning-only, added a Figma-safe UI impact assessment to both handover files, and mapped each phase by how much visible UI change it should require while preserving the current design language.
 
 
-Weve done Phase 1 Prompt 2 and Prompt 4, Phase 4/prompt 8 -- 
+Weve done Phase 1 Prompt 2, Prompt 3, and Prompt 4.
+
+Weve done Phase 4 Prompt 8 and Prompt 9, so Phase 4 is complete.

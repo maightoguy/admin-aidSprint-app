@@ -31,6 +31,12 @@
   - Added dashboard-shell placeholders for `/disputes` and `/marketplace` so planned modules have stable routes without introducing new design language.
 - Fixed a TypeScript narrowing issue in `login.tsx` by explicitly guarding the `SignInResult` failure branch before reading `result.message`.
 - Strengthened the `SignInResult` type narrowing in `login.tsx` using an explicit `result.ok === false` check to satisfy stricter type analyzers.
+- Completed Phase 1 Prompt 3 (Contractor operations surface) across the contractor module without changing the dashboard shell.
+  - Expanded `contractors.types.ts` and `contractors.data.ts` with backend-ready lifecycle, verification, payout, performance, and trust/risk fields.
+  - Refactored `contractors.tsx` into an operations-first list with queue cards, richer performance/risk columns, and guarded suspend/restore actions that require a reason.
+  - Upgraded `contractor-details-page.tsx` with operations snapshot cards, trust/risk review, payout readiness visibility, and the same lifecycle management flow.
+  - Extended `contractor-request-history-tab.tsx` and `contractor-transaction-history-tab.tsx` with operational context and payout blocker visibility.
+  - Updated `contractors.test.tsx` and `contractors.utils.test.ts`, then verified with `npm test -- contractors.test.tsx` and `npm run typecheck`.
 
 ## Current Context:
 - The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.
@@ -40,8 +46,10 @@
 - Phase 1 progress:
   - Prompt 4: Contractor KYC read-only review is done.
   - Prompt 2: Requests dispatch + live monitoring workflow is done.
+  - Prompt 3: Contractor operations surface is done.
   - Prompt 8: Auth-ready login and protected states is done.
   - Prompt 9: Admin route architecture cleanup is done.
+- The contractor module now exposes explicit lifecycle states, verification states, payout readiness, risk flags, queue counts, and reason-captured suspension/restore actions while remaining mock-data driven.
 - Planning direction is to keep visuals close to current Figma-backed patterns and concentrate most changes in workflow depth, status modeling, routing, and information density rather than redesign.
 - Current planning assessment:
   - Phase 1 = moderate UI shift, high workflow change
@@ -53,7 +61,6 @@
 ## Next Steps:
 - Phase 1 prompt chunks:
   - overview operations control center
-  - contractor operations surface
 - Phase 2 prompt chunks:
   - settings marketplace configuration
   - dedicated disputes surface

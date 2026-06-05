@@ -3,7 +3,11 @@ import type {
   ContractorCurrentStatus,
   ContractorDetailsTabValue,
   ContractorFilters,
+  ContractorLifecycleState,
+  ContractorPayoutStatus,
   ContractorRecord,
+  ContractorRiskLevel,
+  ContractorVerificationState,
 } from "./contractors.types";
 import {
   isWithinInclusiveRange,
@@ -31,6 +35,20 @@ export function getContractorAccountStatusClasses(
   return "bg-[#FEE4E2] text-[#F04438]";
 }
 
+export function getContractorLifecycleClasses(
+  status: ContractorLifecycleState,
+) {
+  if (status === "Active") {
+    return "bg-[#DCFCE7] text-[#15803D]";
+  }
+
+  if (status === "Pending approval") {
+    return "bg-[#FFF4DB] text-[#B7791F]";
+  }
+
+  return "bg-[#FEE4E2] text-[#B42318]";
+}
+
 export function getContractorCurrentStatusClasses(
   status: ContractorCurrentStatus,
 ) {
@@ -43,6 +61,44 @@ export function getContractorCurrentStatusClasses(
   }
 
   return "text-[#EF4444]";
+}
+
+export function getContractorVerificationClasses(
+  status: ContractorVerificationState,
+) {
+  if (status === "Verified") {
+    return "bg-[#ECFDF3] text-[#15803D]";
+  }
+
+  if (status === "Pending review") {
+    return "bg-[#FFF7ED] text-[#C2410C]";
+  }
+
+  return "bg-[#FEF3F2] text-[#B42318]";
+}
+
+export function getContractorRiskClasses(level: ContractorRiskLevel) {
+  if (level === "Low") {
+    return "bg-[#ECFDF3] text-[#15803D]";
+  }
+
+  if (level === "Medium") {
+    return "bg-[#FFF7ED] text-[#B45309]";
+  }
+
+  return "bg-[#FEF3F2] text-[#B42318]";
+}
+
+export function getContractorPayoutClasses(status: ContractorPayoutStatus) {
+  if (status === "Ready") {
+    return "bg-[#ECFDF3] text-[#15803D]";
+  }
+
+  if (status === "Onboarding") {
+    return "bg-[#EFF8FF] text-[#175CD3]";
+  }
+
+  return "bg-[#FEF3F2] text-[#B42318]";
 }
 
 export function filterContractors(

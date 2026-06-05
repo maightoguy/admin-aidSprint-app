@@ -4,6 +4,20 @@ export type ContractorAccountStatus = "Active" | "Deactivated";
 
 export type ContractorCurrentStatus = "Online" | "Offline" | "Busy";
 
+export type ContractorLifecycleState =
+  | "Active"
+  | "Suspended"
+  | "Pending approval";
+
+export type ContractorVerificationState =
+  | "Verified"
+  | "Pending review"
+  | "Rejected";
+
+export type ContractorPayoutStatus = "Ready" | "Blocked" | "Onboarding";
+
+export type ContractorRiskLevel = "Low" | "Medium" | "High";
+
 export type ContractorServiceCategory =
   | "Plumbing"
   | "Cleaning"
@@ -93,6 +107,7 @@ export type ContractorRecord = {
   totalServicesProvided: number;
   dateJoined: string;
   accountStatus: ContractorAccountStatus;
+  lifecycleState: ContractorLifecycleState;
   serviceCategory: ContractorServiceCategory;
   bio: string;
   firstName: string;
@@ -100,12 +115,30 @@ export type ContractorRecord = {
   gender: string;
   servicesProvided: ContractorServiceCategory[];
   locations: ContractorLocationHistoryItem[];
+  verificationState: ContractorVerificationState;
+  rating: number;
+  totalRatings: number;
+  acceptanceRate: number;
+  completionRate: number;
+  responseTimeLabel: string;
+  totalJobsOffered: number;
+  totalJobsAccepted: number;
+  totalJobsCompleted: number;
+  repeatedComplaints: number;
+  lastActiveLabel: string;
+  serviceZoneLabel: string;
+  riskLevel: ContractorRiskLevel;
+  riskFlags: string[];
+  watchlistReason?: string;
+  payoutStatus: ContractorPayoutStatus;
+  pendingPayoutAmount: string;
+  payoutsBlockedReason?: string;
 };
 
 export type ContractorMenuAction =
   | "View profile"
-  | "Activate account"
-  | "Deactivate account";
+  | "Suspend account"
+  | "Restore account";
 
 export type ContractorFilters = {
   query: string;

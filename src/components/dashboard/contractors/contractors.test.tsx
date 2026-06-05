@@ -64,7 +64,7 @@ describe("ContractorsPage", () => {
     expect(screen.getByText("Service Provided")).toBeTruthy();
   }, 10000);
 
-  it("opens the contractor update account modal from the details page", async () => {
+  it("requires a reason when suspending a contractor from the details page", async () => {
     const user = userEvent.setup();
 
     render(
@@ -79,17 +79,52 @@ describe("ContractorsPage", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole("button", { name: /Update account/i }));
+    await user.click(screen.getByRole("button", { name: /Manage lifecycle/i }));
     expect(
-      await screen.findByRole("dialog", { name: "Update account" }),
+      await screen.findByRole("dialog", { name: "Manage lifecycle" }),
     ).toBeTruthy();
 
+    expect(screen.getByText("A reason is required.")).toBeTruthy();
+
+    await user.type(
+      screen.getByLabelText("Suspension reason"),
+      "Verification blockers have been cleared and complaints resolved.",
+    );
     await user.click(
-      screen.getByRole("button", { name: "Deactivate Account" }),
+      screen.getByRole("button", { name: "Confirm suspension" }),
     );
 
     await waitFor(() => {
-      expect(screen.getAllByText("Deactivated").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Suspended").length).toBeGreaterThan(0);
+    });
+  }, 10000);
+
+  it("captures a suspension reason from the contractor list action", async () => {
+    const user = userEvent.setup();
+    renderContractors();
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /Open contractor actions for/i,
+      })[0],
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Suspend account" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Suspend contractor" }),
+    ).toBeTruthy();
+    expect(screen.getByText("A reason is required.")).toBeTruthy();
+
+    await user.type(
+      screen.getByLabelText("Suspension reason"),
+      "Repeated complaints require a manual quality review.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Confirm suspension" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Suspended").length).toBeGreaterThan(0);
     });
   }, 10000);
 

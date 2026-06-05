@@ -37,6 +37,10 @@ import type {
   ContractorTransactionRecord,
   ContractorTransactionStatus,
 } from "./contractors.types";
+import {
+  getContractorPayoutClasses,
+  getContractorVerificationClasses,
+} from "./contractors.utils";
 
 type ContractorTransactionHistoryTabProps = {
   contractor: ContractorRecord;
@@ -348,12 +352,15 @@ export function ContractorTransactionHistoryTab({
   const pendingTransactionsCount = transactions.filter(
     (transaction) => transaction.status === "Pending",
   ).length;
+  const failedTransactionsCount = transactions.filter(
+    (transaction) => transaction.status === "Failed",
+  ).length;
 
   const summaryCards = useMemo(
     () => [
       {
-        title: "Available balance",
-        value: "$15,837",
+        title: "Pending payout",
+        value: contractor.pendingPayoutAmount,
         highlighted: true,
         Icon: TotalRevenueIcon,
       },
@@ -372,8 +379,13 @@ export function ContractorTransactionHistoryTab({
         value: String(pendingTransactionsCount),
         Icon: TotalRequestsIcon as typeof TotalRevenueIcon,
       },
+      {
+        title: "Failed Transactions",
+        value: String(failedTransactionsCount),
+        Icon: TotalRequestsIcon as typeof TotalRevenueIcon,
+      },
     ],
-    [pendingTransactionsCount],
+    [contractor.pendingPayoutAmount, failedTransactionsCount, pendingTransactionsCount],
   );
 
   const handleSearchChange = (value: string) => {
@@ -405,6 +417,44 @@ export function ContractorTransactionHistoryTab({
 
   return (
     <div className="space-y-5">
+      <section className="rounded-[20px] border border-[#EAECF0] bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#667085]">
+              Payout operations context
+            </p>
+            <p className="mt-2 text-sm text-[#98A2B3]">
+              Review payout readiness, verification state, and failure buckets before clearing contractor payouts.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={[
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                getContractorPayoutClasses(contractor.payoutStatus),
+              ].join(" ")}
+            >
+              Payout {contractor.payoutStatus}
+            </span>
+            <span
+              className={[
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                getContractorVerificationClasses(contractor.verificationState),
+              ].join(" ")}
+            >
+              {contractor.verificationState}
+            </span>
+          </div>
+        </div>
+        {contractor.payoutsBlockedReason ? (
+          <div className="mt-4 rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3">
+            <p className="text-sm font-medium text-[#B42318]">
+              {contractor.payoutsBlockedReason}
+            </p>
+          </div>
+        ) : null}
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-4">
         {summaryCards.map((card) => (
           <TransactionSummaryCard key={card.title} card={card} />

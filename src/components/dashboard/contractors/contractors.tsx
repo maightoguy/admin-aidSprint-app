@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Plus,
+  Search,
+  ShieldAlert,
+  Wallet,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { DashboardLayout } from "../shared/dashboard-layout";
@@ -10,6 +17,13 @@ import type {
 import { FilterButton } from "../shared/filters/filter-button";
 import { useUrlFilters } from "../shared/filters/use-url-filters";
 import { paginateItems } from "../shared/pagination-utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { ContractorsActionsMenu } from "./contractors-actions-menu";
 import { ContractorCard } from "./contractor-card";
 import { ContractorFormModal } from "./contractor-form-modal";
@@ -24,6 +38,7 @@ import type {
   ContractorCurrentStatus,
   ContractorFilters,
   ContractorFormValues,
+  ContractorLifecycleState,
   ContractorMenuAction,
   ContractorRecord,
   ContractorServiceCategory,
@@ -33,7 +48,11 @@ import {
   filterContractors,
   getContractorAccountStatusClasses,
   getContractorCurrentStatusClasses,
+  getContractorLifecycleClasses,
   getContractorInitials,
+  getContractorPayoutClasses,
+  getContractorRiskClasses,
+  getContractorVerificationClasses,
 } from "./contractors.utils";
 
 const contractorServiceCategories: ContractorServiceCategory[] = [
@@ -95,14 +114,14 @@ function getSummaryCards(
   contractors: ContractorRecord[],
 ): ContractorsSummaryCard[] {
   const total = contractors.length;
-  const active = contractors.filter(
-    (item) => item.accountStatus === "Active",
+  const verified = contractors.filter(
+    (item) => item.verificationState === "Verified",
   ).length;
-  const deactivated = contractors.filter(
-    (item) => item.accountStatus === "Deactivated",
+  const watchlist = contractors.filter(
+    (item) => item.riskLevel !== "Low" || item.watchlistReason,
   ).length;
-  const online = contractors.filter(
-    (item) => item.currentStatus === "Online",
+  const payoutBlocked = contractors.filter(
+    (item) => item.payoutStatus === "Blocked",
   ).length;
 
   const formatCount = (value: number) => value.toLocaleString("en-US");
@@ -115,24 +134,122 @@ function getSummaryCards(
       Icon: contractorsSummaryIcon,
     },
     {
-      title: "Active contractors",
-      value: formatCount(active),
+      title: "Verified contractors",
+      value: formatCount(verified),
       trend: "+ 2.3% vs Yesterday",
       Icon: contractorsSummaryIcon,
     },
     {
-      title: "Pending contractors",
-      value: formatCount(Math.max(0, total - online)),
+      title: "Risk watchlist",
+      value: formatCount(watchlist),
       trend: "+ 2.3% vs Yesterday",
       Icon: contractorsSummaryIcon,
     },
     {
-      title: "Deactivated contractors",
-      value: formatCount(deactivated),
+      title: "Payout blocked",
+      value: formatCount(payoutBlocked),
       trend: "+ 2.3% vs Yesterday",
       Icon: contractorsSummaryIcon,
     },
   ];
+}
+
+type ContractorQueueFilter =
+  | "all"
+  | "pending-review"
+  | "watchlist"
+  | "payout-blocked"
+  | "suspended";
+
+type ContractorLifecycleAction = "suspend" | "restore";
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function getQueueCounts(contractors: ContractorRecord[]) {
+  return {
+    pendingReview: contractors.filter(
+      (item) => item.verificationState === "Pending review",
+    ).length,
+    watchlist: contractors.filter(
+      (item) => item.riskLevel !== "Low" || Boolean(item.watchlistReason),
+    ).length,
+    payoutBlocked: contractors.filter((item) => item.payoutStatus === "Blocked")
+      .length,
+    suspended: contractors.filter((item) => item.lifecycleState === "Suspended")
+      .length,
+  };
+}
+
+function matchesQueueFilter(
+  contractor: ContractorRecord,
+  queueFilter: ContractorQueueFilter,
+) {
+  if (queueFilter === "all") {
+    return true;
+  }
+
+  if (queueFilter === "pending-review") {
+    return contractor.verificationState === "Pending review";
+  }
+
+  if (queueFilter === "watchlist") {
+    return (
+      contractor.riskLevel !== "Low" || Boolean(contractor.watchlistReason)
+    );
+  }
+
+  if (queueFilter === "payout-blocked") {
+    return contractor.payoutStatus === "Blocked";
+  }
+
+  return contractor.lifecycleState === "Suspended";
+}
+
+function QueueCard({
+  active,
+  title,
+  description,
+  value,
+  tone,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  value: string;
+  tone: "warning" | "danger" | "neutral";
+  onClick: () => void;
+}) {
+  const toneClasses =
+    tone === "danger"
+      ? "border-[#F04438]/20 bg-[#FEF3F2]"
+      : tone === "warning"
+        ? "border-[#F79009]/20 bg-[#FFF7ED]"
+        : "border-[#EAECF0] bg-white";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex w-full items-start justify-between gap-4 rounded-[16px] border p-4 text-left shadow-sm transition",
+        active
+          ? "ring-2 ring-[#071B58]/15"
+          : "hover:bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#071B58]/15",
+        toneClasses,
+      ].join(" ")}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-[#101828]">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-[#667085]">{description}</p>
+      </div>
+      <span className="inline-flex shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#344054]">
+        {value}
+      </span>
+    </button>
+  );
 }
 
 function buildDefaultFilters(): ContractorFilters {
@@ -172,6 +289,25 @@ function mapFormValuesToRecord(
         isCurrent: true,
       },
     ],
+    lifecycleState: existing?.lifecycleState ?? "Pending approval",
+    verificationState: existing?.verificationState ?? "Pending review",
+    rating: existing?.rating ?? 0,
+    totalRatings: existing?.totalRatings ?? 0,
+    acceptanceRate: existing?.acceptanceRate ?? 0,
+    completionRate: existing?.completionRate ?? 0,
+    responseTimeLabel: existing?.responseTimeLabel ?? "No response data yet",
+    totalJobsOffered: existing?.totalJobsOffered ?? 0,
+    totalJobsAccepted: existing?.totalJobsAccepted ?? 0,
+    totalJobsCompleted: existing?.totalJobsCompleted ?? 0,
+    repeatedComplaints: existing?.repeatedComplaints ?? 0,
+    lastActiveLabel: existing?.lastActiveLabel ?? "No activity yet",
+    serviceZoneLabel: existing?.serviceZoneLabel ?? values.location,
+    riskLevel: existing?.riskLevel ?? "Medium",
+    riskFlags: existing?.riskFlags ?? ["Pending approval"],
+    watchlistReason: existing?.watchlistReason,
+    payoutStatus: existing?.payoutStatus ?? "Onboarding",
+    pendingPayoutAmount: existing?.pendingPayoutAmount ?? "$0",
+    payoutsBlockedReason: existing?.payoutsBlockedReason,
   } satisfies ContractorRecord;
 }
 
@@ -232,6 +368,12 @@ export default function ContractorsPage({
   );
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [queueFilter, setQueueFilter] = useState<ContractorQueueFilter>("all");
+  const [lifecycleAction, setLifecycleAction] =
+    useState<ContractorLifecycleAction | null>(null);
+  const [lifecycleReason, setLifecycleReason] = useState("");
+  const [selectedLifecycleContractor, setSelectedLifecycleContractor] =
+    useState<ContractorRecord | null>(null);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -243,12 +385,17 @@ export default function ContractorsPage({
     urlFilters.from,
     urlFilters.to,
     expanded,
+    queueFilter,
   ]);
 
-  const filteredContractors = useMemo(
-    () => filterContractors(contractors, filters),
-    [contractors, filters],
-  );
+  const queueCounts = useMemo(() => getQueueCounts(contractors), [contractors]);
+
+  const filteredContractors = useMemo(() => {
+    const base = filterContractors(contractors, filters);
+    return base.filter((contractor) =>
+      matchesQueueFilter(contractor, queueFilter),
+    );
+  }, [contractors, filters, queueFilter]);
 
   const paginatedContractors = useMemo(
     () => paginateItems(filteredContractors, currentPage, pageSize),
@@ -271,29 +418,9 @@ export default function ContractorsPage({
       return;
     }
 
-    if (action === "Activate account" || action === "Deactivate account") {
-      const nextStatus: ContractorAccountStatus =
-        action === "Activate account" ? "Active" : "Deactivated";
-
-      if (contractor.accountStatus === nextStatus) {
-        toast.info("No change", {
-          description: `${contractor.name} is already ${nextStatus}.`,
-        });
-        return;
-      }
-
-      setContractors((prev) =>
-        prev.map((item) =>
-          item.id === contractor.id
-            ? { ...item, accountStatus: nextStatus }
-            : item,
-        ),
-      );
-
-      toast.success(action, {
-        description: `${contractor.name} is now ${nextStatus}.`,
-      });
-    }
+    setSelectedLifecycleContractor(contractor);
+    setLifecycleAction(action === "Suspend account" ? "suspend" : "restore");
+    setLifecycleReason("");
   };
 
   const openAddContractor = () => {
@@ -346,6 +473,62 @@ export default function ContractorsPage({
     }
   };
 
+  const confirmLifecycleAction = () => {
+    if (
+      !selectedLifecycleContractor ||
+      !lifecycleAction ||
+      !lifecycleReason.trim()
+    ) {
+      return;
+    }
+
+    const nextLifecycleState: ContractorLifecycleState =
+      lifecycleAction === "suspend" ? "Suspended" : "Active";
+    const nextAccountStatus: ContractorAccountStatus =
+      lifecycleAction === "suspend" ? "Deactivated" : "Active";
+
+    setContractors((prev) =>
+      prev.map((item) => {
+        if (item.id !== selectedLifecycleContractor.id) {
+          return item;
+        }
+
+        const nextRiskFlags =
+          lifecycleAction === "suspend"
+            ? Array.from(new Set([...item.riskFlags, "Suspended"]))
+            : item.riskFlags.filter((flag) => flag !== "Suspended");
+
+        return {
+          ...item,
+          accountStatus: nextAccountStatus,
+          lifecycleState: nextLifecycleState,
+          riskFlags: nextRiskFlags,
+          riskLevel: lifecycleAction === "suspend" ? "High" : item.riskLevel,
+          watchlistReason:
+            lifecycleAction === "suspend"
+              ? lifecycleReason.trim()
+              : item.watchlistReason,
+        };
+      }),
+    );
+
+    toast.success(
+      lifecycleAction === "suspend"
+        ? "Contractor suspended"
+        : "Contractor restored",
+      {
+        description:
+          lifecycleAction === "suspend"
+            ? "The suspension reason has been captured for audit."
+            : "The contractor has been restored to the active queue.",
+      },
+    );
+
+    setSelectedLifecycleContractor(null);
+    setLifecycleAction(null);
+    setLifecycleReason("");
+  };
+
   return (
     <DashboardLayout title="Contractor’s">
       <div className="space-y-8">
@@ -370,6 +553,67 @@ export default function ContractorsPage({
                   backgroundImage={contractorsSummaryPattern}
                 />
               ))}
+        </section>
+
+        <section className="rounded-[18px] border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-semibold text-[#667085]">
+              Operational queues
+            </h2>
+            <p className="text-xs text-[#98A2B3]">
+              Keep trust, payout, and verification blockers visible.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <QueueCard
+              active={queueFilter === "pending-review"}
+              title="Pending verification"
+              description="Contractors waiting on final KYC review or approval."
+              value={queueCounts.pendingReview.toLocaleString("en-US")}
+              tone="warning"
+              onClick={() =>
+                setQueueFilter((current) =>
+                  current === "pending-review" ? "all" : "pending-review",
+                )
+              }
+            />
+            <QueueCard
+              active={queueFilter === "watchlist"}
+              title="Trust watchlist"
+              description="Low-rated or complaint-heavy contractors needing follow-up."
+              value={queueCounts.watchlist.toLocaleString("en-US")}
+              tone="danger"
+              onClick={() =>
+                setQueueFilter((current) =>
+                  current === "watchlist" ? "all" : "watchlist",
+                )
+              }
+            />
+            <QueueCard
+              active={queueFilter === "payout-blocked"}
+              title="Payout blocked"
+              description="Contractors blocked from payout until readiness issues are resolved."
+              value={queueCounts.payoutBlocked.toLocaleString("en-US")}
+              tone="danger"
+              onClick={() =>
+                setQueueFilter((current) =>
+                  current === "payout-blocked" ? "all" : "payout-blocked",
+                )
+              }
+            />
+            <QueueCard
+              active={queueFilter === "suspended"}
+              title="Suspended"
+              description="Accounts removed from the live contractor pool pending review."
+              value={queueCounts.suspended.toLocaleString("en-US")}
+              tone="neutral"
+              onClick={() =>
+                setQueueFilter((current) =>
+                  current === "suspended" ? "all" : "suspended",
+                )
+              }
+            />
+          </div>
         </section>
 
         <section className="rounded-[18px] border border-[#EAECF0] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
@@ -426,14 +670,18 @@ export default function ContractorsPage({
 
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[920px] text-left text-sm">
+              <caption className="sr-only">
+                Contractor operations surface with performance, trust, payout,
+                and lifecycle data.
+              </caption>
               <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#475467]">
                 <tr className="border-b border-[#EAECF0]">
-                  <th className="px-5 py-4">Name</th>
-                  <th className="px-5 py-4">Current Status</th>
-                  <th className="px-5 py-4">Location</th>
-                  <th className="px-5 py-4">Total service providing</th>
-                  <th className="px-5 py-4">Date Joined</th>
-                  <th className="px-5 py-4">Account Status</th>
+                  <th className="px-5 py-4">Contractor</th>
+                  <th className="px-5 py-4">Availability</th>
+                  <th className="px-5 py-4">Performance</th>
+                  <th className="px-5 py-4">Verification & payout</th>
+                  <th className="px-5 py-4">Trust & risk</th>
+                  <th className="px-5 py-4">Lifecycle</th>
                   <th className="px-5 py-4" aria-label="Actions" />
                 </tr>
               </thead>
@@ -456,36 +704,129 @@ export default function ContractorsPage({
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span
-                        className={getContractorCurrentStatusClasses(
-                          contractor.currentStatus,
-                        )}
-                      >
-                        {contractor.currentStatus}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-[#667085]">
-                      <span className="line-clamp-1">
-                        {contractor.location}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-[#667085]">
-                      {contractor.totalServicesProvided}
-                    </td>
-                    <td className="px-5 py-4 text-[#667085]">
-                      {contractor.dateJoined}
+                      <div className="space-y-1">
+                        <p
+                          className={[
+                            "text-sm font-semibold",
+                            getContractorCurrentStatusClasses(
+                              contractor.currentStatus,
+                            ),
+                          ].join(" ")}
+                        >
+                          {contractor.currentStatus}
+                        </p>
+                        <p className="text-xs text-[#667085]">
+                          {contractor.serviceZoneLabel}
+                        </p>
+                        <p className="text-xs text-[#98A2B3]">
+                          Last active {contractor.lastActiveLabel}
+                        </p>
+                      </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span
-                        className={[
-                          "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-                          getContractorAccountStatusClasses(
-                            contractor.accountStatus,
-                          ),
-                        ].join(" ")}
-                      >
-                        {contractor.accountStatus}
-                      </span>
+                      <div className="space-y-1 text-sm text-[#667085]">
+                        <p className="font-semibold text-[#101828]">
+                          {contractor.rating.toFixed(1)} rating
+                          <span className="ml-1 text-xs font-medium text-[#98A2B3]">
+                            ({contractor.totalRatings} reviews)
+                          </span>
+                        </p>
+                        <p>
+                          Acceptance {formatPercent(contractor.acceptanceRate)}{" "}
+                          · Completion{" "}
+                          {formatPercent(contractor.completionRate)}
+                        </p>
+                        <p className="text-xs text-[#98A2B3]">
+                          {contractor.totalJobsAccepted}/
+                          {contractor.totalJobsOffered} jobs accepted ·{" "}
+                          {contractor.responseTimeLabel}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            getContractorVerificationClasses(
+                              contractor.verificationState,
+                            ),
+                          ].join(" ")}
+                        >
+                          {contractor.verificationState}
+                        </span>
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            getContractorPayoutClasses(contractor.payoutStatus),
+                          ].join(" ")}
+                        >
+                          Payout {contractor.payoutStatus}
+                        </span>
+                        <p className="w-full text-xs text-[#667085]">
+                          Pending payout {contractor.pendingPayoutAmount}
+                        </p>
+                        {contractor.payoutsBlockedReason ? (
+                          <p className="w-full text-xs text-[#B42318]">
+                            {contractor.payoutsBlockedReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            getContractorRiskClasses(contractor.riskLevel),
+                          ].join(" ")}
+                        >
+                          {contractor.riskLevel} risk
+                        </span>
+                        {contractor.riskFlags.slice(0, 2).map((flag) => (
+                          <span
+                            key={flag}
+                            className="inline-flex items-center rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-semibold text-[#344054]"
+                          >
+                            {flag}
+                          </span>
+                        ))}
+                        {contractor.watchlistReason ? (
+                          <p className="w-full text-xs text-[#667085]">
+                            {contractor.watchlistReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-2">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            getContractorLifecycleClasses(
+                              contractor.lifecycleState,
+                            ),
+                          ].join(" ")}
+                        >
+                          {contractor.lifecycleState}
+                        </span>
+                        <p
+                          className="text-xs text-[#98A2B3]"
+                          title={contractor.location}
+                        >
+                          Joined {contractor.dateJoined}
+                        </p>
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                            getContractorAccountStatusClasses(
+                              contractor.accountStatus,
+                            ),
+                          ].join(" ")}
+                        >
+                          {contractor.accountStatus}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-right">
                       <ContractorsActionsMenu
@@ -579,6 +920,115 @@ export default function ContractorsPage({
         }}
         onSubmit={handleSubmit}
       />
+
+      <Dialog
+        open={Boolean(selectedLifecycleContractor && lifecycleAction)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedLifecycleContractor(null);
+            setLifecycleAction(null);
+            setLifecycleReason("");
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-32px)] max-w-[520px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+          <div className="px-6 py-6">
+            <DialogTitle className="text-xl font-bold text-[#101828]">
+              {lifecycleAction === "suspend"
+                ? "Suspend contractor"
+                : "Restore contractor"}
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm text-[#667085]">
+              {lifecycleAction === "suspend"
+                ? "Capture a reason before removing this contractor from the active operations pool."
+                : "Capture a restore note before reactivating this contractor."}
+            </DialogDescription>
+
+            {selectedLifecycleContractor ? (
+              <div className="mt-4 rounded-[12px] border border-[#EAECF0] bg-[#FCFCFD] px-4 py-3">
+                <p className="text-sm font-semibold text-[#101828]">
+                  {selectedLifecycleContractor.name}
+                </p>
+                <p className="mt-1 text-sm text-[#667085]">
+                  {selectedLifecycleContractor.verificationState} · Payout{" "}
+                  {selectedLifecycleContractor.payoutStatus} ·{" "}
+                  {selectedLifecycleContractor.rating.toFixed(1)} rating
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 rounded-[12px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
+              <p className="text-sm text-[#92400E]">
+                {lifecycleAction === "suspend"
+                  ? "Suspension should be used for trust, quality, or compliance issues. The reason should stay audit-ready."
+                  : "Restoration should only be used after trust, payout, or verification blockers are resolved."}
+              </p>
+            </div>
+
+            <div className="mt-5">
+              <label className="block text-sm font-semibold text-[#344054]">
+                {lifecycleAction === "suspend"
+                  ? "Suspension reason"
+                  : "Restore reason"}
+              </label>
+              <Textarea
+                value={lifecycleReason}
+                onChange={(event) => setLifecycleReason(event.target.value)}
+                className="mt-2 min-h-[132px]"
+                placeholder={
+                  lifecycleAction === "suspend"
+                    ? "Describe why this contractor is being suspended"
+                    : "Describe why this contractor can be restored"
+                }
+                aria-label={
+                  lifecycleAction === "suspend"
+                    ? "Suspension reason"
+                    : "Restore reason"
+                }
+              />
+              {!lifecycleReason.trim() ? (
+                <p className="mt-2 text-xs font-medium text-[#B42318]">
+                  A reason is required.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLifecycleContractor(null);
+                  setLifecycleAction(null);
+                  setLifecycleReason("");
+                }}
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmLifecycleAction}
+                disabled={!lifecycleReason.trim()}
+                className={[
+                  "inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
+                  lifecycleAction === "suspend"
+                    ? "bg-[#F04438] hover:bg-[#D92D20]"
+                    : "bg-[#071B58] hover:bg-[#0C2877]",
+                ].join(" ")}
+              >
+                {lifecycleAction === "suspend" ? (
+                  <ShieldAlert className="h-4 w-4" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                {lifecycleAction === "suspend"
+                  ? "Confirm suspension"
+                  : "Confirm restore"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

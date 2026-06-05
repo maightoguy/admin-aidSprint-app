@@ -10,16 +10,10 @@ import { cn } from "@/lib/utils";
 import { contractorsStyles } from "./contractors.styles";
 import type { ContractorMenuAction, ContractorRecord } from "./contractors.types";
 
-const menuActions: ContractorMenuAction[] = [
-  "View profile",
-  "Activate account",
-  "Deactivate account",
-];
-
 const menuItemColors: Record<ContractorMenuAction, string> = {
   "View profile": "text-[#2D3036] focus:text-[#2D3036]",
-  "Activate account": "text-[#22C55E] focus:text-[#22C55E]",
-  "Deactivate account": "text-[#EF4444] focus:text-[#EF4444]",
+  "Suspend account": "text-[#EF4444] focus:text-[#EF4444]",
+  "Restore account": "text-[#22C55E] focus:text-[#22C55E]",
 };
 
 export function ContractorsActionsMenu({
@@ -29,6 +23,13 @@ export function ContractorsActionsMenu({
   contractor: ContractorRecord;
   onAction: (action: ContractorMenuAction, contractor: ContractorRecord) => void;
 }) {
+  const menuActions: ContractorMenuAction[] = [
+    "View profile",
+    contractor.lifecycleState === "Suspended"
+      ? "Restore account"
+      : "Suspend account",
+  ];
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

@@ -1,6 +1,6 @@
 # AidSprint Admin Frontend PRD Assessment and Handover
 
-Last updated: 2026-05-11
+Last updated: 2026-06-04
 
 ## Purpose
 This document replaces earlier speculative handover notes with a reality-based assessment of the current admin frontend against the product requirements document in `PRODUCT REQUIREMENTS DOCUMENT.md`.
@@ -27,9 +27,7 @@ The frontend is not yet ready to be treated as PRD-complete because several requ
 - push notification management
 - dispute operations
 - fraud and trust-safety tooling
-- contractor performance watchlists and intervention tools
 - finance workflows for payouts, reconciliation, and reporting
-- auth-ready admin access patterns
 
 ## PRD Essentials For The Admin App
 The PRD makes the following admin-facing capabilities essential:
@@ -129,15 +127,13 @@ Current strengths:
 - KYC review surface
 - request history tab
 - transaction history tab
+- lifecycle, trust/risk, payout-readiness, and performance indicators across list/detail views
+- suspension and restore workflows with confirmation and reason capture
 
 Current limitations:
-- no performance watchlist surface for low-rated or risky contractors
-- no suspension and restore workflow with reason capture and audit state
-- no availability, acceptance-rate, completion-rate, or response-time metrics
-- KYC page still contains a testing-only admin upload behavior that should not exist in production admin workflows
-
-Important note:
-- [contractor-kyc-tab.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/contractors/contractor-kyc-tab.tsx) explicitly includes a TODO stating that admin-side document upload is testing-only and must be removed before production
+- still mock-data driven and not yet backed by live admin APIs or audit persistence
+- suspension and restore reasons are captured in the frontend flow, but actor/timestamp persistence is still not modeled as stored audit history
+- trust/risk and payout readiness are now visible inside the contractor module, but not yet linked to disputes, finance exports, or cross-module fraud tooling
 
 #### Requests
 Reviewed in [requests.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.tsx), [requests-sidebar.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-sidebar.tsx), [requests-overlay.tsx](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests-overlay.tsx), and [requests.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/components/dashboard/requests/requests.store.ts).
@@ -302,7 +298,7 @@ Refactor `src/components/overview/overview.tsx` into an operations-first control
 ### Phase 1 Prompt B: Requests Dispatch Workflow (Done)
 Upgrade `src/components/dashboard/requests/requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` into a dispatch and live-monitoring workflow while preserving the current table, sidebar, and overlay styling patterns. Reuse the working status-menu, drawer, badge, filter, pagination, and responsive mobile-card behavior already established across requests, support, transactions, overview, and contractor tabs. Add explicit request lifecycle states, urgent queue visibility, intervention actions, and better operational grouping, but keep the visual styling within the current Figma-backed component system. Ensure mobile and tablet layouts continue following the same breakpoints and stacking patterns as overview/users/contractors.
 
-### Phase 1 Prompt C: Contractor Operations Surface (Planned)
+### Phase 1 Prompt C: Contractor Operations Surface (Done)
 Refactor the contractor area in `src/components/dashboard/contractors/` into an operations-first contractor management surface without redesigning the existing Figma language. Extend the current contractor list, contractor details page, summary cards, request-history tab, and transaction-history tab with trust/risk indicators, low-rating watchlists, suspension and restore actions, performance metrics, and clearer contractor lifecycle states. Reuse existing card, tab, table, badge, menu, sidebar, and modal patterns before introducing any new layout structure. Keep the visual system consistent with current dashboard styling.
 
 ### Phase 1 Prompt D: Contractor KYC Review Cleanup (Done)

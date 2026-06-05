@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, ShieldAlert } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { UpdateAccountModal } from "../user-details/update-account-modal";
-import { getStatusFromAccountAction } from "../user-details/user-details.utils";
-import type { UpdateAccountAction } from "../user-details/user-details.types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import {
   ContractorKycProvider,
@@ -19,12 +23,17 @@ import { ContractorDetailsTabs } from "./contractor-details-tabs";
 import type {
   ContractorAccountStatus,
   ContractorDetailsTabValue,
+  ContractorLifecycleState,
   ContractorRecord,
 } from "./contractors.types";
 import {
   getContractorAccountStatusClasses,
   getContractorDetailsById,
   getContractorInitials,
+  getContractorLifecycleClasses,
+  getContractorPayoutClasses,
+  getContractorRiskClasses,
+  getContractorVerificationClasses,
 } from "./contractors.utils";
 
 type ContractorDetailsPageProps = {
@@ -62,6 +71,19 @@ function ContractorStatusPill({ status }: { status: ContractorAccountStatus }) {
   );
 }
 
+function LifecyclePill({ state }: { state: ContractorLifecycleState }) {
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+        getContractorLifecycleClasses(state),
+      ].join(" ")}
+    >
+      {state}
+    </span>
+  );
+}
+
 function SectionHeader({
   title,
   description,
@@ -84,6 +106,164 @@ function PersonalDetailsPanel({
 }) {
   return (
     <div className="space-y-4">
+      <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
+        <SectionHeader
+          title="Operations snapshot"
+          description="Operational trust, lifecycle, and payout context for this contractor"
+        />
+        <div className="grid gap-4 px-4 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+          {[
+            {
+              label: "Verification",
+              value: contractor.verificationState,
+              tone: getContractorVerificationClasses(contractor.verificationState),
+            },
+            {
+              label: "Payout readiness",
+              value: contractor.payoutStatus,
+              tone: getContractorPayoutClasses(contractor.payoutStatus),
+            },
+            {
+              label: "Risk level",
+              value: `${contractor.riskLevel} risk`,
+              tone: getContractorRiskClasses(contractor.riskLevel),
+            },
+            {
+              label: "Lifecycle",
+              value: contractor.lifecycleState,
+              tone: getContractorLifecycleClasses(contractor.lifecycleState),
+            },
+          ].map((item) => (
+            <article
+              key={item.label}
+              className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4"
+            >
+              <p className="text-sm text-[#98A2B3]">{item.label}</p>
+              <span
+                className={[
+                  "mt-4 inline-flex rounded-full px-3 py-1 text-sm font-semibold",
+                  item.tone,
+                ].join(" ")}
+              >
+                {item.value}
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
+        <SectionHeader
+          title="Performance metrics"
+          description="Backend-ready service, acceptance, and response indicators"
+        />
+        <div className="grid gap-4 px-4 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+          {[
+            {
+              label: "Rating",
+              value: `${contractor.rating.toFixed(1)} / 5`,
+              helper: `${contractor.totalRatings} verified ratings`,
+            },
+            {
+              label: "Acceptance rate",
+              value: `${Math.round(contractor.acceptanceRate * 100)}%`,
+              helper: `${contractor.totalJobsAccepted}/${contractor.totalJobsOffered} jobs accepted`,
+            },
+            {
+              label: "Completion rate",
+              value: `${Math.round(contractor.completionRate * 100)}%`,
+              helper: `${contractor.totalJobsCompleted} jobs completed`,
+            },
+            {
+              label: "Response speed",
+              value: contractor.responseTimeLabel,
+              helper: `Last active ${contractor.lastActiveLabel}`,
+            },
+          ].map((item) => (
+            <article
+              key={item.label}
+              className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4"
+            >
+              <p className="text-sm text-[#98A2B3]">{item.label}</p>
+              <p className="mt-4 text-xl font-bold text-[#101828]">{item.value}</p>
+              <p className="mt-2 text-xs text-[#667085]">{item.helper}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
+        <SectionHeader
+          title="Trust and payout review"
+          description="Operational follow-up items and payout readiness details"
+        />
+        <div className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4">
+            <p className="text-sm text-[#98A2B3]">Trust/risk indicators</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {contractor.riskFlags.map((flag) => (
+                <span
+                  key={flag}
+                  className="inline-flex rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-semibold text-[#344054]"
+                >
+                  {flag}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-sm text-[#667085]">
+              {contractor.watchlistReason ??
+                "No active trust watchlist issue is attached to this contractor."}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[12px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-xs text-[#98A2B3]">Repeated complaints</p>
+                <p className="mt-2 text-lg font-bold text-[#101828]">
+                  {contractor.repeatedComplaints}
+                </p>
+              </div>
+              <div className="rounded-[12px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-xs text-[#98A2B3]">Service zone</p>
+                <p className="mt-2 text-sm font-semibold text-[#101828]">
+                  {contractor.serviceZoneLabel}
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4">
+            <p className="text-sm text-[#98A2B3]">Payout readiness</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span
+                className={[
+                  "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  getContractorPayoutClasses(contractor.payoutStatus),
+                ].join(" ")}
+              >
+                {contractor.payoutStatus}
+              </span>
+              <span
+                className={[
+                  "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  getContractorVerificationClasses(contractor.verificationState),
+                ].join(" ")}
+              >
+                {contractor.verificationState}
+              </span>
+            </div>
+            <div className="mt-4 rounded-[12px] border border-[#EAECF0] bg-white p-4">
+              <p className="text-xs text-[#98A2B3]">Pending payout amount</p>
+              <p className="mt-2 text-xl font-bold text-[#101828]">
+                {contractor.pendingPayoutAmount}
+              </p>
+              <p className="mt-2 text-sm text-[#667085]">
+                {contractor.payoutsBlockedReason ??
+                  "No payout blocker is currently attached to this contractor."}
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section className="rounded-[16px] border border-[#EAECF0] bg-white shadow-sm">
         <SectionHeader
           title="Contractor’s information"
@@ -172,23 +352,27 @@ function PersonalDetailsPanel({
 function ContractorDetailsContent({
   activeTab,
   contractor,
-  isUpdateAccountOpen,
-  busyAction,
   actionError,
+  lifecycleAction,
+  lifecycleReason,
+  manageDialogOpen,
   onTabChange,
-  onOpenUpdateAccount,
-  onUpdateAccountOpenChange,
-  onStatusAction,
+  onManageDialogOpenChange,
+  onLifecycleReasonChange,
+  onOpenManageDialog,
+  onConfirmLifecycleAction,
 }: {
   activeTab: ContractorDetailsTabValue;
   contractor: ContractorRecord;
-  isUpdateAccountOpen: boolean;
-  busyAction: UpdateAccountAction | null;
   actionError: string | null;
+  lifecycleAction: "suspend" | "restore";
+  lifecycleReason: string;
+  manageDialogOpen: boolean;
   onTabChange: (value: ContractorDetailsTabValue) => void;
-  onOpenUpdateAccount: () => void;
-  onUpdateAccountOpenChange: (open: boolean) => void;
-  onStatusAction: (action: UpdateAccountAction) => void;
+  onManageDialogOpenChange: (open: boolean) => void;
+  onLifecycleReasonChange: (reason: string) => void;
+  onOpenManageDialog: () => void;
+  onConfirmLifecycleAction: () => void;
 }) {
   const { completedCount } = useContractorKyc();
 
@@ -214,19 +398,28 @@ function ContractorDetailsContent({
               <p className="truncate text-[28px] font-bold tracking-[-0.03em] text-[#101828]">
                 {contractor.name}
               </p>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap gap-2">
+                <LifecyclePill state={contractor.lifecycleState} />
                 <ContractorStatusPill status={contractor.accountStatus} />
+                <span
+                  className={[
+                    "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                    getContractorVerificationClasses(contractor.verificationState),
+                  ].join(" ")}
+                >
+                  {contractor.verificationState}
+                </span>
               </div>
             </div>
           </div>
           <button
             type="button"
-            onClick={onOpenUpdateAccount}
+            onClick={onOpenManageDialog}
             className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25"
             aria-haspopup="dialog"
-            aria-expanded={isUpdateAccountOpen}
+            aria-expanded={manageDialogOpen}
           >
-            Update account
+            Manage lifecycle
             <ChevronDown className="h-4 w-4" />
           </button>
         </section>
@@ -243,13 +436,93 @@ function ContractorDetailsContent({
           <ContractorTransactionHistoryTab contractor={contractor} />
         </TabsContent>
       </Tabs>
-      <UpdateAccountModal
-        open={isUpdateAccountOpen}
-        busyAction={busyAction}
-        errorMessage={actionError}
-        onOpenChange={onUpdateAccountOpenChange}
-        onSelectAction={onStatusAction}
-      />
+      <Dialog open={manageDialogOpen} onOpenChange={onManageDialogOpenChange}>
+        <DialogContent className="w-[calc(100vw-32px)] max-w-[520px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+          <div className="px-6 py-6">
+            <DialogTitle className="text-xl font-bold text-[#101828]">
+              Manage lifecycle
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm text-[#667085]">
+              {lifecycleAction === "suspend"
+                ? "Capture a reason before removing this contractor from active operations."
+                : "Capture a reason before restoring this contractor to active operations."}
+            </DialogDescription>
+
+            <div className="mt-4 rounded-[12px] border border-[#EAECF0] bg-[#FCFCFD] p-4">
+              <p className="text-sm font-semibold text-[#101828]">
+                {contractor.name}
+              </p>
+              <p className="mt-1 text-sm text-[#667085]">
+                {contractor.verificationState} · Payout {contractor.payoutStatus} ·{" "}
+                {contractor.rating.toFixed(1)} rating
+              </p>
+            </div>
+
+            <div className="mt-5">
+              <label className="block text-sm font-semibold text-[#344054]">
+                {lifecycleAction === "suspend"
+                  ? "Suspension reason"
+                  : "Restore reason"}
+              </label>
+              <Textarea
+                value={lifecycleReason}
+                onChange={(event) => onLifecycleReasonChange(event.target.value)}
+                className="mt-2 min-h-[132px]"
+                placeholder={
+                  lifecycleAction === "suspend"
+                    ? "Describe why this contractor is being suspended"
+                    : "Describe why this contractor can be restored"
+                }
+                aria-label={
+                  lifecycleAction === "suspend"
+                    ? "Suspension reason"
+                    : "Restore reason"
+                }
+              />
+              {!lifecycleReason.trim() ? (
+                <p className="mt-2 text-xs font-medium text-[#B42318]">
+                  A reason is required.
+                </p>
+              ) : null}
+              {actionError ? (
+                <p className="mt-2 text-xs font-medium text-[#B42318]">
+                  {actionError}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => onManageDialogOpenChange(false)}
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmLifecycleAction}
+                disabled={!lifecycleReason.trim()}
+                className={[
+                  "inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
+                  lifecycleAction === "suspend"
+                    ? "bg-[#F04438] hover:bg-[#D92D20]"
+                    : "bg-[#071B58] hover:bg-[#0C2877]",
+                ].join(" ")}
+              >
+                {lifecycleAction === "suspend" ? (
+                  <ShieldAlert className="h-4 w-4" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                {lifecycleAction === "suspend"
+                  ? "Confirm suspension"
+                  : "Confirm restore"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -268,32 +541,39 @@ export default function ContractorDetailsPage({
   );
   const [activeTab, setActiveTab] =
     useState<ContractorDetailsTabValue>("personal-details");
-  const [isUpdateAccountOpen, setIsUpdateAccountOpen] = useState(false);
-  const [busyAction, setBusyAction] = useState<UpdateAccountAction | null>(
-    null,
-  );
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [lifecycleReason, setLifecycleReason] = useState("");
   const [currentContractor, setCurrentContractor] =
     useState<ContractorRecord | null>(matchedContractor);
 
   useEffect(() => {
     setCurrentContractor(matchedContractor);
     setActiveTab("personal-details");
-    setIsUpdateAccountOpen(false);
-    setBusyAction(null);
+    setManageDialogOpen(false);
     setActionError(null);
+    setLifecycleReason("");
   }, [matchedContractor]);
 
-  const handleStatusAction = async (action: UpdateAccountAction) => {
+  const lifecycleAction =
+    currentContractor?.lifecycleState === "Suspended" ? "restore" : "suspend";
+
+  const handleLifecycleAction = async () => {
     if (!currentContractor) {
       return;
     }
 
-    const nextStatus = getStatusFromAccountAction(
-      action,
-    ) as ContractorAccountStatus;
+    const trimmedReason = lifecycleReason.trim();
+    if (!trimmedReason) {
+      setActionError("A reason is required.");
+      return;
+    }
 
-    setBusyAction(action);
+    const nextStatus: ContractorAccountStatus =
+      lifecycleAction === "suspend" ? "Deactivated" : "Active";
+    const nextLifecycleState: ContractorLifecycleState =
+      lifecycleAction === "suspend" ? "Suspended" : "Active";
+
     setActionError(null);
 
     try {
@@ -306,20 +586,40 @@ export default function ContractorDetailsPage({
       setCurrentContractor({
         ...currentContractor,
         accountStatus: nextStatus,
+        lifecycleState: nextLifecycleState,
+        riskLevel:
+          lifecycleAction === "suspend"
+            ? "High"
+            : currentContractor.riskLevel,
+        riskFlags:
+          lifecycleAction === "suspend"
+            ? Array.from(new Set([...currentContractor.riskFlags, "Suspended"]))
+            : currentContractor.riskFlags.filter((flag) => flag !== "Suspended"),
+        watchlistReason:
+          lifecycleAction === "suspend"
+            ? trimmedReason
+            : currentContractor.watchlistReason,
       });
-      setIsUpdateAccountOpen(false);
+      setManageDialogOpen(false);
+      setLifecycleReason("");
 
-      toast.success(action, {
-        description: `${currentContractor.name} is now ${nextStatus.toLowerCase()}.`,
-      });
+      toast.success(
+        lifecycleAction === "suspend"
+          ? "Contractor suspended"
+          : "Contractor restored",
+        {
+          description:
+            lifecycleAction === "suspend"
+              ? `${currentContractor.name} has been moved out of the active contractor queue.`
+              : `${currentContractor.name} has been returned to the active contractor queue.`,
+        },
+      );
     } catch (error) {
       setActionError(
         error instanceof Error
           ? error.message
           : "Unable to update account status right now.",
       );
-    } finally {
-      setBusyAction(null);
     }
   };
 
@@ -364,13 +664,26 @@ export default function ContractorDetailsPage({
             <ContractorDetailsContent
               activeTab={activeTab}
               contractor={currentContractor}
-              isUpdateAccountOpen={isUpdateAccountOpen}
-              busyAction={busyAction}
               actionError={actionError}
+              lifecycleAction={lifecycleAction}
+              lifecycleReason={lifecycleReason}
+              manageDialogOpen={manageDialogOpen}
               onTabChange={setActiveTab}
-              onOpenUpdateAccount={() => setIsUpdateAccountOpen(true)}
-              onUpdateAccountOpenChange={setIsUpdateAccountOpen}
-              onStatusAction={handleStatusAction}
+              onManageDialogOpenChange={(open) => {
+                setManageDialogOpen(open);
+                if (!open) {
+                  setActionError(null);
+                  setLifecycleReason("");
+                }
+              }}
+              onLifecycleReasonChange={(reason) => {
+                setLifecycleReason(reason);
+                if (actionError) {
+                  setActionError(null);
+                }
+              }}
+              onOpenManageDialog={() => setManageDialogOpen(true)}
+              onConfirmLifecycleAction={handleLifecycleAction}
             />
           </ContractorKycProvider>
         ) : null}

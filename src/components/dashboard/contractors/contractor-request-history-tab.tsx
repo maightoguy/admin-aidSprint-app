@@ -17,6 +17,11 @@ import { Input } from "@/components/ui/input";
 import type { ContractorRecord } from "./contractors.types";
 import { userDetailsRecords } from "../user-details/user-details.data";
 import { TotalRequestsIcon } from "@/ui/icons";
+import {
+  getContractorLifecycleClasses,
+  getContractorRiskClasses,
+  getContractorVerificationClasses,
+} from "./contractors.utils";
 
 type ContractorRequestHistoryTabProps = {
   contractor: ContractorRecord;
@@ -130,6 +135,9 @@ export function ContractorRequestHistoryTab({
   const activeRequestCount = requestRows.filter(
     (row) => row.status === "Active" || row.status === "Pending",
   ).length;
+  const cancelledRequestCount = requestRows.filter(
+    (row) => row.status === "Cancelled",
+  ).length;
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -144,14 +152,61 @@ export function ContractorRequestHistoryTab({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 xl:grid-cols-2">
+      <section className="rounded-[20px] border border-[#EAECF0] bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#667085]">
+              Operations context
+            </p>
+            <p className="mt-2 text-sm text-[#98A2B3]">
+              Keep dispatch performance, lifecycle, and trust signals visible while reviewing request history.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={[
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                getContractorLifecycleClasses(contractor.lifecycleState),
+              ].join(" ")}
+            >
+              {contractor.lifecycleState}
+            </span>
+            <span
+              className={[
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                getContractorVerificationClasses(contractor.verificationState),
+              ].join(" ")}
+            >
+              {contractor.verificationState}
+            </span>
+            <span
+              className={[
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                getContractorRiskClasses(contractor.riskLevel),
+              ].join(" ")}
+            >
+              {contractor.riskLevel} risk
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-4">
         <SummaryCard
-          title="Total Service completed"
-          value={formatMetricValue(contractor.totalServicesProvided)}
+          title="Jobs completed"
+          value={formatMetricValue(contractor.totalJobsCompleted)}
         />
         <SummaryCard
-          title="Active Request"
+          title="Open requests"
           value={formatMetricValue(activeRequestCount)}
+        />
+        <SummaryCard
+          title="Acceptance rate"
+          value={`${Math.round(contractor.acceptanceRate * 100)}%`}
+        />
+        <SummaryCard
+          title="Cancelled / failed"
+          value={formatMetricValue(cancelledRequestCount)}
         />
       </div>
 

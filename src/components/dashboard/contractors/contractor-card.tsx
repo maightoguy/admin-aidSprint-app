@@ -4,6 +4,10 @@ import {
   getContractorAccountStatusClasses,
   getContractorCurrentStatusClasses,
   getContractorInitials,
+  getContractorLifecycleClasses,
+  getContractorPayoutClasses,
+  getContractorRiskClasses,
+  getContractorVerificationClasses,
 } from "./contractors.utils";
 
 export function ContractorCard({
@@ -32,13 +36,58 @@ export function ContractorCard({
 
       <div className="mt-4 grid gap-3 text-sm text-[#667085] sm:grid-cols-2">
         <p>
-          <span className="font-semibold text-[#101828]">Status:</span>{" "}
+          <span className="font-semibold text-[#101828]">Availability:</span>{" "}
           <span className={getContractorCurrentStatusClasses(contractor.currentStatus)}>
             {contractor.currentStatus}
           </span>
         </p>
         <p>
-          <span className="font-semibold text-[#101828]">Account:</span>{" "}
+          <span className="font-semibold text-[#101828]">Lifecycle:</span>{" "}
+          <span
+            className={[
+              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+              getContractorLifecycleClasses(contractor.lifecycleState),
+            ].join(" ")}
+          >
+            {contractor.lifecycleState}
+          </span>
+        </p>
+        <p className="sm:col-span-2">
+          <span className="font-semibold text-[#101828]">Service zone:</span>{" "}
+          {contractor.serviceZoneLabel}
+        </p>
+        <p>
+          <span className="font-semibold text-[#101828]">Performance:</span>{" "}
+          {contractor.rating.toFixed(1)} rating
+        </p>
+        <p>
+          <span className="font-semibold text-[#101828]">Payout:</span>{" "}
+          <span
+            className={[
+              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+              getContractorPayoutClasses(contractor.payoutStatus),
+            ].join(" ")}
+          >
+            {contractor.payoutStatus}
+          </span>
+        </p>
+        <div className="sm:col-span-2 flex flex-wrap gap-2">
+          <span
+            className={[
+              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+              getContractorVerificationClasses(contractor.verificationState),
+            ].join(" ")}
+          >
+            {contractor.verificationState}
+          </span>
+          <span
+            className={[
+              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+              getContractorRiskClasses(contractor.riskLevel),
+            ].join(" ")}
+          >
+            {contractor.riskLevel} risk
+          </span>
           <span
             className={[
               "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
@@ -47,18 +96,10 @@ export function ContractorCard({
           >
             {contractor.accountStatus}
           </span>
-        </p>
-        <p className="sm:col-span-2">
-          <span className="font-semibold text-[#101828]">Location:</span>{" "}
-          {contractor.location}
-        </p>
-        <p>
-          <span className="font-semibold text-[#101828]">Services:</span>{" "}
-          {contractor.totalServicesProvided}
-        </p>
-        <p>
-          <span className="font-semibold text-[#101828]">Joined:</span>{" "}
-          {contractor.dateJoined}
+        </div>
+        <p className="sm:col-span-2 text-xs leading-5 text-[#667085]">
+          {contractor.watchlistReason ??
+            `${contractor.totalJobsAccepted}/${contractor.totalJobsOffered} jobs accepted with ${contractor.responseTimeLabel}.`}
         </p>
       </div>
     </article>
