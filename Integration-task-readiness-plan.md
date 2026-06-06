@@ -487,7 +487,7 @@ Rule:
 
 ### Phase A - Admin Auth Foundation
 
-#### Chunk A1 - Supabase auth plumbing
+#### Chunk A1 - Supabase auth plumbing (DONE)
 
 ```text
 Integration task: Set up the Supabase auth foundation for the admin app without changing the current dashboard visual language. Add the shared Supabase client setup, environment-variable access, and any minimal auth utility files needed so the existing login and route-guard architecture can begin using real Supabase sessions instead of mock-only local state.
@@ -512,10 +512,14 @@ Requirements:
 
 NOTE:
 - Our Supabase project is already live/ready; tables and configuration will be created/modified incrementally as we integrate.
-- If any integration chunk requires SQL changes (new tables, constraints, policies, helper functions), paste the SQL in the task response and also add it as a new `.sql` migration file under `supabase/migrations/` so it can be applied via the Supabase SQL editor.
+- When you ask me to “check the current Supabase state”, I should read the newest `supabase/migrations/*_remote_schema.sql` schema snapshot first (highest timestamp).
+- If any integration chunk requires SQL changes (new tables, constraints, policies, helper functions), paste the SQL in the task response and also add it as a `.sql` file that I can paste into the Supabase SQL editor.
+- Do not add ad-hoc SQL files to `supabase/migrations/` during integration planning. This can cause `supabase db pull` to fail with migration-history mismatches when local files differ from the remote migration history.
+- When SQL is needed, store it under `supabase/manual_sql/` using descriptive filenames (no timestamp-based migration naming).
+- I run the SQL and update the current Supabase state after any SQL you provide, including updating the locally stored schema snapshot as needed. Assume the Supabase table state I report back is correct after I apply a SQL change.
 ```
 
-#### Chunk A2 - Replace mock sign-in/session with real Supabase auth
+#### Chunk A2 - Replace mock sign-in/session with real Supabase auth (DONE)
 
 ```text
 Integration task: Replace the mock sign-in/session behavior in `src/auth/auth.store.ts` with real Supabase-backed authentication while preserving the current login UX. Keep the same validation, loading, locked/unauthorized, and session-expiry user experience already present in the app.
@@ -532,7 +536,7 @@ Requirements:
 - Add/update focused tests for the auth store and route protection if behavior changes materially.
 ```
 
-#### Chunk A3 - Admin authorization and protected access hardening
+#### Chunk A3 - Admin authorization and protected access hardening (DONE)
 
 ```text
 Integration task: Finish Phase A by enforcing admin authorization on top of live Supabase auth. Use the agreed backend identity strategy to ensure only admin users can access the admin dashboard, while non-admin authenticated users are blocked cleanly.

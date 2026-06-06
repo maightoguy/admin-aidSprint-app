@@ -74,8 +74,13 @@
 - Started integration Phase A Chunk A1 (Supabase auth plumbing).
   - Added `@supabase/supabase-js` and created a minimal shared Supabase client/env layer in `src/lib/supabase/` (`env.ts`, `client.ts`) without changing the login UI or protected route behavior.
   - Added `.env.example` with the required `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` placeholders and typed the variables in `src/vite-env.d.ts`.
-  - Added an optional SQL migration `supabase/migrations/20260605153000_profiles_allow_admin_role.sql` to extend `profiles.role` to allow `admin` when Phase A authorization hardening begins.
-  - Updated the integration plan with a note to paste/provide SQL for any schema/policy changes and store them under `supabase/migrations/`.
+  - Added an optional SQL script `supabase/manual_sql/profiles_allow_admin_role.sql` to extend `profiles.role` to allow `admin` when Phase A authorization hardening begins.
+  - Updated the integration plan with a note to paste/provide SQL for any schema/policy changes and store them under `supabase/manual_sql/` with descriptive filenames to avoid Supabase CLI migration-history mismatch issues.
+- Completed integration Phase A Chunk A2 (Supabase auth sign-in/session) without changing the login UI.
+  - Replaced mock token generation in `src/auth/auth.store.ts` with real `supabase.auth.signInWithPassword` while preserving the same validation, loading, and error/locked states exposed to the login screen.
+  - Kept the existing “remember device” behavior by continuing to persist sessions in localStorage vs sessionStorage, while restoring Supabase session state from the stored refresh token on boot.
+  - Set the shared Supabase client to `persistSession: false` so session persistence is controlled by the app’s existing storage behavior.
+  - Verified with `npm test -- src/auth/require-auth.test.tsx` and `npm run typecheck`.
 
 ## Current Context:
 - The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.

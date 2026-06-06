@@ -16,6 +16,10 @@ export function RequireAuth() {
   const { status, session, signOut } = useAuthStore();
   const [hasNotifiedExpiry, setHasNotifiedExpiry] = useState(false);
 
+  if (status === "checking") {
+    return null;
+  }
+
   const expired = useMemo(
     () => isExpired(session?.expiresAtMs),
     [session?.expiresAtMs],

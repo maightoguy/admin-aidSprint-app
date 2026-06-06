@@ -54,6 +54,29 @@ describe("RequireAuth", () => {
     expect(screen.queryByText("Overview")).toBeNull();
   });
 
+  it("redirects unauthorized users to login", async () => {
+    useAuthStore.setState({
+      status: "unauthorized",
+      session: null,
+      isSigningIn: false,
+      lastMessage: "Not authorized",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route element={<RequireAuth />}>
+            <Route path="/overview" element={<div>Overview</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Admin Portal")).toBeTruthy();
+    expect(screen.queryByText("Overview")).toBeNull();
+  });
+
   it("renders protected routes when authenticated", async () => {
     useAuthStore.setState({
       status: "authenticated",
@@ -80,4 +103,3 @@ describe("RequireAuth", () => {
     expect(await screen.findByText("Overview")).toBeTruthy();
   });
 });
-

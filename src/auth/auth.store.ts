@@ -1,13 +1,17 @@
 import { create } from "zustand";
+import { supabase } from "@/lib/supabase/client";
 
 export type AuthSession = {
   accessToken: string;
   userEmail: string;
   expiresAtMs: number;
+  refreshToken?: string;
+  userId?: string;
 };
 
 export type AuthStatus =
   | "authenticated"
+  | "checking"
   | "unauthenticated"
   | "locked"
   | "unauthorized";
@@ -37,6 +41,8 @@ type AuthState = {
 };
 
 const STORAGE_KEY = "admin-auth-session-v1";
+const UNAUTHORIZED_MESSAGE =
+  "Your account is not authorized to access the admin portal.";
 
 function isEmailLike(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -44,14 +50,6 @@ function isEmailLike(value: string) {
 
 function safeNow() {
   return Date.now();
-}
-
-function safeRandomToken() {
-  const cryptoObj = globalThis.crypto as Crypto | undefined;
-  if (cryptoObj?.randomUUID) {
-    return `mock_${cryptoObj.randomUUID()}`;
-  }
-  return `mock_${safeNow()}_${Math.random().toString(16).slice(2)}`;
 }
 
 function readSession(): AuthSession | null {
@@ -112,20 +110,142 @@ function clearSession() {
 
 const bootSession = readSession();
 
+async function tryRestoreSupabaseSession(session: AuthSession | null) {
+  if (!supabase || !session?.accessToken || !session.refreshToken) {
+    return;
+  }
+
+  await supabase.auth.setSession({
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+  });
+}
+
+async function isAdminUser(userId: string) {
+  if (!supabase) {
+    return {
+      ok: false as const,
+      message:
+        "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
+    };
+  }
+
+  if (userId.trim() === "") {
+    return { ok: false as const, message: UNAUTHORIZED_MESSAGE };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    return { ok: false as const, message: UNAUTHORIZED_MESSAGE };
+  }
+
+  const role =
+    typeof data?.role === "string" ? data.role.trim().toLowerCase() : "";
+
+  if (role !== "admin") {
+    return { ok: false as const, message: UNAUTHORIZED_MESSAGE };
+  }
+
+  return { ok: true as const };
+}
+
+async function restoreAndAuthorizeSession(
+  session: AuthSession,
+  setState: (patch: Partial<AuthState>) => void,
+) {
+  if (!supabase) {
+    clearSession();
+    setState({
+      status: "unauthenticated",
+      session: null,
+      isSigningIn: false,
+      lastMessage:
+        "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
+    });
+    return;
+  }
+
+  try {
+    await tryRestoreSupabaseSession(session);
+
+    let userId = session.userId?.trim() ?? "";
+    if (userId === "") {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user?.id) {
+        clearSession();
+        setState({
+          status: "unauthenticated",
+          session: null,
+          isSigningIn: false,
+          lastMessage: "Please sign in again to continue.",
+        });
+        return;
+      }
+      userId = data.user.id;
+    }
+
+    const adminCheck = await isAdminUser(userId);
+    if (!adminCheck.ok) {
+      clearSession();
+      await supabase.auth.signOut();
+      setState({
+        status: "unauthorized",
+        session: null,
+        isSigningIn: false,
+        lastMessage: adminCheck.message,
+      });
+      return;
+    }
+
+    const normalizedSession =
+      session.userId?.trim() === ""
+        ? { ...session, userId }
+        : session.userId
+          ? session
+          : { ...session, userId };
+
+    setState({
+      status: "authenticated",
+      session: normalizedSession,
+      isSigningIn: false,
+      lastMessage: null,
+    });
+  } catch {
+    clearSession();
+    setState({
+      status: "unauthenticated",
+      session: null,
+      isSigningIn: false,
+      lastMessage: "Please sign in again to continue.",
+    });
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
-  status: bootSession ? "authenticated" : "unauthenticated",
+  status: bootSession ? "checking" : "unauthenticated",
   session: bootSession,
   isSigningIn: false,
   lastMessage: null,
   refreshFromStorage: () => {
     const session = readSession();
-    set({
-      status: session ? "authenticated" : "unauthenticated",
-      session,
-    });
+    if (!session) {
+      set({ status: "unauthenticated", session: null });
+      return;
+    }
+
+    set({ status: "checking", session, lastMessage: null });
+    void restoreAndAuthorizeSession(session, (patch) => set(patch));
   },
   signOut: () => {
     clearSession();
+    if (supabase) {
+      void supabase.auth.signOut();
+    }
     set({
       status: "unauthenticated",
       session: null,
@@ -157,44 +277,69 @@ export const useAuthStore = create<AuthState>((set) => ({
       return { ok: false, status: "unauthenticated", message };
     }
 
-    set({ isSigningIn: true, lastMessage: null });
-
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 450);
-    });
-
-    if (normalizedEmail.includes("locked")) {
+    if (!supabase) {
       const message =
-        "Account is locked. Contact an administrator to regain access.";
+        "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.";
       set({
-        status: "locked",
+        status: "unauthenticated",
         session: null,
         isSigningIn: false,
         lastMessage: message,
       });
-      return { ok: false, status: "locked", message };
+      return { ok: false, status: "unauthenticated", message };
     }
 
-    if (normalizedEmail.includes("unauthorized")) {
-      const message = "You do not have access to this admin portal.";
+    set({ isSigningIn: true, lastMessage: null });
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: normalizedPassword,
+    });
+
+    if (error || !data.session) {
+      const rawMessage =
+        error?.message?.trim() || "Unable to sign in. Try again.";
+      const status: Extract<
+        AuthStatus,
+        "locked" | "unauthenticated" | "unauthorized"
+      > = rawMessage.toLowerCase().includes("confirm")
+        ? "locked"
+        : "unauthenticated";
+
+      set({
+        status,
+        session: null,
+        isSigningIn: false,
+        lastMessage: rawMessage,
+      });
+      return { ok: false, status, message: rawMessage };
+    }
+
+    const authSession = data.session;
+    const expiresAtMs = authSession.expires_at
+      ? authSession.expires_at * 1000
+      : safeNow() + 1000 * 60 * 60;
+
+    const session: AuthSession = {
+      accessToken: authSession.access_token,
+      refreshToken: authSession.refresh_token,
+      userEmail: authSession.user.email ?? normalizedEmail,
+      userId: authSession.user.id,
+      expiresAtMs,
+    };
+
+    const adminCheck = await isAdminUser(session.userId ?? "");
+    if (!adminCheck.ok) {
+      clearSession();
+      await supabase.auth.signOut();
       set({
         status: "unauthorized",
         session: null,
         isSigningIn: false,
-        lastMessage: message,
+        lastMessage: adminCheck.message,
       });
-      return { ok: false, status: "unauthorized", message };
+      return { ok: false, status: "unauthorized", message: adminCheck.message };
     }
-
-    const expiresAtMs = rememberDevice
-      ? safeNow() + 1000 * 60 * 60 * 24 * 14
-      : safeNow() + 1000 * 60 * 60 * 2;
-
-    const session: AuthSession = {
-      accessToken: safeRandomToken(),
-      userEmail: normalizedEmail,
-      expiresAtMs,
-    };
 
     writeSession(session, rememberDevice);
 
@@ -204,8 +349,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       isSigningIn: false,
       lastMessage: null,
     });
-
     return { ok: true };
   },
 }));
 
+if (bootSession) {
+  void restoreAndAuthorizeSession(bootSession, (patch) =>
+    useAuthStore.setState(patch),
+  );
+}
