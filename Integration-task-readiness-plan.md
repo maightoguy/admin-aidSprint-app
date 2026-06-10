@@ -589,7 +589,7 @@ Requirements:
 
 ### Phase C - Read-Only Live Fetch Pass
 
-#### Chunk C1 - Requests read-only live fetch
+#### Chunk C1 - Requests read-only live fetch (DONE)
 
 ```text
 Integration task: Convert the requests module to read-only live Supabase fetches first, preserving the current dispatch/monitoring UI. Replace mock request list/detail loading with real jobs data while keeping the current visual language and interactions stable.

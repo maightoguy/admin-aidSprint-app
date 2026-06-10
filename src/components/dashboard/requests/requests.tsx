@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -254,6 +254,7 @@ export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
+  const pendingRowsRef = useRef<RequestListRow[] | null>(null);
   const [baseRows, setBaseRows] = useState<RequestListRow[]>(() =>
     userDetailsRecords.flatMap((user) =>
       user.requestHistory.map((request) => ({
@@ -312,6 +313,13 @@ export default function RequestsPage() {
   }, [closeAll]);
 
   useEffect(() => {
+    if (!isRequestsOpen && pendingRowsRef.current) {
+      setBaseRows(pendingRowsRef.current);
+      pendingRowsRef.current = null;
+    }
+  }, [isRequestsOpen]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadRequests() {
@@ -320,7 +328,7 @@ export default function RequestsPage() {
 
       try {
         const jobsResult = await supabaseJobs.listLatest({ limit: 200 });
-        if (!jobsResult.ok) {
+        if (jobsResult.ok === false) {
           throw new Error(jobsResult.message);
         }
 
@@ -334,7 +342,7 @@ export default function RequestsPage() {
         );
 
         const profilesResult = await supabaseProfiles.listByIds(profileIds);
-        if (!profilesResult.ok) {
+        if (profilesResult.ok === false) {
           throw new Error(profilesResult.message);
         }
 
@@ -368,6 +376,17 @@ export default function RequestsPage() {
         });
 
         if (cancelled) return;
+
+        const selectedId = useRequestsStore.getState().selectedRequestId;
+        const sidebarOpen = useRequestsStore.getState().isSidebarOpen;
+        const selectedExistsInNext =
+          selectedId && nextRows.some((row) => row.id === selectedId);
+
+        if (sidebarOpen && selectedId && !selectedExistsInNext) {
+          pendingRowsRef.current = nextRows;
+          return;
+        }
+
         setBaseRows(nextRows);
       } catch (error) {
         if (cancelled) return;
@@ -639,6 +658,16 @@ export default function RequestsPage() {
             </div>
           </div>
 
+          {isLoading ? (
+            <div className="border-b border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085] sm:px-5">
+              Loading live requests…
+            </div>
+          ) : loadError ? (
+            <div className="border-b border-[#EAECF0] bg-[#FEF3F2] px-4 py-3 text-sm font-medium text-[#B42318] sm:px-5">
+              {loadError}
+            </div>
+          ) : null}
+
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1080px]">
               <thead className="bg-[#F9FAFB]">
@@ -851,7 +880,11 @@ export default function RequestsPage() {
           onOpenLiveTracker={handleOpenLiveTracker}
           onUpdateStatus={handleUpdateRequestStatus}
         />
-        <RequestsLiveTrackerOverlay requestId={selectedRow?.id ?? null} />
+        <RequestsLiveTrackerOverlay
+          requestId={selectedRow?.id ?? null}
+          request={selectedRow?.request ?? null}
+          customerName={selectedRow?.userName ?? ""}
+        />
       </div>
     </DashboardLayout>
   );
