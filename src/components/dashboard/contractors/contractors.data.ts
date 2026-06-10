@@ -1,6 +1,36 @@
 import summaryCardPattern from "@/assets/overview/summary-card-pattern.png";
+import {
+  type ContractorDocumentRow,
+  type ContractorRow,
+  type JobRow,
+  type PaymentRow,
+  type ProfileRow,
+  type ReviewRow,
+  type SupabaseResult,
+  type WithdrawalRow,
+  supabaseContractorBankAccounts,
+  supabaseContractorDocuments,
+  supabaseContractors,
+  supabaseFinance,
+  supabaseJobs,
+  supabaseProfiles,
+  supabaseReviews,
+} from "@/lib/supabase/data";
+import {
+  deriveContractorRiskState,
+  deriveContractorVerificationState,
+  formatDateLabel,
+  mapContractorDocumentsToKycInitialState,
+  mapContractorRowToContractorRecord,
+  mapJobRowToUserRequestHistoryItem,
+  mapPaymentRowToContractorTransactionRecord,
+  mapWithdrawalRowToContractorTransactionRecord,
+  sumPendingWithdrawalAmount,
+} from "@/lib/supabase/mappers";
 import { TotalContractorsIcon } from "@/ui/icons";
 import type {
+  ContractorKycState,
+  ContractorLocationHistoryItem,
   ContractorRecord,
   ContractorTransactionRecord,
 } from "./contractors.types";
@@ -318,6 +348,24 @@ const contractorRecordSeeds: ContractorRecordSeed[] = [
 export const contractorRecords: ContractorRecord[] =
   contractorRecordSeeds.map(enrichContractorRecord);
 
+export type ContractorRequestHistoryRow = {
+  requestId: string;
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  service: string;
+  location: string;
+  date: string;
+  status: string;
+};
+
+export type LiveContractorDetails = {
+  contractor: ContractorRecord;
+  kycState: Partial<ContractorKycState>;
+  requestRows: ContractorRequestHistoryRow[];
+  transactions: ContractorTransactionRecord[];
+};
+
 const fallbackContractorTransactions: ContractorTransactionRecord[] = [
   {
     id: "transaction-1",
@@ -432,4 +480,318 @@ export function getContractorTransactionRecords(contractorId: string) {
     fallbackContractorTransactions;
 
   return transactions.map((transaction) => ({ ...transaction }));
+}
+
+function buildLocationHistory(
+  addresses: string[],
+): ContractorLocationHistoryItem[] {
+  return Array.from(new Set(addresses.filter(Boolean))).slice(0, 3).map((address, index) => ({
+    id: `location-${index + 1}-${address}`,
+    primaryLine: address,
+    secondaryLine: "Service location",
+    isCurrent: index === 0,
+  }));
+}
+
+function buildResponseSpeedLabel(totalCompletedJobs: number) {
+  if (totalCompletedJobs >= 20) return "Fast response";
+  if (totalCompletedJobs >= 5) return "Stable response";
+  return "New activity";
+}
+
+function unwrapResult<T>(result: SupabaseResult<T>): T {
+  if (result.ok === false) {
+    throw new Error(result.message);
+  }
+
+  return result.data;
+}
+
+function buildRequestRows(params: {
+  contractorId: string;
+  jobs: JobRow[];
+  profilesById: Map<string, ProfileRow>;
+}) {
+  const { contractorId, jobs, profilesById } = params;
+  return jobs
+    .filter((job) => job.contractor_id === contractorId)
+    .map((job) => {
+      const customer = profilesById.get(job.user_id);
+      const request = mapJobRowToUserRequestHistoryItem({
+        job,
+        userProfile: customer ?? null,
+      });
+
+      return {
+        requestId: job.id,
+        userId: job.user_id,
+        customerName:
+          customer?.full_name?.trim() ||
+          `${customer?.first_name ?? ""} ${customer?.last_name ?? ""}`.trim() ||
+          "Customer",
+        customerEmail: customer?.email ?? "—",
+        service: request.service,
+        location: request.location,
+        date: request.date,
+        status: request.status,
+      };
+    });
+}
+
+export async function loadLiveContractorRecords() {
+  const contractorsResult = await supabaseContractors.listLatest({ limit: 200 });
+  if (contractorsResult.ok === false) {
+    throw new Error(contractorsResult.message);
+  }
+
+  const contractors = contractorsResult.data;
+  const contractorIds = contractors.map((contractor) => contractor.id);
+
+  const [profilesResult, jobsResult, reviewsResult, withdrawalsResult, docsResult] =
+    await Promise.all([
+      supabaseProfiles.listByIds(contractorIds),
+      supabaseJobs.listByContractorIds(contractorIds, { limit: 500 }),
+      supabaseReviews.listByRevieweeIds(contractorIds),
+      supabaseFinance.listWithdrawalsByContractorIds(contractorIds, { limit: 500 }),
+      supabaseContractorDocuments.listByContractorIds(contractorIds),
+    ]);
+
+  const profiles = unwrapResult(profilesResult);
+  const jobs = unwrapResult(jobsResult);
+  const reviews = unwrapResult(reviewsResult);
+  const withdrawals = unwrapResult(withdrawalsResult);
+  const docs = unwrapResult(docsResult);
+
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const jobsByContractorId = new Map<string, JobRow[]>();
+  for (const job of jobs) {
+    const items = jobsByContractorId.get(job.contractor_id ?? "");
+    if (items) items.push(job);
+    else if (job.contractor_id) jobsByContractorId.set(job.contractor_id, [job]);
+  }
+
+  const reviewsByContractorId = new Map<string, ReviewRow[]>();
+  for (const review of reviews) {
+    const items = reviewsByContractorId.get(review.reviewee_id);
+    if (items) items.push(review);
+    else reviewsByContractorId.set(review.reviewee_id, [review]);
+  }
+
+  const withdrawalsByContractorId = new Map<string, WithdrawalRow[]>();
+  for (const withdrawal of withdrawals) {
+    const items = withdrawalsByContractorId.get(withdrawal.contractor_id);
+    if (items) items.push(withdrawal);
+    else withdrawalsByContractorId.set(withdrawal.contractor_id, [withdrawal]);
+  }
+
+  const docsByContractorId = new Map<string, ContractorDocumentRow[]>();
+  for (const document of docs) {
+    const items = docsByContractorId.get(document.contractor_id);
+    if (items) items.push(document);
+    else docsByContractorId.set(document.contractor_id, [document]);
+  }
+
+  return contractors
+    .map((contractor) => {
+      const profile = profilesById.get(contractor.id);
+      if (!profile) return null;
+
+      const contractorJobs = jobsByContractorId.get(contractor.id) ?? [];
+      const contractorReviews = reviewsByContractorId.get(contractor.id) ?? [];
+      const contractorWithdrawals = withdrawalsByContractorId.get(contractor.id) ?? [];
+      const contractorDocs = docsByContractorId.get(contractor.id) ?? [];
+      const totalCompletedJobs = contractorJobs.filter((job) => job.status === "completed").length;
+      const completionRate =
+        contractor.total_jobs_accepted > 0
+          ? totalCompletedJobs / contractor.total_jobs_accepted
+          : 0;
+      const repeatedComplaints = contractorReviews.filter(
+        (review) => Number(review.rating) <= 3,
+      ).length;
+      const verificationState = deriveContractorVerificationState({
+        contractor,
+        documents: contractorDocs,
+      });
+      const riskState = deriveContractorRiskState({
+        contractor,
+        reviews: contractorReviews,
+        documents: contractorDocs,
+        completionRate,
+      });
+
+      const latestAddress =
+        contractorJobs.find((job) => job.address.trim())?.address || "—";
+      const locations = buildLocationHistory(
+        contractorJobs.map((job) => job.address),
+      );
+
+      const record = mapContractorRowToContractorRecord({
+        contractor,
+        profile,
+        locationLabel: latestAddress,
+        completionRate,
+        responseTimeLabel: buildResponseSpeedLabel(totalCompletedJobs),
+        repeatedComplaints,
+        lastActiveLabel: formatDateLabel(
+          contractor.location_updated_at || contractor.updated_at,
+        ),
+        serviceZoneLabel: latestAddress,
+        pendingPayoutAmount: sumPendingWithdrawalAmount(contractorWithdrawals),
+        riskFlags: riskState.riskFlags,
+        riskLevel: riskState.riskLevel,
+        verificationState,
+        totalJobsCompleted: totalCompletedJobs,
+        watchlistReason: riskState.watchlistReason,
+      });
+
+      return {
+        ...record,
+        locations: locations.length ? locations : record.locations,
+      };
+    })
+    .filter(Boolean) as ContractorRecord[];
+}
+
+export async function loadLiveContractorDetails(
+  contractorId: string,
+): Promise<LiveContractorDetails | null> {
+  const contractorResult = await supabaseContractors.getById(contractorId);
+  if (contractorResult.ok === false) {
+    throw new Error(contractorResult.message);
+  }
+
+  const contractor = contractorResult.data;
+  const [
+    profilesResult,
+    jobsResult,
+    reviewsResult,
+    paymentsResult,
+    withdrawalsResult,
+    bankAccountsResult,
+    docsResult,
+  ] = await Promise.all([
+    supabaseProfiles.listByIds([contractorId]),
+    supabaseJobs.listByContractorIds([contractorId], { limit: 500 }),
+    supabaseReviews.listByRevieweeIds([contractorId]),
+    supabaseFinance.listPaymentsByPayeeIds([contractorId], { limit: 500 }),
+    supabaseFinance.listWithdrawalsByContractorIds([contractorId], { limit: 500 }),
+    supabaseContractorBankAccounts.listByContractorIds([contractorId]),
+    supabaseContractorDocuments.listByContractorIds([contractorId]),
+  ]);
+
+  const profiles = unwrapResult(profilesResult);
+  const jobs = unwrapResult(jobsResult);
+  const reviews = unwrapResult(reviewsResult);
+  const payments = unwrapResult(paymentsResult);
+  const withdrawals = unwrapResult(withdrawalsResult);
+  const bankAccounts = unwrapResult(bankAccountsResult);
+  const docs = unwrapResult(docsResult);
+
+  const profile = profiles[0];
+  if (!profile) {
+    return null;
+  }
+
+  const reviewerIds = Array.from(
+    new Set(
+      docs
+        .map((document) => document.reviewed_by)
+        .filter(Boolean) as string[],
+    ),
+  );
+  const relatedUserIds = Array.from(
+    new Set(jobs.map((job) => job.user_id)),
+  );
+  const relatedProfilesResult = await supabaseProfiles.listByIds([
+    ...reviewerIds,
+    ...relatedUserIds,
+  ]);
+  const relatedProfiles = unwrapResult(relatedProfilesResult);
+
+  const relatedProfilesById = new Map(
+    relatedProfiles.map((item) => [item.id, item]),
+  );
+  const totalCompletedJobs = jobs.filter(
+    (job) => job.status === "completed",
+  ).length;
+  const completionRate =
+    contractor.total_jobs_accepted > 0
+      ? totalCompletedJobs / contractor.total_jobs_accepted
+      : 0;
+  const repeatedComplaints = reviews.filter(
+    (review) => Number(review.rating) <= 3,
+  ).length;
+  const verificationState = deriveContractorVerificationState({
+    contractor,
+    documents: docs,
+  });
+  const riskState = deriveContractorRiskState({
+    contractor,
+    reviews,
+    documents: docs,
+    completionRate,
+  });
+  const latestAddress =
+    jobs.find((job) => job.address.trim())?.address || "—";
+  const locations = buildLocationHistory(jobs.map((job) => job.address));
+  const defaultBankAccount =
+    bankAccounts.find((account) => account.is_default) ??
+    bankAccounts[0] ??
+    null;
+
+  const record = mapContractorRowToContractorRecord({
+    contractor,
+    profile,
+    locationLabel: latestAddress,
+    completionRate,
+    responseTimeLabel: buildResponseSpeedLabel(totalCompletedJobs),
+    repeatedComplaints,
+    lastActiveLabel: formatDateLabel(
+      contractor.location_updated_at || contractor.updated_at,
+    ),
+    serviceZoneLabel: latestAddress,
+    pendingPayoutAmount: sumPendingWithdrawalAmount(withdrawals),
+    riskFlags: riskState.riskFlags,
+    riskLevel: riskState.riskLevel,
+    verificationState,
+    totalJobsCompleted: totalCompletedJobs,
+    watchlistReason: riskState.watchlistReason,
+  });
+
+  const requestRows = buildRequestRows({
+    contractorId,
+    jobs,
+    profilesById: relatedProfilesById,
+  });
+
+  const transactions = [
+    ...payments.map((payment) =>
+      mapPaymentRowToContractorTransactionRecord({
+        payment,
+        bankAccount: defaultBankAccount,
+      }),
+    ),
+    ...withdrawals.map((withdrawal) =>
+      mapWithdrawalRowToContractorTransactionRecord({
+        withdrawal,
+        bankAccount:
+          bankAccounts.find(
+            (account) => account.id === withdrawal.bank_account_id,
+          ) ?? defaultBankAccount,
+      }),
+    ),
+  ].sort((left, right) => right.dateTime.localeCompare(left.dateTime));
+
+  return {
+    contractor: {
+      ...record,
+      locations: locations.length ? locations : record.locations,
+    },
+    kycState: mapContractorDocumentsToKycInitialState({
+      documents: docs,
+      reviewerProfiles: relatedProfilesById,
+    }),
+    requestRows,
+    transactions,
+  };
 }

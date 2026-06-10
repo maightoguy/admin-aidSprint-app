@@ -44,6 +44,7 @@ import {
 
 type ContractorTransactionHistoryTabProps = {
   contractor: ContractorRecord;
+  initialTransactions?: ContractorTransactionRecord[];
 };
 
 type TransactionSummaryCard = {
@@ -292,9 +293,10 @@ function TransactionDetailsSidebar({
 
 export function ContractorTransactionHistoryTab({
   contractor,
+  initialTransactions,
 }: ContractorTransactionHistoryTabProps) {
   const [transactions, setTransactions] = useState<ContractorTransactionRecord[]>(
-    () => getContractorTransactionRecords(contractor.id),
+    () => initialTransactions ?? getContractorTransactionRecords(contractor.id),
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -304,11 +306,11 @@ export function ContractorTransactionHistoryTab({
   const pageSize = 5;
 
   useEffect(() => {
-    setTransactions(getContractorTransactionRecords(contractor.id));
+    setTransactions(initialTransactions ?? getContractorTransactionRecords(contractor.id));
     setSearchQuery("");
     setCurrentPage(1);
     setSelectedTransactionId(null);
-  }, [contractor.id]);
+  }, [contractor.id, initialTransactions]);
 
   const filteredTransactions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

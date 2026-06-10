@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, ChevronDown, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ShieldAlert,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -18,10 +23,15 @@ import {
 import { ContractorKycTab } from "./contractor-kyc-tab";
 import { ContractorRequestHistoryTab } from "./contractor-request-history-tab";
 import { ContractorTransactionHistoryTab } from "./contractor-transaction-history-tab";
-import { contractorRecords } from "./contractors.data";
 import { ContractorDetailsTabs } from "./contractor-details-tabs";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  contractorRecords,
+  loadLiveContractorDetails,
+} from "./contractors.data";
 import type {
   ContractorAccountStatus,
+  ContractorKycState,
   ContractorDetailsTabValue,
   ContractorLifecycleState,
   ContractorRecord,
@@ -116,7 +126,9 @@ function PersonalDetailsPanel({
             {
               label: "Verification",
               value: contractor.verificationState,
-              tone: getContractorVerificationClasses(contractor.verificationState),
+              tone: getContractorVerificationClasses(
+                contractor.verificationState,
+              ),
             },
             {
               label: "Payout readiness",
@@ -185,7 +197,9 @@ function PersonalDetailsPanel({
               className="rounded-[14px] border border-[#EAECF0] bg-[#FCFCFD] p-4"
             >
               <p className="text-sm text-[#98A2B3]">{item.label}</p>
-              <p className="mt-4 text-xl font-bold text-[#101828]">{item.value}</p>
+              <p className="mt-4 text-xl font-bold text-[#101828]">
+                {item.value}
+              </p>
               <p className="mt-2 text-xs text-[#667085]">{item.helper}</p>
             </article>
           ))}
@@ -244,7 +258,9 @@ function PersonalDetailsPanel({
               <span
                 className={[
                   "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                  getContractorVerificationClasses(contractor.verificationState),
+                  getContractorVerificationClasses(
+                    contractor.verificationState,
+                  ),
                 ].join(" ")}
               >
                 {contractor.verificationState}
@@ -353,6 +369,8 @@ function ContractorDetailsContent({
   activeTab,
   contractor,
   actionError,
+  liveRequestRows,
+  liveTransactions,
   lifecycleAction,
   lifecycleReason,
   manageDialogOpen,
@@ -365,6 +383,12 @@ function ContractorDetailsContent({
   activeTab: ContractorDetailsTabValue;
   contractor: ContractorRecord;
   actionError: string | null;
+  liveRequestRows?: Parameters<
+    typeof ContractorRequestHistoryTab
+  >[0]["initialRows"];
+  liveTransactions?: Parameters<
+    typeof ContractorTransactionHistoryTab
+  >[0]["initialTransactions"];
   lifecycleAction: "suspend" | "restore";
   lifecycleReason: string;
   manageDialogOpen: boolean;
@@ -404,7 +428,9 @@ function ContractorDetailsContent({
                 <span
                   className={[
                     "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-                    getContractorVerificationClasses(contractor.verificationState),
+                    getContractorVerificationClasses(
+                      contractor.verificationState,
+                    ),
                   ].join(" ")}
                 >
                   {contractor.verificationState}
@@ -430,10 +456,16 @@ function ContractorDetailsContent({
           <ContractorKycTab contractor={contractor} />
         </TabsContent>
         <TabsContent value="request-history" className="mt-0">
-          <ContractorRequestHistoryTab contractor={contractor} />
+          <ContractorRequestHistoryTab
+            contractor={contractor}
+            initialRows={liveRequestRows}
+          />
         </TabsContent>
         <TabsContent value="transaction-history" className="mt-0">
-          <ContractorTransactionHistoryTab contractor={contractor} />
+          <ContractorTransactionHistoryTab
+            contractor={contractor}
+            initialTransactions={liveTransactions}
+          />
         </TabsContent>
       </Tabs>
       <Dialog open={manageDialogOpen} onOpenChange={onManageDialogOpenChange}>
@@ -453,8 +485,9 @@ function ContractorDetailsContent({
                 {contractor.name}
               </p>
               <p className="mt-1 text-sm text-[#667085]">
-                {contractor.verificationState} · Payout {contractor.payoutStatus} ·{" "}
-                {contractor.rating.toFixed(1)} rating
+                {contractor.verificationState} · Payout{" "}
+                {contractor.payoutStatus} · {contractor.rating.toFixed(1)}{" "}
+                rating
               </p>
             </div>
 
@@ -466,7 +499,9 @@ function ContractorDetailsContent({
               </label>
               <Textarea
                 value={lifecycleReason}
-                onChange={(event) => onLifecycleReasonChange(event.target.value)}
+                onChange={(event) =>
+                  onLifecycleReasonChange(event.target.value)
+                }
                 className="mt-2 min-h-[132px]"
                 placeholder={
                   lifecycleAction === "suspend"
@@ -546,6 +581,23 @@ export default function ContractorDetailsPage({
   const [lifecycleReason, setLifecycleReason] = useState("");
   const [currentContractor, setCurrentContractor] =
     useState<ContractorRecord | null>(matchedContractor);
+  const [kycInitialState, setKycInitialState] = useState<
+    Partial<ContractorKycState>
+  >({
+    activeCategory: "id",
+  });
+  const [liveRequestRows, setLiveRequestRows] =
+    useState<
+      Parameters<typeof ContractorRequestHistoryTab>[0]["initialRows"]
+    >();
+  const [liveTransactions, setLiveTransactions] =
+    useState<
+      Parameters<
+        typeof ContractorTransactionHistoryTab
+      >[0]["initialTransactions"]
+    >();
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentContractor(matchedContractor);
@@ -554,6 +606,55 @@ export default function ContractorDetailsPage({
     setActionError(null);
     setLifecycleReason("");
   }, [matchedContractor]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDetails() {
+      if (
+        !resolvedContractorId ||
+        import.meta.env.MODE === "test" ||
+        !isSupabaseConfigured()
+      ) {
+        return;
+      }
+
+      setIsLiveLoading(true);
+      setLiveErrorMessage(null);
+
+      try {
+        const details = await loadLiveContractorDetails(resolvedContractorId);
+        if (cancelled || !details) {
+          return;
+        }
+
+        setCurrentContractor(details.contractor);
+        setKycInitialState({
+          activeCategory: "id",
+          ...details.kycState,
+        });
+        setLiveRequestRows(details.requestRows);
+        setLiveTransactions(details.transactions);
+      } catch (error) {
+        if (!cancelled) {
+          setLiveErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to load contractor details right now.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLiveLoading(false);
+        }
+      }
+    }
+
+    void loadDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedContractorId]);
 
   const lifecycleAction =
     currentContractor?.lifecycleState === "Suspended" ? "restore" : "suspend";
@@ -588,13 +689,13 @@ export default function ContractorDetailsPage({
         accountStatus: nextStatus,
         lifecycleState: nextLifecycleState,
         riskLevel:
-          lifecycleAction === "suspend"
-            ? "High"
-            : currentContractor.riskLevel,
+          lifecycleAction === "suspend" ? "High" : currentContractor.riskLevel,
         riskFlags:
           lifecycleAction === "suspend"
             ? Array.from(new Set([...currentContractor.riskFlags, "Suspended"]))
-            : currentContractor.riskFlags.filter((flag) => flag !== "Suspended"),
+            : currentContractor.riskFlags.filter(
+                (flag) => flag !== "Suspended",
+              ),
         watchlistReason:
           lifecycleAction === "suspend"
             ? trimmedReason
@@ -634,18 +735,18 @@ export default function ContractorDetailsPage({
           Back to contractors
         </Link>
 
-        {errorMessage ? (
+        {errorMessage || liveErrorMessage ? (
           <div
             role="alert"
             className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]"
           >
-            {errorMessage}
+            {liveErrorMessage ?? errorMessage}
           </div>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading || isLiveLoading ? <LoadingState /> : null}
 
-        {!isLoading && !currentContractor ? (
+        {!isLoading && !isLiveLoading && !currentContractor ? (
           <div className="rounded-[16px] border border-[#FECACA] bg-white px-5 py-8 shadow-sm">
             <p className="text-base font-semibold text-[#101828]">
               Contractor profile not found
@@ -656,15 +757,17 @@ export default function ContractorDetailsPage({
           </div>
         ) : null}
 
-        {!isLoading && currentContractor ? (
+        {!isLoading && !isLiveLoading && currentContractor ? (
           <ContractorKycProvider
             key={currentContractor.id}
-            initialState={{ activeCategory: "id" }}
+            initialState={kycInitialState}
           >
             <ContractorDetailsContent
               activeTab={activeTab}
               contractor={currentContractor}
               actionError={actionError}
+              liveRequestRows={liveRequestRows}
+              liveTransactions={liveTransactions}
               lifecycleAction={lifecycleAction}
               lifecycleReason={lifecycleReason}
               manageDialogOpen={manageDialogOpen}

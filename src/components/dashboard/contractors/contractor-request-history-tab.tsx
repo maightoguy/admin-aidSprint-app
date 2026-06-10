@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { ContractorRecord } from "./contractors.types";
+import type { ContractorRequestHistoryRow } from "./contractors.data";
 import { userDetailsRecords } from "../user-details/user-details.data";
 import { TotalRequestsIcon } from "@/ui/icons";
 import {
@@ -25,17 +26,7 @@ import {
 
 type ContractorRequestHistoryTabProps = {
   contractor: ContractorRecord;
-};
-
-type ContractorRequestRow = {
-  requestId: string;
-  userId: string;
-  customerName: string;
-  customerEmail: string;
-  service: string;
-  location: string;
-  date: string;
-  status: string;
+  initialRows?: ContractorRequestHistoryRow[];
 };
 
 function formatMetricValue(value: number) {
@@ -77,6 +68,7 @@ function SummaryCard({ title, value }: { title: string; value: string }) {
 
 export function ContractorRequestHistoryTab({
   contractor,
+  initialRows,
 }: ContractorRequestHistoryTabProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,7 +81,11 @@ export function ContractorRequestHistoryTab({
     [contractor.id],
   );
 
-  const requestRows = useMemo<ContractorRequestRow[]>(() => {
+  const requestRows = useMemo<ContractorRequestHistoryRow[]>(() => {
+    if (initialRows) {
+      return initialRows;
+    }
+
     if (!linkedUserDetails) {
       return [];
     }
@@ -104,7 +100,7 @@ export function ContractorRequestHistoryTab({
       date: request.date,
       status: request.status,
     }));
-  }, [linkedUserDetails]);
+  }, [initialRows, linkedUserDetails]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -144,7 +140,7 @@ export function ContractorRequestHistoryTab({
     setCurrentPage(1);
   };
 
-  const handleViewDetails = (row: ContractorRequestRow) => {
+  const handleViewDetails = (row: ContractorRequestHistoryRow) => {
     navigate(
       `/users/${row.userId}?tab=request-history&requestId=${row.requestId}`,
     );
@@ -159,7 +155,8 @@ export function ContractorRequestHistoryTab({
               Operations context
             </p>
             <p className="mt-2 text-sm text-[#98A2B3]">
-              Keep dispatch performance, lifecycle, and trust signals visible while reviewing request history.
+              Keep dispatch performance, lifecycle, and trust signals visible
+              while reviewing request history.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

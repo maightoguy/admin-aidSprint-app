@@ -32,7 +32,9 @@ import {
   contractorRecords,
   contractorsSummaryIcon,
   contractorsSummaryPattern,
+  loadLiveContractorRecords,
 } from "./contractors.data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
   ContractorAccountStatus,
   ContractorCurrentStatus,
@@ -326,6 +328,8 @@ export default function ContractorsPage({
   const [contractors, setContractors] = useState<ContractorRecord[]>(
     initialContractors ?? contractorRecords,
   );
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
@@ -387,6 +391,43 @@ export default function ContractorsPage({
     expanded,
     queueFilter,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContractors() {
+      if (import.meta.env.MODE === "test" || !isSupabaseConfigured()) {
+        return;
+      }
+
+      setLiveLoading(true);
+      setLiveError(null);
+
+      try {
+        const records = await loadLiveContractorRecords();
+        if (!cancelled) {
+          setContractors(records);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLiveError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load contractors right now.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLiveLoading(false);
+        }
+      }
+    }
+
+    void loadContractors();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const queueCounts = useMemo(() => getQueueCounts(contractors), [contractors]);
 
@@ -537,9 +578,14 @@ export default function ContractorsPage({
             {errorMessage}
           </div>
         ) : null}
+        {liveError ? (
+          <div className="rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
+            {liveError}
+          </div>
+        ) : null}
 
         <section className="grid gap-4 lg:grid-cols-4">
-          {isLoading
+          {isLoading || liveLoading
             ? Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}

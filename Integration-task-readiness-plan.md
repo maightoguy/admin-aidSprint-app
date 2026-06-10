@@ -605,7 +605,7 @@ Requirements:
 - Do not fully wire write actions in this chunk.
 ```
 
-#### Chunk C2 - Contractors read-only live fetch
+#### Chunk C2 - Contractors read-only live fetch (DONE)
 
 ```text
 Integration task: Convert the contractor operations surface to read-only live Supabase fetches while preserving the existing contractor table, details page, and operational widgets. Replace mock contractor and document reads with live data from contractors, profiles, reviews, and contractor documents.
