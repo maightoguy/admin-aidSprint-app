@@ -555,7 +555,7 @@ Requirements:
 
 ### Phase B - Shared Data Layer And Contract Mapping
 
-#### Chunk B1 - Shared Supabase query/mutation layer
+#### Chunk B1 - Shared Supabase query/mutation layer (DONE)
 
 ```text
 Integration task: Create the shared data-access layer for live Supabase integration without yet converting entire dashboard modules. Add reusable query/mutation helpers, domain folders, and a clean client-access pattern so later module work does not scatter Supabase calls across page components.
@@ -571,7 +571,7 @@ Requirements:
 - Preserve current component APIs where practical.
 ```
 
-#### Chunk B2 - Contract mapping and view-model normalization
+#### Chunk B2 - Contract mapping and view-model normalization (DONE)
 
 ```text
 Integration task: Add backend-to-frontend mapping helpers so current admin screens can consume Supabase data without rewriting all UI components. Normalize database rows into the lifecycle/status naming already used by the dashboard.

@@ -44,6 +44,8 @@ import {
 } from "../user-details/user-details.utils";
 import type { UserRequestHistoryItem } from "../user-details/user-details.types";
 import { paginateItems } from "../shared/pagination-utils";
+import { supabaseJobs, supabaseProfiles } from "@/lib/supabase/data";
+import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
 
 type RequestListRow = {
   id: string;
@@ -252,6 +254,18 @@ export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
+  const [baseRows, setBaseRows] = useState<RequestListRow[]>(() =>
+    userDetailsRecords.flatMap((user) =>
+      user.requestHistory.map((request) => ({
+        id: request.id,
+        userName: user.name,
+        userEmail: user.email,
+        request,
+      })),
+    ),
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const pageSize = expanded ? 10 : 5;
   const {
     filters: urlFilters,
@@ -298,6 +312,84 @@ export default function RequestsPage() {
   }, [closeAll]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadRequests() {
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        const jobsResult = await supabaseJobs.listLatest({ limit: 200 });
+        if (!jobsResult.ok) {
+          throw new Error(jobsResult.message);
+        }
+
+        const jobs = jobsResult.data;
+        const profileIds = Array.from(
+          new Set(
+            jobs
+              .flatMap((job) => [job.user_id, job.contractor_id])
+              .filter(Boolean) as string[],
+          ),
+        );
+
+        const profilesResult = await supabaseProfiles.listByIds(profileIds);
+        if (!profilesResult.ok) {
+          throw new Error(profilesResult.message);
+        }
+
+        const profilesById = new Map(
+          profilesResult.data.map((profile) => [profile.id, profile]),
+        );
+
+        const nextRows: RequestListRow[] = jobs.map((job) => {
+          const userProfile = profilesById.get(job.user_id) ?? null;
+          const contractorProfile = job.contractor_id
+            ? (profilesById.get(job.contractor_id) ?? null)
+            : null;
+
+          const request = mapJobRowToUserRequestHistoryItem({
+            job,
+            userProfile,
+            contractorProfile,
+          });
+
+          const userName =
+            userProfile?.full_name?.trim() ||
+            `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim() ||
+            "—";
+
+          return {
+            id: request.id,
+            userName,
+            userEmail: userProfile?.email?.trim() || "—",
+            request,
+          };
+        });
+
+        if (cancelled) return;
+        setBaseRows(nextRows);
+      } catch (error) {
+        if (cancelled) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load requests right now.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadRequests();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [
     expanded,
@@ -309,18 +401,14 @@ export default function RequestsPage() {
   ]);
 
   const rows = useMemo<RequestListRow[]>(() => {
-    return userDetailsRecords.flatMap((user) =>
-      user.requestHistory.map((request) => ({
-        id: request.id,
-        userName: user.name,
-        userEmail: user.email,
-        request: applyRequestStatusOverride(
-          request,
-          requestStatusById[request.id],
-        ),
-      })),
-    );
-  }, [requestStatusById]);
+    return baseRows.map((row) => ({
+      ...row,
+      request: applyRequestStatusOverride(
+        row.request,
+        requestStatusById[row.id],
+      ),
+    }));
+  }, [baseRows, requestStatusById]);
 
   const queueCounts = useMemo(() => {
     const counts = {

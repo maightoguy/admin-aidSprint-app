@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "linked_auth_methods" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "stripe_customer_id" "text",
-    CONSTRAINT "profiles_role_check" CHECK (("role" = ANY (ARRAY['user'::"text", 'contractor'::"text"])))
+    CONSTRAINT "profiles_role_check" CHECK (("role" = ANY (ARRAY['user'::"text", 'contractor'::"text", 'admin'::"text"])))
 );
 
 

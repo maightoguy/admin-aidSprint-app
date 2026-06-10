@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { AlertTriangle, PauseCircle, PlayCircle, Radio, X } from "lucide-react";
 import {
   Dialog,
@@ -13,11 +13,64 @@ import {
   LiveTrackerMap,
   LiveTrackerSummaryCard,
 } from "../live-tracker/live-tracker-shared";
+import type { UserRequestHistoryItem } from "../user-details/user-details.types";
+import type { LiveTrackerJob, LiveTrackerJobState, LiveTrackerPoint } from "../live-tracker/live-tracker.types";
+
+function stableUnit(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 10_000) / 10_000;
+}
+
+function buildSimulatedRoute(seed: string): {
+  route: LiveTrackerPoint[];
+  pin: LiveTrackerPoint;
+  userPin: LiveTrackerPoint;
+  contractorPin: LiveTrackerPoint;
+} {
+  const x0 = 12 + stableUnit(`${seed}-x0`) * 70;
+  const y0 = 12 + stableUnit(`${seed}-y0`) * 70;
+  const x1 = 12 + stableUnit(`${seed}-x1`) * 70;
+  const y1 = 12 + stableUnit(`${seed}-y1`) * 70;
+
+  const steps = 24;
+  const route: LiveTrackerPoint[] = [];
+  for (let i = 0; i < steps; i += 1) {
+    const t = i / (steps - 1);
+    const wobble = Math.sin(t * Math.PI * 2) * 2;
+    route.push({
+      x: x0 + (x1 - x0) * t + wobble,
+      y: y0 + (y1 - y0) * t - wobble,
+    });
+  }
+
+  const userPin = route[0] ?? { x: x0, y: y0 };
+  const pin = route[route.length - 1] ?? { x: x1, y: y1 };
+  const contractorPin = route[Math.floor(route.length * 0.55)] ?? userPin;
+
+  return { route, pin, userPin, contractorPin };
+}
+
+function mapRequestToTrackerState(request: UserRequestHistoryItem): LiveTrackerJobState {
+  if (request.lifecycleStatus === "Completed" || request.status === "Completed") {
+    return "Completed";
+  }
+  if (request.lifecycleStatus === "Assigned") {
+    return "En route";
+  }
+  return "Incoming";
+}
 
 export function RequestsLiveTrackerOverlay({
   requestId,
+  request,
+  customerName,
 }: {
   requestId: string | null;
+  request?: UserRequestHistoryItem | null;
+  customerName?: string;
 }) {
   const isMapOpen = useRequestsStore((state) => state.isMapOpen);
   const closeMap = useRequestsStore((state) => state.closeMap);
@@ -27,9 +80,39 @@ export function RequestsLiveTrackerOverlay({
   const monitoringState = ops?.monitoringState ?? "live";
   const setMonitoringState = useRequestsStore((state) => state.setMonitoringState);
 
-  const job = requestId
-    ? (liveTrackerJobs.find((item) => item.requestId === requestId) ?? null)
-    : null;
+  const job = useMemo<LiveTrackerJob | null>(() => {
+    if (!requestId) {
+      return null;
+    }
+
+    if (request) {
+      const { route, pin, userPin, contractorPin } = buildSimulatedRoute(requestId);
+      return {
+        id: `sim-${requestId}`,
+        requestId: requestId,
+        userId: "live",
+        customerName: customerName?.trim() || "Customer",
+        request,
+        serviceLabel: request.service || "Service",
+        route,
+        pin,
+        userPin,
+        contractorPin,
+        progress:
+          request.lifecycleStatus === "Completed"
+            ? 1
+            : request.lifecycleStatus === "Assigned"
+              ? 0.65
+              : 0.2,
+        etaMinutes: 8,
+        state: mapRequestToTrackerState(request),
+        isEmergency: request.urgencyLabel === "Emergency",
+      };
+    }
+
+    return liveTrackerJobs.find((item) => item.requestId === requestId) ?? null;
+  }, [customerName, request, requestId]);
+
   const jobId = job?.id ?? null;
 
   useEffect(() => {
