@@ -664,7 +664,7 @@ Requirements:
 - Add focused tests only for changed interaction logic.
 ```
 
-#### Chunk D2 - Contractor admin action writes (IN PROGRESS - SCHEMA READY)
+#### Chunk D2 - Contractor admin action writes (DONE)
 
 ```text
 Integration task: Connect contractor admin actions to live backend writes where the schema supports them, and explicitly document any suspension/restore contract gaps that still require schema work. Preserve the current contractor operations UX.
@@ -681,12 +681,14 @@ Requirements:
 Current snapshot note:
 - The latest snapshot now includes the D2 suspension / restore audit fields on `public.contractors`: `suspended_at`, `suspended_by`, `suspension_reason`, `restored_at`, `restored_by`, and `restore_reason`.
 - The latest snapshot also now includes admin RLS support via `public.is_admin_user()` plus admin contractor/document/jobs/payments/withdrawals/notifications policies.
-- D2 is now cleared to move from schema validation into real frontend contractor lifecycle writes against the shared tables.
+- D2 now uses real frontend suspend / restore writes against the shared `public.contractors` table from both the contractor list and contractor details page.
+- Live contractor reads now derive the current lifecycle state from `suspended_at` versus `restored_at` instead of relying on mock-only local status.
+- Payout blocker updates remain deferred because the current admin UI does not yet expose a dedicated payout readiness write flow.
 ```
 
 ### Phase E - Requests And Job Monitoring Write Integration
 
-#### Chunk E1 - Job lifecycle writes
+#### Chunk E1 - Job lifecycle writes (IN PROGRESS - SQL REQUIRED)
 
 ```text
 Integration task: Connect the requests dispatch workflow to live job lifecycle writes using the current jobs schema and any existing database functions where appropriate. Preserve the current operational queue UX and table/sidebar patterns.
@@ -700,6 +702,11 @@ Requirements:
 - Keep status naming aligned to backend job statuses.
 - Preserve confirmation/reason capture patterns for destructive actions.
 - Add focused interaction tests for the updated write paths if needed.
+
+Current snapshot note:
+- `public.jobs` already has the lifecycle statuses and timestamps E1 needs: `requested`, `broadcast`, `accepted`, `contractor_en_route`, `arrived`, `in_progress`, `completed`, `cancelled`, plus `accepted_at`, `started_at`, `completed_at`, `cancelled_at`, `cancellation_reason`, and `cancelled_by`.
+- The current snapshot already includes `public.accept_job(...)`, but it does not yet include an admin-specific update policy on `public.jobs`.
+- E1 frontend live writes are wired against the shared jobs table, but the admin app still requires the SQL in `supabase/manual_sql/admin_jobs_update_policy.sql` before those writes can succeed under RLS.
 ```
 
 #### Chunk E2 - Operational intervention and realtime

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import { useAuthStore } from "@/auth/auth.store";
 import {
   ContractorKycProvider,
   useContractorKyc,
@@ -25,6 +26,7 @@ import { ContractorRequestHistoryTab } from "./contractor-request-history-tab";
 import { ContractorTransactionHistoryTab } from "./contractor-transaction-history-tab";
 import { ContractorDetailsTabs } from "./contractor-details-tabs";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabaseContractors } from "@/lib/supabase/data";
 import {
   contractorRecords,
   loadLiveContractorDetails,
@@ -55,9 +57,6 @@ type ContractorDetailsPageProps = {
     status: ContractorAccountStatus,
   ) => Promise<void> | void;
 };
-
-const LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE =
-  "Live suspend/restore is not wired yet. The current schema still needs dedicated suspension fields and admin RLS policies on the shared contractor tables.";
 
 function LoadingState() {
   return (
@@ -382,7 +381,7 @@ function ContractorDetailsContent({
   onLifecycleReasonChange,
   onOpenManageDialog,
   onConfirmLifecycleAction,
-  hasLiveContractorDetails,
+  isActionSaving,
 }: {
   activeTab: ContractorDetailsTabValue;
   contractor: ContractorRecord;
@@ -401,7 +400,7 @@ function ContractorDetailsContent({
   onLifecycleReasonChange: (reason: string) => void;
   onOpenManageDialog: () => void;
   onConfirmLifecycleAction: () => void;
-  hasLiveContractorDetails: boolean;
+  isActionSaving: boolean;
 }) {
   const { completedCount } = useContractorKyc();
 
@@ -497,13 +496,6 @@ function ContractorDetailsContent({
             </div>
 
             <div className="mt-5">
-              {hasLiveContractorDetails ? (
-                <div className="mb-4 rounded-[12px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
-                  <p className="text-sm text-[#92400E]">
-                    {LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE}
-                  </p>
-                </div>
-              ) : null}
               <label className="block text-sm font-semibold text-[#344054]">
                 {lifecycleAction === "suspend"
                   ? "Suspension reason"
@@ -542,6 +534,7 @@ function ContractorDetailsContent({
               <button
                 type="button"
                 onClick={() => onManageDialogOpenChange(false)}
+                disabled={isActionSaving}
                 className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
               >
                 Cancel
@@ -549,7 +542,7 @@ function ContractorDetailsContent({
               <button
                 type="button"
                 onClick={onConfirmLifecycleAction}
-                disabled={!lifecycleReason.trim()}
+                disabled={!lifecycleReason.trim() || isActionSaving}
                 className={[
                   "inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
                   lifecycleAction === "suspend"
@@ -562,9 +555,11 @@ function ContractorDetailsContent({
                 ) : (
                   <CheckCircle2 className="h-4 w-4" />
                 )}
-                {lifecycleAction === "suspend"
-                  ? "Confirm suspension"
-                  : "Confirm restore"}
+                {isActionSaving
+                  ? "Saving..."
+                  : lifecycleAction === "suspend"
+                    ? "Confirm suspension"
+                    : "Confirm restore"}
               </button>
             </div>
           </div>
@@ -580,6 +575,7 @@ export default function ContractorDetailsPage({
   errorMessage = null,
   onStatusChange,
 }: ContractorDetailsPageProps) {
+  const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
   const { contractorId: routeContractorId } = useParams();
   const resolvedContractorId = initialContractorId ?? routeContractorId;
   const matchedContractor = useMemo(
@@ -612,6 +608,7 @@ export default function ContractorDetailsPage({
   const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
   const [hasLiveContractorDetails, setHasLiveContractorDetails] =
     useState(false);
+  const [isActionSaving, setIsActionSaving] = useState(false);
 
   useEffect(() => {
     setCurrentContractor(matchedContractor);
@@ -676,6 +673,12 @@ export default function ContractorDetailsPage({
   const lifecycleAction =
     currentContractor?.lifecycleState === "Suspended" ? "restore" : "suspend";
 
+  const closeManageDialog = () => {
+    setManageDialogOpen(false);
+    setActionError(null);
+    setLifecycleReason("");
+  };
+
   const handleLifecycleAction = async () => {
     if (!currentContractor) {
       return;
@@ -687,44 +690,78 @@ export default function ContractorDetailsPage({
       return;
     }
 
-    if (hasLiveContractorDetails) {
-      setActionError(LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE);
-      return;
-    }
-
     const nextStatus: ContractorAccountStatus =
       lifecycleAction === "suspend" ? "Deactivated" : "Active";
     const nextLifecycleState: ContractorLifecycleState =
       lifecycleAction === "suspend" ? "Suspended" : "Active";
+    const isLiveLifecycleFlow =
+      hasLiveContractorDetails && isSupabaseConfigured();
 
     setActionError(null);
+    setIsActionSaving(true);
 
     try {
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 150);
-      });
+      if (isLiveLifecycleFlow) {
+        const actorUserId = adminUserId.trim();
+        if (!actorUserId) {
+          throw new Error(
+            "Your admin session is missing a user id. Please sign in again.",
+          );
+        }
 
-      await onStatusChange?.(currentContractor, nextStatus);
+        const updateResult = await supabaseContractors.updateLifecycle({
+          contractorId: currentContractor.id,
+          action: lifecycleAction,
+          actorUserId,
+          reason: trimmedReason,
+        });
 
-      setCurrentContractor({
-        ...currentContractor,
-        accountStatus: nextStatus,
-        lifecycleState: nextLifecycleState,
-        riskLevel:
-          lifecycleAction === "suspend" ? "High" : currentContractor.riskLevel,
-        riskFlags:
-          lifecycleAction === "suspend"
-            ? Array.from(new Set([...currentContractor.riskFlags, "Suspended"]))
-            : currentContractor.riskFlags.filter(
-                (flag) => flag !== "Suspended",
-              ),
-        watchlistReason:
-          lifecycleAction === "suspend"
-            ? trimmedReason
-            : currentContractor.watchlistReason,
-      });
-      setManageDialogOpen(false);
-      setLifecycleReason("");
+        if (updateResult.ok === false) {
+          throw new Error(updateResult.message);
+        }
+
+        const refreshedDetails = await loadLiveContractorDetails(
+          currentContractor.id,
+        );
+        if (!refreshedDetails) {
+          throw new Error("Unable to reload contractor details after saving.");
+        }
+
+        setCurrentContractor(refreshedDetails.contractor);
+        setKycInitialState({
+          activeCategory: "id",
+          ...refreshedDetails.kycState,
+        });
+        setLiveRequestRows(refreshedDetails.requestRows);
+        setLiveTransactions(refreshedDetails.transactions);
+        setHasLiveContractorDetails(true);
+      } else {
+        await onStatusChange?.(currentContractor, nextStatus);
+
+        setCurrentContractor({
+          ...currentContractor,
+          accountStatus: nextStatus,
+          lifecycleState: nextLifecycleState,
+          riskLevel:
+            lifecycleAction === "suspend"
+              ? "High"
+              : currentContractor.riskLevel,
+          riskFlags:
+            lifecycleAction === "suspend"
+              ? Array.from(
+                  new Set([...currentContractor.riskFlags, "Suspended"]),
+                )
+              : currentContractor.riskFlags.filter(
+                  (flag) => flag !== "Suspended",
+                ),
+          suspensionReason:
+            lifecycleAction === "suspend" ? trimmedReason : undefined,
+          restoreReason:
+            lifecycleAction === "restore" ? trimmedReason : undefined,
+        });
+      }
+
+      closeManageDialog();
 
       toast.success(
         lifecycleAction === "suspend"
@@ -743,6 +780,8 @@ export default function ContractorDetailsPage({
           ? error.message
           : "Unable to update account status right now.",
       );
+    } finally {
+      setIsActionSaving(false);
     }
   };
 
@@ -796,11 +835,12 @@ export default function ContractorDetailsPage({
               manageDialogOpen={manageDialogOpen}
               onTabChange={setActiveTab}
               onManageDialogOpenChange={(open) => {
-                setManageDialogOpen(open);
                 if (!open) {
-                  setActionError(null);
-                  setLifecycleReason("");
+                  closeManageDialog();
+                  return;
                 }
+
+                setManageDialogOpen(true);
               }}
               onLifecycleReasonChange={(reason) => {
                 setLifecycleReason(reason);
@@ -810,7 +850,7 @@ export default function ContractorDetailsPage({
               }}
               onOpenManageDialog={() => setManageDialogOpen(true)}
               onConfirmLifecycleAction={handleLifecycleAction}
-              hasLiveContractorDetails={hasLiveContractorDetails}
+              isActionSaving={isActionSaving}
             />
           </ContractorKycProvider>
         ) : null}

@@ -131,6 +131,8 @@ export type ContractorRecord = {
   riskLevel: ContractorRiskLevel;
   riskFlags: string[];
   watchlistReason?: string;
+  suspensionReason?: string;
+  restoreReason?: string;
   payoutStatus: ContractorPayoutStatus;
   pendingPayoutAmount: string;
   payoutsBlockedReason?: string;

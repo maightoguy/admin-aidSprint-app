@@ -171,6 +171,8 @@ function ReasonDialog({
   reason,
   onReasonChange,
   onConfirm,
+  isSubmitting = false,
+  errorMessage = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -181,7 +183,9 @@ function ReasonDialog({
   confirmTone?: "primary" | "danger";
   reason: string;
   onReasonChange: (value: string) => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
+  isSubmitting?: boolean;
+  errorMessage?: string | null;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -193,7 +197,9 @@ function ReasonDialog({
           Provide a reason that can be stored for audit and backend integration.
         </DialogDescription>
         <div className="mt-5">
-          <label className="text-sm font-semibold text-[#101828]">{label}</label>
+          <label className="text-sm font-semibold text-[#101828]">
+            {label}
+          </label>
           <Textarea
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
@@ -214,6 +220,7 @@ function ReasonDialog({
               onOpenChange(false);
               onReasonChange("");
             }}
+            disabled={isSubmitting}
             className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
           >
             Cancel
@@ -221,7 +228,7 @@ function ReasonDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={!reason.trim()}
+            disabled={!reason.trim() || isSubmitting}
             className={cn(
               "inline-flex items-center justify-center rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
               confirmTone === "danger"
@@ -229,9 +236,14 @@ function ReasonDialog({
                 : "bg-[#041133] hover:bg-[#0A1C4E]",
             )}
           >
-            {confirmLabel}
+            {isSubmitting ? "Saving..." : confirmLabel}
           </button>
         </div>
+        {errorMessage ? (
+          <p className="mt-3 text-xs font-medium text-[#B42318]">
+            {errorMessage}
+          </p>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -239,7 +251,11 @@ function ReasonDialog({
 
 function MonitoringStatusPill({ state }: { state: RequestMonitoringState }) {
   const label =
-    state === "paused" ? "Paused" : state === "lostSignal" ? "Lost signal" : "Live";
+    state === "paused"
+      ? "Paused"
+      : state === "lostSignal"
+        ? "Lost signal"
+        : "Live";
   const className =
     state === "paused"
       ? "bg-[#FFF4DB] text-[#B7791F]"
@@ -314,8 +330,12 @@ function RequestStatusSteps({ state }: { state: RequestPanelState }) {
 
 function RequestStatusMenu({
   onUpdateStatus,
+  disabled = false,
+  isSaving = false,
 }: {
-  onUpdateStatus?: (action: RequestStatusAction) => void;
+  onUpdateStatus?: (action: RequestStatusAction) => Promise<void> | void;
+  disabled?: boolean;
+  isSaving?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -324,8 +344,9 @@ function RequestStatusMenu({
           type="button"
           className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 py-[13px] text-[14px] font-medium text-white transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25"
           aria-label="Update request status"
+          disabled={disabled || isSaving}
         >
-          Update status
+          {isSaving ? "Updating..." : "Update status"}
           <RequestsChevronDownIcon className="h-[14px] w-[14px]" />
         </button>
       </DropdownMenuTrigger>
@@ -341,6 +362,7 @@ function RequestStatusMenu({
           <DropdownMenuItem
             key={item.action}
             onClick={() => onUpdateStatus?.(item.action)}
+            disabled={disabled || isSaving}
             className="flex items-start gap-3 rounded-[10px] px-3 py-3 text-left focus:bg-[#F8FAFC] focus:text-[#101828]"
           >
             <span className="pt-0.5 text-[#071B58]">
@@ -378,20 +400,27 @@ export function RequestsCore({
   customerName: string;
   onClose?: () => void;
   onOpenLiveTracker?: () => void;
-  onUpdateStatus?: (action: RequestStatusAction) => void;
+  onUpdateStatus?: (
+    action: RequestStatusAction,
+    options?: { cancellationReason?: string },
+  ) => Promise<void> | void;
 }) {
   const panelState = getRequestPanelState(request);
   const stateCopy = requestStateCopy[panelState];
   const isTrackerDisabled = panelState === "cancelled" || !onOpenLiveTracker;
   const ops = useRequestsStore((state) => state.requestOpsById[request.id]);
   const monitoringState = ops?.monitoringState ?? "live";
-  const setMonitoringState = useRequestsStore((state) => state.setMonitoringState);
+  const setMonitoringState = useRequestsStore(
+    (state) => state.setMonitoringState,
+  );
   const flagDelayed = useRequestsStore((state) => state.flagDelayed);
   const clearDelayed = useRequestsStore((state) => state.clearDelayed);
   const openDispute = useRequestsStore((state) => state.openDispute);
   const resolveDispute = useRequestsStore((state) => state.resolveDispute);
   const escalateSupport = useRequestsStore((state) => state.escalateSupport);
-  const setCancellationReason = useRequestsStore((state) => state.setCancellationReason);
+  const setCancellationReason = useRequestsStore(
+    (state) => state.setCancellationReason,
+  );
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -401,14 +430,34 @@ export function RequestsCore({
   const [disputeReason, setDisputeReason] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportReason, setSupportReason] = useState("");
+  const [statusActionError, setStatusActionError] = useState<string | null>(
+    null,
+  );
+  const [isStatusSaving, setIsStatusSaving] = useState(false);
 
-  const handleStatusUpdate = (action: RequestStatusAction) => {
+  const handleStatusUpdate = async (
+    action: RequestStatusAction,
+    options?: { cancellationReason?: string },
+  ) => {
     if (action === "Cancel order") {
       setCancelOpen(true);
       return;
     }
 
-    onUpdateStatus?.(action);
+    setStatusActionError(null);
+    setIsStatusSaving(true);
+
+    try {
+      await onUpdateStatus?.(action, options);
+    } catch (error) {
+      setStatusActionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to update request status right now.",
+      );
+    } finally {
+      setIsStatusSaving(false);
+    }
   };
 
   return (
@@ -553,7 +602,9 @@ export function RequestsCore({
           </div>
         </div>
         <div>
-          <p className="text-[12px] font-medium text-[#6B7280]">Live monitoring</p>
+          <p className="text-[12px] font-medium text-[#6B7280]">
+            Live monitoring
+          </p>
           <div className="mt-2 rounded-[14px] border border-[#EAECF0] bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -568,7 +619,10 @@ export function RequestsCore({
               <button
                 type="button"
                 onClick={() => {
-                  setMonitoringState(request.id, monitoringState === "paused" ? "live" : "paused");
+                  setMonitoringState(
+                    request.id,
+                    monitoringState === "paused" ? "live" : "paused",
+                  );
                   toast.success("Monitoring updated", {
                     description:
                       monitoringState === "paused"
@@ -577,7 +631,11 @@ export function RequestsCore({
                   });
                 }}
                 className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
-                aria-label={monitoringState === "paused" ? "Resume tracking" : "Pause tracking"}
+                aria-label={
+                  monitoringState === "paused"
+                    ? "Resume tracking"
+                    : "Pause tracking"
+                }
               >
                 {monitoringState === "paused" ? (
                   <PlayCircle className="h-4 w-4" aria-hidden="true" />
@@ -591,7 +649,8 @@ export function RequestsCore({
                 onClick={() => {
                   setMonitoringState(request.id, "lostSignal");
                   toast.success("Signal updated", {
-                    description: "Marked as lost signal for operational follow-up.",
+                    description:
+                      "Marked as lost signal for operational follow-up.",
                   });
                 }}
                 className="inline-flex items-center gap-2 rounded-[10px] border border-[#F04438]/25 bg-[#FEF3F2] px-3 py-2 text-[12px] font-semibold text-[#B42318] transition hover:bg-[#FEE4E2]"
@@ -604,7 +663,9 @@ export function RequestsCore({
           </div>
         </div>
         <div>
-          <p className="text-[12px] font-medium text-[#6B7280]">Interventions</p>
+          <p className="text-[12px] font-medium text-[#6B7280]">
+            Interventions
+          </p>
           <div className="mt-2 rounded-[14px] border border-[#EAECF0] bg-white p-4">
             <div className="flex flex-wrap gap-2">
               {ops?.delayedReason ? (
@@ -671,7 +732,9 @@ export function RequestsCore({
             </div>
             {ops?.delayedReason ? (
               <p className="mt-3 text-[12px] leading-5 text-[#667085]">
-                <span className="font-semibold text-[#101828]">Delay reason:</span>{" "}
+                <span className="font-semibold text-[#101828]">
+                  Delay reason:
+                </span>{" "}
                 {ops.delayedReason}
               </p>
             ) : null}
@@ -767,7 +830,15 @@ export function RequestsCore({
             </div>
           ))}
         </div>
-        <RequestStatusMenu onUpdateStatus={handleStatusUpdate} />
+        <RequestStatusMenu
+          onUpdateStatus={handleStatusUpdate}
+          isSaving={isStatusSaving}
+        />
+        {statusActionError ? (
+          <p className="mt-3 text-xs font-medium text-[#B42318]">
+            {statusActionError}
+          </p>
+        ) : null}
       </div>
 
       <ReasonDialog
@@ -783,14 +854,31 @@ export function RequestsCore({
         confirmTone="danger"
         reason={cancelReason}
         onReasonChange={setCancelReason}
-        onConfirm={() => {
-          setCancellationReason(request.id, cancelReason);
-          onUpdateStatus?.("Cancel order");
-          toast.success("Request cancelled", {
-            description: "The request has been cancelled and recorded.",
-          });
-          setCancelOpen(false);
-          setCancelReason("");
+        isSubmitting={isStatusSaving}
+        errorMessage={statusActionError}
+        onConfirm={async () => {
+          setStatusActionError(null);
+          setIsStatusSaving(true);
+
+          try {
+            await onUpdateStatus?.("Cancel order", {
+              cancellationReason: cancelReason,
+            });
+            setCancellationReason(request.id, cancelReason);
+            toast.success("Request cancelled", {
+              description: "The request has been cancelled and recorded.",
+            });
+            setCancelOpen(false);
+            setCancelReason("");
+          } catch (error) {
+            setStatusActionError(
+              error instanceof Error
+                ? error.message
+                : "Unable to cancel this request right now.",
+            );
+          } finally {
+            setIsStatusSaving(false);
+          }
         }}
       />
       <ReasonDialog
@@ -805,6 +893,7 @@ export function RequestsCore({
         confirmLabel="Confirm delay flag"
         reason={delayReason}
         onReasonChange={setDelayReason}
+        isSubmitting={false}
         onConfirm={() => {
           flagDelayed(request.id, delayReason);
           toast.success("Delay flagged", {
@@ -826,6 +915,7 @@ export function RequestsCore({
         confirmLabel="Open dispute"
         reason={disputeReason}
         onReasonChange={setDisputeReason}
+        isSubmitting={false}
         onConfirm={() => {
           openDispute(request.id, disputeReason);
           toast.success("Dispute opened", {
@@ -847,6 +937,7 @@ export function RequestsCore({
         confirmLabel="Escalate"
         reason={supportReason}
         onReasonChange={setSupportReason}
+        isSubmitting={false}
         onConfirm={() => {
           escalateSupport(request.id, supportReason);
           toast.success("Escalated to support", {
@@ -873,7 +964,10 @@ export function RequestsSidebar({
   customerName: string;
   onOpenChange: (open: boolean) => void;
   onOpenLiveTracker?: () => void;
-  onUpdateStatus?: (action: RequestStatusAction) => void;
+  onUpdateStatus?: (
+    action: RequestStatusAction,
+    options?: { cancellationReason?: string },
+  ) => Promise<void> | void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

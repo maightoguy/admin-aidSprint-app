@@ -91,6 +91,12 @@ export type ContractorRow = {
   stripe_charges_enabled: boolean;
   stripe_payouts_enabled: boolean;
   payouts_blocked_reason: string | null;
+  suspended_at: string | null;
+  suspended_by: string | null;
+  suspension_reason: string | null;
+  restored_at: string | null;
+  restored_by: string | null;
+  restore_reason: string | null;
 };
 
 export type ContractorBankAccountRow = {
@@ -118,6 +124,11 @@ export type ContractorDocumentRow = {
 };
 
 export type ContractorDocumentReviewStatus = "approved" | "rejected";
+export type ContractorLifecycleWriteAction = "suspend" | "restore";
+export type JobLifecycleWriteStatus =
+  | "broadcast"
+  | "completed"
+  | "cancelled";
 
 export type PaymentRow = {
   id: string;
@@ -323,6 +334,73 @@ export const supabaseJobs = {
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as JobRow[] };
   },
+
+  async updateLifecycle(params: {
+    jobId: string;
+    status: JobLifecycleWriteStatus;
+    actorUserId?: string;
+    cancellationReason?: string | null;
+  }): Promise<SupabaseResult<JobRow>> {
+    const client = requireSupabaseClient();
+    const jobId = params.jobId.trim();
+
+    if (!jobId) {
+      return { ok: false, message: "Job id is required." };
+    }
+
+    const now = new Date().toISOString();
+    const payload =
+      params.status === "broadcast"
+        ? {
+            status: "broadcast",
+            contractor_id: null,
+            accepted_at: null,
+            started_at: null,
+            completed_at: null,
+            cancelled_at: null,
+            cancellation_reason: null,
+            cancelled_by: null,
+          }
+        : params.status === "completed"
+          ? {
+              status: "completed",
+              completed_at: now,
+              cancelled_at: null,
+              cancellation_reason: null,
+              cancelled_by: null,
+            }
+          : (() => {
+              const actorUserId = params.actorUserId?.trim() ?? "";
+              const cancellationReason =
+                params.cancellationReason?.trim() ?? "";
+
+              if (!actorUserId) {
+                throw new Error("Admin user id is required to cancel a job.");
+              }
+
+              if (!cancellationReason) {
+                throw new Error("Cancellation reason is required.");
+              }
+
+              return {
+                status: "cancelled",
+                cancelled_at: now,
+                cancellation_reason: cancellationReason,
+                cancelled_by: actorUserId,
+              };
+            })();
+
+    const { data, error } = await client
+      .from("jobs")
+      .update(payload)
+      .eq("id", jobId)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Job not found." };
+    return { ok: true, data: data as JobRow };
+  },
 };
 
 export const supabaseContractors = {
@@ -346,6 +424,55 @@ export const supabaseContractors = {
       .from("contractors")
       .select("*")
       .eq("id", contractorId)
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Contractor not found." };
+    return { ok: true, data: data as ContractorRow };
+  },
+
+  async updateLifecycle(params: {
+    contractorId: string;
+    action: ContractorLifecycleWriteAction;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<ContractorRow>> {
+    const client = requireSupabaseClient();
+    const contractorId = params.contractorId.trim();
+    const actorUserId = params.actorUserId.trim();
+    const reason = params.reason.trim();
+
+    if (!contractorId) {
+      return { ok: false, message: "Contractor id is required." };
+    }
+
+    if (!actorUserId) {
+      return { ok: false, message: "Admin user id is required." };
+    }
+
+    if (!reason) {
+      return { ok: false, message: "A lifecycle reason is required." };
+    }
+
+    const now = new Date().toISOString();
+    const payload =
+      params.action === "suspend"
+        ? {
+            suspended_at: now,
+            suspended_by: actorUserId,
+            suspension_reason: reason,
+          }
+        : {
+            restored_at: now,
+            restored_by: actorUserId,
+            restore_reason: reason,
+          };
+
+    const { data, error } = await client
+      .from("contractors")
+      .update(payload)
+      .eq("id", contractorId)
+      .select("*")
       .single();
 
     if (error) return { ok: false, message: formatPostgrestError(error) };

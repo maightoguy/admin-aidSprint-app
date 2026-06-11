@@ -147,8 +147,31 @@ function mapAvailabilityStatusToCurrentStatus(value: string): ContractorCurrentS
   return "Offline";
 }
 
-function mapAvailabilityStatusToLifecycleState(value: string): ContractorLifecycleState {
-  const normalized = String(value).trim().toLowerCase();
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) return Number.NaN;
+  return new Date(value).getTime();
+}
+
+export function isContractorCurrentlySuspended(
+  contractor: Pick<ContractorRow, "suspended_at" | "restored_at">,
+) {
+  const suspendedAt = parseTimestamp(contractor.suspended_at);
+  if (!Number.isFinite(suspendedAt)) {
+    return false;
+  }
+
+  const restoredAt = parseTimestamp(contractor.restored_at);
+  if (!Number.isFinite(restoredAt)) {
+    return true;
+  }
+
+  return suspendedAt > restoredAt;
+}
+
+function mapAvailabilityStatusToLifecycleState(contractor: ContractorRow): ContractorLifecycleState {
+  if (isContractorCurrentlySuspended(contractor)) return "Suspended";
+
+  const normalized = String(contractor.availability_status).trim().toLowerCase();
   if (normalized === "pending_approval") return "Pending approval";
   return "Active";
 }
@@ -186,6 +209,7 @@ export function mapContractorRowToContractorRecord(params: {
   watchlistReason?: string;
 }): ContractorRecord {
   const { contractor, profile } = params;
+  const isSuspended = isContractorCurrentlySuspended(contractor);
 
   const fullName = profile.full_name?.trim() || `${profile.first_name} ${profile.last_name}`.trim() || "—";
   const servicesProvided =
@@ -205,8 +229,8 @@ export function mapContractorRowToContractorRecord(params: {
     currentStatus: mapAvailabilityStatusToCurrentStatus(contractor.availability_status),
     totalServicesProvided: 0,
     dateJoined: formatDateLabel(contractor.created_at),
-    accountStatus: "Active",
-    lifecycleState: mapAvailabilityStatusToLifecycleState(contractor.availability_status),
+    accountStatus: isSuspended ? "Deactivated" : "Active",
+    lifecycleState: mapAvailabilityStatusToLifecycleState(contractor),
     serviceCategory: primaryService,
     bio: profile.full_name?.trim() ? `Contractor profile for ${fullName}` : "—",
     firstName: profile.first_name,
@@ -229,6 +253,8 @@ export function mapContractorRowToContractorRecord(params: {
     riskLevel: params.riskLevel ?? "Low",
     riskFlags: params.riskFlags ?? [],
     watchlistReason: params.watchlistReason,
+    suspensionReason: isSuspended ? contractor.suspension_reason?.trim() || undefined : undefined,
+    restoreReason: !isSuspended ? contractor.restore_reason?.trim() || undefined : undefined,
     payoutStatus: params.payoutStatus ?? mapContractorPayoutStatus(contractor),
     pendingPayoutAmount: params.pendingPayoutAmount ?? formatCurrency(0),
     payoutsBlockedReason: contractor.payouts_blocked_reason ?? undefined,

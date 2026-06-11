@@ -41,13 +41,17 @@ type RequestsState = {
   closeMap: () => void;
   closeAll: () => void;
   updateRequestStatus: (requestId: string, action: RequestStatusAction) => void;
+  setRequestStatusOverride: (
+    requestId: string,
+    override: StoredRequestStatus | null,
+  ) => void;
   setMonitoringState: (requestId: string, state: RequestMonitoringState) => void;
   flagDelayed: (requestId: string, reason: string) => void;
   clearDelayed: (requestId: string) => void;
   openDispute: (requestId: string, reason: string) => void;
   resolveDispute: (requestId: string) => void;
   escalateSupport: (requestId: string, reason: string) => void;
-  setCancellationReason: (requestId: string, reason: string) => void;
+  setCancellationReason: (requestId: string, reason: string | null) => void;
 };
 
 const requestStatusActions: Record<RequestStatusAction, StoredRequestStatus> = {
@@ -170,6 +174,22 @@ export const useRequestsStore = create<RequestsState>()(
             [requestId]: requestStatusActions[action],
           },
         })),
+      setRequestStatusOverride: (requestId, override) =>
+        set((state) => {
+          const nextStatusById = {
+            ...state.requestStatusById,
+          };
+
+          if (override) {
+            nextStatusById[requestId] = override;
+          } else {
+            delete nextStatusById[requestId];
+          }
+
+          return {
+            requestStatusById: nextStatusById,
+          };
+        }),
       setMonitoringState: (requestId, monitoringState) =>
         set((state) => ({
           requestOpsById: {

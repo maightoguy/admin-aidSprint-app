@@ -19,6 +19,7 @@ import {
 import {
   deriveContractorRiskState,
   deriveContractorVerificationState,
+  isContractorCurrentlySuspended,
   formatDateLabel,
   mapContractorDocumentsToKycInitialState,
   mapContractorRowToContractorRecord,
@@ -618,6 +619,10 @@ export async function loadLiveContractorRecords() {
         documents: contractorDocs,
         completionRate,
       });
+      const isSuspended = isContractorCurrentlySuspended(contractor);
+      const riskFlags = isSuspended
+        ? Array.from(new Set([...riskState.riskFlags, "Suspended"]))
+        : riskState.riskFlags.filter((flag) => flag !== "Suspended");
 
       const latestAddress =
         contractorJobs.find((job) => job.address.trim())?.address || "—";
@@ -637,8 +642,8 @@ export async function loadLiveContractorRecords() {
         ),
         serviceZoneLabel: latestAddress,
         pendingPayoutAmount: sumPendingWithdrawalAmount(contractorWithdrawals),
-        riskFlags: riskState.riskFlags,
-        riskLevel: riskState.riskLevel,
+        riskFlags,
+        riskLevel: isSuspended ? "High" : riskState.riskLevel,
         verificationState,
         totalJobsCompleted: totalCompletedJobs,
         watchlistReason: riskState.watchlistReason,
@@ -731,6 +736,10 @@ export async function loadLiveContractorDetails(
     documents: docs,
     completionRate,
   });
+  const isSuspended = isContractorCurrentlySuspended(contractor);
+  const riskFlags = isSuspended
+    ? Array.from(new Set([...riskState.riskFlags, "Suspended"]))
+    : riskState.riskFlags.filter((flag) => flag !== "Suspended");
   const latestAddress =
     jobs.find((job) => job.address.trim())?.address || "—";
   const locations = buildLocationHistory(jobs.map((job) => job.address));
@@ -751,8 +760,8 @@ export async function loadLiveContractorDetails(
     ),
     serviceZoneLabel: latestAddress,
     pendingPayoutAmount: sumPendingWithdrawalAmount(withdrawals),
-    riskFlags: riskState.riskFlags,
-    riskLevel: riskState.riskLevel,
+    riskFlags,
+    riskLevel: isSuspended ? "High" : riskState.riskLevel,
     verificationState,
     totalJobsCompleted: totalCompletedJobs,
     watchlistReason: riskState.watchlistReason,

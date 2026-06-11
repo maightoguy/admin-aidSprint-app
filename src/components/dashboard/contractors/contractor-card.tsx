@@ -98,7 +98,8 @@ export function ContractorCard({
           </span>
         </div>
         <p className="sm:col-span-2 text-xs leading-5 text-[#667085]">
-          {contractor.watchlistReason ??
+          {contractor.suspensionReason ??
+            contractor.watchlistReason ??
             `${contractor.totalJobsAccepted}/${contractor.totalJobsOffered} jobs accepted with ${contractor.responseTimeLabel}.`}
         </p>
       </div>

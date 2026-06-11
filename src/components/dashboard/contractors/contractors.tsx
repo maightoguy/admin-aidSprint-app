@@ -35,6 +35,8 @@ import {
   loadLiveContractorRecords,
 } from "./contractors.data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { useAuthStore } from "@/auth/auth.store";
+import { supabaseContractors } from "@/lib/supabase/data";
 import type {
   ContractorAccountStatus,
   ContractorCurrentStatus,
@@ -164,8 +166,6 @@ type ContractorQueueFilter =
   | "suspended";
 
 type ContractorLifecycleAction = "suspend" | "restore";
-const LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE =
-  "Live suspend/restore is not wired yet. The current schema still needs dedicated suspension fields and admin RLS policies on the shared contractor tables.";
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -327,6 +327,7 @@ export default function ContractorsPage({
   errorMessage = null,
 }: ContractorsPageProps) {
   const navigate = useNavigate();
+  const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
   const [contractors, setContractors] = useState<ContractorRecord[]>(
     initialContractors ?? contractorRecords,
   );
@@ -381,6 +382,8 @@ export default function ContractorsPage({
   const [lifecycleReason, setLifecycleReason] = useState("");
   const [selectedLifecycleContractor, setSelectedLifecycleContractor] =
     useState<ContractorRecord | null>(null);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [isLifecycleSaving, setIsLifecycleSaving] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -471,6 +474,14 @@ export default function ContractorsPage({
     setSelectedLifecycleContractor(contractor);
     setLifecycleAction(action === "Suspend account" ? "suspend" : "restore");
     setLifecycleReason("");
+    setLifecycleError(null);
+  };
+
+  const closeLifecycleDialog = () => {
+    setSelectedLifecycleContractor(null);
+    setLifecycleAction(null);
+    setLifecycleReason("");
+    setLifecycleError(null);
   };
 
   const openAddContractor = () => {
@@ -523,7 +534,7 @@ export default function ContractorsPage({
     }
   };
 
-  const confirmLifecycleAction = () => {
+  const confirmLifecycleAction = async () => {
     if (
       !selectedLifecycleContractor ||
       !lifecycleAction ||
@@ -532,58 +543,86 @@ export default function ContractorsPage({
       return;
     }
 
-    if (hasLiveContractors) {
-      toast.error("Backend contract required", {
-        description: LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE,
-      });
-      return;
-    }
-
     const nextLifecycleState: ContractorLifecycleState =
       lifecycleAction === "suspend" ? "Suspended" : "Active";
     const nextAccountStatus: ContractorAccountStatus =
       lifecycleAction === "suspend" ? "Deactivated" : "Active";
+    const trimmedReason = lifecycleReason.trim();
+    const isLiveLifecycleFlow = hasLiveContractors && isSupabaseConfigured();
 
-    setContractors((prev) =>
-      prev.map((item) => {
-        if (item.id !== selectedLifecycleContractor.id) {
-          return item;
+    setLifecycleError(null);
+    setIsLifecycleSaving(true);
+
+    try {
+      if (isLiveLifecycleFlow) {
+        const actorUserId = adminUserId.trim();
+        if (!actorUserId) {
+          throw new Error("Your admin session is missing a user id. Please sign in again.");
         }
 
-        const nextRiskFlags =
-          lifecycleAction === "suspend"
-            ? Array.from(new Set([...item.riskFlags, "Suspended"]))
-            : item.riskFlags.filter((flag) => flag !== "Suspended");
+        const updateResult = await supabaseContractors.updateLifecycle({
+          contractorId: selectedLifecycleContractor.id,
+          action: lifecycleAction,
+          actorUserId,
+          reason: trimmedReason,
+        });
 
-        return {
-          ...item,
-          accountStatus: nextAccountStatus,
-          lifecycleState: nextLifecycleState,
-          riskFlags: nextRiskFlags,
-          riskLevel: lifecycleAction === "suspend" ? "High" : item.riskLevel,
-          watchlistReason:
+        if (updateResult.ok === false) {
+          throw new Error(updateResult.message);
+        }
+
+        const refreshedRecords = await loadLiveContractorRecords();
+        setContractors(refreshedRecords);
+        setHasLiveContractors(true);
+      } else {
+        setContractors((prev) =>
+          prev.map((item) => {
+            if (item.id !== selectedLifecycleContractor.id) {
+              return item;
+            }
+
+            const nextRiskFlags =
+              lifecycleAction === "suspend"
+                ? Array.from(new Set([...item.riskFlags, "Suspended"]))
+                : item.riskFlags.filter((flag) => flag !== "Suspended");
+
+            return {
+              ...item,
+              accountStatus: nextAccountStatus,
+              lifecycleState: nextLifecycleState,
+              riskFlags: nextRiskFlags,
+              riskLevel: lifecycleAction === "suspend" ? "High" : item.riskLevel,
+              suspensionReason:
+                lifecycleAction === "suspend" ? trimmedReason : undefined,
+              restoreReason:
+                lifecycleAction === "restore" ? trimmedReason : undefined,
+            };
+          }),
+        );
+      }
+
+      toast.success(
+        lifecycleAction === "suspend"
+          ? "Contractor suspended"
+          : "Contractor restored",
+        {
+          description:
             lifecycleAction === "suspend"
-              ? lifecycleReason.trim()
-              : item.watchlistReason,
-        };
-      }),
-    );
+              ? "The suspension reason has been captured for audit."
+              : "The contractor has been restored to the active queue.",
+        },
+      );
 
-    toast.success(
-      lifecycleAction === "suspend"
-        ? "Contractor suspended"
-        : "Contractor restored",
-      {
-        description:
-          lifecycleAction === "suspend"
-            ? "The suspension reason has been captured for audit."
-            : "The contractor has been restored to the active queue.",
-      },
-    );
-
-    setSelectedLifecycleContractor(null);
-    setLifecycleAction(null);
-    setLifecycleReason("");
+      closeLifecycleDialog();
+    } catch (error) {
+      setLifecycleError(
+        error instanceof Error
+          ? error.message
+          : "Unable to update contractor lifecycle right now.",
+      );
+    } finally {
+      setIsLifecycleSaving(false);
+    }
   };
 
   return (
@@ -853,9 +892,9 @@ export default function ContractorsPage({
                             {flag}
                           </span>
                         ))}
-                        {contractor.watchlistReason ? (
+                        {contractor.suspensionReason || contractor.watchlistReason ? (
                           <p className="w-full text-xs text-[#667085]">
-                            {contractor.watchlistReason}
+                            {contractor.suspensionReason ?? contractor.watchlistReason}
                           </p>
                         ) : null}
                       </div>
@@ -987,9 +1026,7 @@ export default function ContractorsPage({
         open={Boolean(selectedLifecycleContractor && lifecycleAction)}
         onOpenChange={(open) => {
           if (!open) {
-            setSelectedLifecycleContractor(null);
-            setLifecycleAction(null);
-            setLifecycleReason("");
+            closeLifecycleDialog();
           }
         }}
       >
@@ -1025,11 +1062,6 @@ export default function ContractorsPage({
                   ? "Suspension should be used for trust, quality, or compliance issues. The reason should stay audit-ready."
                   : "Restoration should only be used after trust, payout, or verification blockers are resolved."}
               </p>
-              {hasLiveContractors ? (
-                <p className="mt-2 text-sm text-[#B54708]">
-                  {LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE}
-                </p>
-              ) : null}
             </div>
 
             <div className="mt-5">
@@ -1058,16 +1090,18 @@ export default function ContractorsPage({
                   A reason is required.
                 </p>
               ) : null}
+              {lifecycleError ? (
+                <p className="mt-2 text-xs font-medium text-[#B42318]">
+                  {lifecycleError}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedLifecycleContractor(null);
-                  setLifecycleAction(null);
-                  setLifecycleReason("");
-                }}
+                onClick={closeLifecycleDialog}
+                disabled={isLifecycleSaving}
                 className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
               >
                 Cancel
@@ -1075,7 +1109,7 @@ export default function ContractorsPage({
               <button
                 type="button"
                 onClick={confirmLifecycleAction}
-                disabled={!lifecycleReason.trim()}
+                disabled={!lifecycleReason.trim() || isLifecycleSaving}
                 className={[
                   "inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
                   lifecycleAction === "suspend"
@@ -1088,9 +1122,11 @@ export default function ContractorsPage({
                 ) : (
                   <CheckCircle2 className="h-4 w-4" />
                 )}
-                {lifecycleAction === "suspend"
-                  ? "Confirm suspension"
-                  : "Confirm restore"}
+                {isLifecycleSaving
+                  ? "Saving..."
+                  : lifecycleAction === "suspend"
+                    ? "Confirm suspension"
+                    : "Confirm restore"}
               </button>
             </div>
           </div>

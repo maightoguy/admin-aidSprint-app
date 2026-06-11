@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/auth/auth.store";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import type {
   FilterField,
@@ -45,7 +46,7 @@ import {
 import type { UserRequestHistoryItem } from "../user-details/user-details.types";
 import { paginateItems } from "../shared/pagination-utils";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { supabaseJobs, supabaseProfiles } from "@/lib/supabase/data";
+import { supabaseJobs, supabaseProfiles, type JobRow } from "@/lib/supabase/data";
 import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
 
 type RequestListRow = {
@@ -54,6 +55,31 @@ type RequestListRow = {
   userEmail: string;
   request: UserRequestHistoryItem;
 };
+
+function buildRowFromJob(
+  previousRow: RequestListRow,
+  job: JobRow,
+): RequestListRow {
+  const request = mapJobRowToUserRequestHistoryItem({
+    job,
+    userProfile: {
+      full_name: previousRow.userName,
+      email: previousRow.userEmail,
+    },
+    contractorProfile: null,
+  });
+
+  return {
+    ...previousRow,
+    request,
+  };
+}
+
+function mapRequestActionToJobStatus(action: RequestStatusAction) {
+  if (action === "Complete order") return "completed" as const;
+  if (action === "Cancel order") return "cancelled" as const;
+  return "broadcast" as const;
+}
 
 const requestStatuses: RequestFilterStatus[] = [
   "Active",
@@ -252,6 +278,7 @@ function RequestRowUser({
 }
 
 export default function RequestsPage() {
+  const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
@@ -268,6 +295,7 @@ export default function RequestsPage() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasLiveRequests, setHasLiveRequests] = useState(false);
   const pageSize = expanded ? 10 : 5;
   const {
     filters: urlFilters,
@@ -393,12 +421,15 @@ export default function RequestsPage() {
 
         if (sidebarOpen && selectedId && !selectedExistsInNext) {
           pendingRowsRef.current = nextRows;
+          setHasLiveRequests(true);
           return;
         }
 
         setBaseRows(nextRows);
+        setHasLiveRequests(true);
       } catch (error) {
         if (cancelled) return;
+        setHasLiveRequests(false);
         setLoadError(
           error instanceof Error
             ? error.message
@@ -578,7 +609,16 @@ export default function RequestsPage() {
     openMap();
   };
 
-  const handleUpdateRequestStatus = (action: RequestStatusAction) => {
+  const setLocalRequestRow = (job: JobRow) => {
+    setBaseRows((prev) =>
+      prev.map((row) => (row.id === job.id ? buildRowFromJob(row, job) : row)),
+    );
+  };
+
+  const handleUpdateRequestStatus = async (
+    action: RequestStatusAction,
+    options?: { cancellationReason?: string },
+  ) => {
     if (!selectedRow) {
       toast.error("Unable to update status", {
         description: "No request is currently selected.",
@@ -586,7 +626,64 @@ export default function RequestsPage() {
       return;
     }
 
-    updateRequestStatus(selectedRow.id, action);
+    const isLiveWriteFlow = hasLiveRequests && isSupabaseConfigured();
+    const nextJobStatus = mapRequestActionToJobStatus(action);
+
+    if (isLiveWriteFlow) {
+      const updateResult = await supabaseJobs.updateLifecycle({
+        jobId: selectedRow.id,
+        status: nextJobStatus,
+        actorUserId: nextJobStatus === "cancelled" ? adminUserId : undefined,
+        cancellationReason: options?.cancellationReason,
+      });
+
+      if (updateResult.ok === false) {
+        throw new Error(updateResult.message);
+      }
+
+      setLocalRequestRow(updateResult.data);
+      useRequestsStore
+        .getState()
+        .setRequestStatusOverride(selectedRow.id, {
+          status:
+            nextJobStatus === "completed"
+              ? "Completed"
+              : nextJobStatus === "cancelled"
+                ? "Cancelled"
+                : "Pending",
+          lifecycleStatus:
+            nextJobStatus === "completed"
+              ? "Completed"
+              : nextJobStatus === "cancelled"
+                ? "Cancelled"
+                : "Current",
+          etaLabel:
+            nextJobStatus === "completed"
+              ? "Completed"
+              : nextJobStatus === "cancelled"
+                ? "Cancelled"
+                : "Awaiting dispatch",
+        });
+      useRequestsStore
+        .getState()
+        .setCancellationReason(
+          selectedRow.id,
+          nextJobStatus === "cancelled"
+            ? options?.cancellationReason?.trim() || null
+            : null,
+        );
+    } else {
+      updateRequestStatus(selectedRow.id, action);
+      useRequestsStore
+        .getState()
+        .setCancellationReason(
+          selectedRow.id,
+          action === "Cancel order"
+            ? options?.cancellationReason?.trim() || null
+            : null,
+        );
+    }
+
     toast.success(action, {
       description: `${selectedRow.request.service} is now ${action
         .replace(" order", "")
