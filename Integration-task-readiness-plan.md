@@ -688,7 +688,7 @@ Current snapshot note:
 
 ### Phase E - Requests And Job Monitoring Write Integration
 
-#### Chunk E1 - Job lifecycle writes (IN PROGRESS - SQL REQUIRED)
+#### Chunk E1 - Job lifecycle writes (DONE)
 
 ```text
 Integration task: Connect the requests dispatch workflow to live job lifecycle writes using the current jobs schema and any existing database functions where appropriate. Preserve the current operational queue UX and table/sidebar patterns.
@@ -705,11 +705,12 @@ Requirements:
 
 Current snapshot note:
 - `public.jobs` already has the lifecycle statuses and timestamps E1 needs: `requested`, `broadcast`, `accepted`, `contractor_en_route`, `arrived`, `in_progress`, `completed`, `cancelled`, plus `accepted_at`, `started_at`, `completed_at`, `cancelled_at`, `cancellation_reason`, and `cancelled_by`.
-- The current snapshot already includes `public.accept_job(...)`, but it does not yet include an admin-specific update policy on `public.jobs`.
-- E1 frontend live writes are wired against the shared jobs table, but the admin app still requires the SQL in `supabase/manual_sql/admin_jobs_update_policy.sql` before those writes can succeed under RLS.
+- The current snapshot already includes `public.accept_job(...)` and now also includes the admin-specific `Admins can update jobs` policy in the latest pulled migration.
+- E1 now uses live frontend job lifecycle writes against the shared `public.jobs` table for complete, return-to-dispatch (`broadcast`), and cancel flows while preserving the existing sidebar confirmation/reason UX.
+- More advanced intervention metadata and realtime sync remain in E2; E1 only covers job lifecycle writes that fit the current backend contract.
 ```
 
-#### Chunk E2 - Operational intervention and realtime
+#### Chunk E2 - Operational intervention and realtime (DONE)
 
 ```text
 Integration task: Extend the live requests integration with operational intervention support and realtime job updates where the current backend contract safely allows it. Preserve the existing monitoring UI without redesign.
@@ -722,6 +723,11 @@ Scope:
 Requirements:
 - Do not invent unsupported backend fields.
 - If delayed/dispute metadata is not yet modeled, keep those pieces clearly derived or deferred.
+
+Current snapshot note:
+- `public.jobs` is already present in the shared realtime publication, so the admin requests surface can subscribe to job changes without adding duplicate tables or changing the mobile contract.
+- The current backend contract still does not expose dedicated delay, dispute, or escalation fields for jobs; those intervention notes remain local operations annotations for now.
+- E2 now uses realtime job subscriptions plus safe live refresh of the requests table, sidebar, and tracker state while preserving the existing monitoring UI.
 ```
 
 ### Phase F - Settings Integration

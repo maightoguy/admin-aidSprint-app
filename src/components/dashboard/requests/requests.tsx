@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,8 +46,14 @@ import {
 import type { UserRequestHistoryItem } from "../user-details/user-details.types";
 import { paginateItems } from "../shared/pagination-utils";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { supabaseJobs, supabaseProfiles, type JobRow } from "@/lib/supabase/data";
+import { supabase } from "@/lib/supabase/client";
+import {
+  supabaseJobs,
+  supabaseProfiles,
+  type JobRow,
+} from "@/lib/supabase/data";
 import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
+import { createLogger } from "@/lib/logger";
 
 type RequestListRow = {
   id: string;
@@ -136,6 +142,8 @@ type RequestsQueueCard = {
   tone: "neutral" | "warning" | "danger";
   onClick: () => void;
 };
+
+const logger = createLogger("Requests");
 
 function getInitials(name: string) {
   return name
@@ -296,6 +304,7 @@ export default function RequestsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasLiveRequests, setHasLiveRequests] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const pageSize = expanded ? 10 : 5;
   const {
     filters: urlFilters,
@@ -348,10 +357,8 @@ export default function RequestsPage() {
     }
   }, [isRequestsOpen]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRequests() {
+  const loadRequests = useCallback(
+    async (options?: { silent?: boolean; source?: "initial" | "realtime" }) => {
       if (
         import.meta.env.MODE === "test" ||
         import.meta.env.VITEST ||
@@ -360,7 +367,9 @@ export default function RequestsPage() {
         return;
       }
 
-      setIsLoading(true);
+      if (!options?.silent) {
+        setIsLoading(true);
+      }
       setLoadError(null);
 
       try {
@@ -412,23 +421,25 @@ export default function RequestsPage() {
           };
         });
 
-        if (cancelled) return;
-
         const selectedId = useRequestsStore.getState().selectedRequestId;
-        const sidebarOpen = useRequestsStore.getState().isSidebarOpen;
         const selectedExistsInNext =
           selectedId && nextRows.some((row) => row.id === selectedId);
 
-        if (sidebarOpen && selectedId && !selectedExistsInNext) {
-          pendingRowsRef.current = nextRows;
-          setHasLiveRequests(true);
-          return;
+        if (selectedId && !selectedExistsInNext) {
+          if (options?.source === "realtime") {
+            toast.info("Selected request left the live queue", {
+              description:
+                "The sidebar and tracker were closed after the request disappeared from live data.",
+            });
+          }
+
+          pendingRowsRef.current = null;
+          useRequestsStore.getState().closeAll();
         }
 
         setBaseRows(nextRows);
         setHasLiveRequests(true);
       } catch (error) {
-        if (cancelled) return;
         setHasLiveRequests(false);
         setLoadError(
           error instanceof Error
@@ -436,17 +447,66 @@ export default function RequestsPage() {
             : "Unable to load requests right now.",
         );
       } finally {
-        if (!cancelled) {
+        if (!options?.silent) {
           setIsLoading(false);
         }
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    void loadRequests({ source: "initial" });
+  }, [loadRequests]);
+
+  useEffect(() => {
+    if (
+      import.meta.env.MODE === "test" ||
+      import.meta.env.VITEST ||
+      !isSupabaseConfigured() ||
+      !supabase
+    ) {
+      return;
     }
 
-    void loadRequests();
+    let isActive = true;
+    const channel = supabase
+      .channel("admin-requests-jobs")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "jobs",
+        },
+        () => {
+          if (!isActive) {
+            return;
+          }
+
+          logger.info("Received realtime jobs update. Refreshing requests.");
+          void loadRequests({ silent: true, source: "realtime" });
+        },
+      )
+      .subscribe((status) => {
+        if (!isActive) {
+          return;
+        }
+
+        const connected = status === "SUBSCRIBED";
+        setIsRealtimeConnected(connected);
+
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          logger.error("Requests realtime subscription failed.", status);
+        }
+      });
+
     return () => {
-      cancelled = true;
+      isActive = false;
+      setIsRealtimeConnected(false);
+      void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadRequests]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -642,28 +702,26 @@ export default function RequestsPage() {
       }
 
       setLocalRequestRow(updateResult.data);
-      useRequestsStore
-        .getState()
-        .setRequestStatusOverride(selectedRow.id, {
-          status:
-            nextJobStatus === "completed"
-              ? "Completed"
-              : nextJobStatus === "cancelled"
-                ? "Cancelled"
-                : "Pending",
-          lifecycleStatus:
-            nextJobStatus === "completed"
-              ? "Completed"
-              : nextJobStatus === "cancelled"
-                ? "Cancelled"
-                : "Current",
-          etaLabel:
-            nextJobStatus === "completed"
-              ? "Completed"
-              : nextJobStatus === "cancelled"
-                ? "Cancelled"
-                : "Awaiting dispatch",
-        });
+      useRequestsStore.getState().setRequestStatusOverride(selectedRow.id, {
+        status:
+          nextJobStatus === "completed"
+            ? "Completed"
+            : nextJobStatus === "cancelled"
+              ? "Cancelled"
+              : "Pending",
+        lifecycleStatus:
+          nextJobStatus === "completed"
+            ? "Completed"
+            : nextJobStatus === "cancelled"
+              ? "Cancelled"
+              : "Current",
+        etaLabel:
+          nextJobStatus === "completed"
+            ? "Completed"
+            : nextJobStatus === "cancelled"
+              ? "Cancelled"
+              : "Awaiting dispatch",
+      });
       useRequestsStore
         .getState()
         .setCancellationReason(
@@ -713,6 +771,18 @@ export default function RequestsPage() {
             {queueCards.map((card) => (
               <RequestsQueueCard key={card.title} {...card} />
             ))}
+          </div>
+          <div className="mt-4 rounded-[14px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
+            Live jobs sync:{" "}
+            <span className="font-semibold text-[#101828]">
+              {hasLiveRequests && isRealtimeConnected
+                ? "Realtime connected"
+                : hasLiveRequests
+                  ? "Live reads active"
+                  : "Mock fallback"}
+            </span>
+            . Delay, dispute, and escalation notes remain local operations
+            annotations until matching backend fields are added.
           </div>
         </section>
 
