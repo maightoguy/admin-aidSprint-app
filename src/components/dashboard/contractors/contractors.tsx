@@ -164,6 +164,8 @@ type ContractorQueueFilter =
   | "suspended";
 
 type ContractorLifecycleAction = "suspend" | "restore";
+const LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE =
+  "Live suspend/restore is not wired yet. The current schema still needs dedicated suspension fields and admin RLS policies on the shared contractor tables.";
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -330,6 +332,7 @@ export default function ContractorsPage({
   );
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [hasLiveContractors, setHasLiveContractors] = useState(false);
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
@@ -396,7 +399,11 @@ export default function ContractorsPage({
     let cancelled = false;
 
     async function loadContractors() {
-      if (import.meta.env.MODE === "test" || !isSupabaseConfigured()) {
+      if (
+        import.meta.env.MODE === "test" ||
+        import.meta.env.VITEST ||
+        !isSupabaseConfigured()
+      ) {
         return;
       }
 
@@ -407,9 +414,11 @@ export default function ContractorsPage({
         const records = await loadLiveContractorRecords();
         if (!cancelled) {
           setContractors(records);
+          setHasLiveContractors(true);
         }
       } catch (error) {
         if (!cancelled) {
+          setHasLiveContractors(false);
           setLiveError(
             error instanceof Error
               ? error.message
@@ -520,6 +529,13 @@ export default function ContractorsPage({
       !lifecycleAction ||
       !lifecycleReason.trim()
     ) {
+      return;
+    }
+
+    if (hasLiveContractors) {
+      toast.error("Backend contract required", {
+        description: LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE,
+      });
       return;
     }
 
@@ -1009,6 +1025,11 @@ export default function ContractorsPage({
                   ? "Suspension should be used for trust, quality, or compliance issues. The reason should stay audit-ready."
                   : "Restoration should only be used after trust, payout, or verification blockers are resolved."}
               </p>
+              {hasLiveContractors ? (
+                <p className="mt-2 text-sm text-[#B54708]">
+                  {LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-5">

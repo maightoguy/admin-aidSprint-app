@@ -56,6 +56,9 @@ type ContractorDetailsPageProps = {
   ) => Promise<void> | void;
 };
 
+const LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE =
+  "Live suspend/restore is not wired yet. The current schema still needs dedicated suspension fields and admin RLS policies on the shared contractor tables.";
+
 function LoadingState() {
   return (
     <div className="space-y-5">
@@ -379,6 +382,7 @@ function ContractorDetailsContent({
   onLifecycleReasonChange,
   onOpenManageDialog,
   onConfirmLifecycleAction,
+  hasLiveContractorDetails,
 }: {
   activeTab: ContractorDetailsTabValue;
   contractor: ContractorRecord;
@@ -397,6 +401,7 @@ function ContractorDetailsContent({
   onLifecycleReasonChange: (reason: string) => void;
   onOpenManageDialog: () => void;
   onConfirmLifecycleAction: () => void;
+  hasLiveContractorDetails: boolean;
 }) {
   const { completedCount } = useContractorKyc();
 
@@ -492,6 +497,13 @@ function ContractorDetailsContent({
             </div>
 
             <div className="mt-5">
+              {hasLiveContractorDetails ? (
+                <div className="mb-4 rounded-[12px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
+                  <p className="text-sm text-[#92400E]">
+                    {LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE}
+                  </p>
+                </div>
+              ) : null}
               <label className="block text-sm font-semibold text-[#344054]">
                 {lifecycleAction === "suspend"
                   ? "Suspension reason"
@@ -598,6 +610,8 @@ export default function ContractorDetailsPage({
     >();
   const [isLiveLoading, setIsLiveLoading] = useState(false);
   const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
+  const [hasLiveContractorDetails, setHasLiveContractorDetails] =
+    useState(false);
 
   useEffect(() => {
     setCurrentContractor(matchedContractor);
@@ -614,6 +628,7 @@ export default function ContractorDetailsPage({
       if (
         !resolvedContractorId ||
         import.meta.env.MODE === "test" ||
+        import.meta.env.VITEST ||
         !isSupabaseConfigured()
       ) {
         return;
@@ -635,8 +650,10 @@ export default function ContractorDetailsPage({
         });
         setLiveRequestRows(details.requestRows);
         setLiveTransactions(details.transactions);
+        setHasLiveContractorDetails(true);
       } catch (error) {
         if (!cancelled) {
+          setHasLiveContractorDetails(false);
           setLiveErrorMessage(
             error instanceof Error
               ? error.message
@@ -667,6 +684,11 @@ export default function ContractorDetailsPage({
     const trimmedReason = lifecycleReason.trim();
     if (!trimmedReason) {
       setActionError("A reason is required.");
+      return;
+    }
+
+    if (hasLiveContractorDetails) {
+      setActionError(LIVE_LIFECYCLE_ACTIONS_BLOCKED_MESSAGE);
       return;
     }
 
@@ -760,6 +782,7 @@ export default function ContractorDetailsPage({
         {!isLoading && !isLiveLoading && currentContractor ? (
           <ContractorKycProvider
             key={currentContractor.id}
+            contractorId={currentContractor.id}
             initialState={kycInitialState}
           >
             <ContractorDetailsContent
@@ -787,6 +810,7 @@ export default function ContractorDetailsPage({
               }}
               onOpenManageDialog={() => setManageDialogOpen(true)}
               onConfirmLifecycleAction={handleLifecycleAction}
+              hasLiveContractorDetails={hasLiveContractorDetails}
             />
           </ContractorKycProvider>
         ) : null}

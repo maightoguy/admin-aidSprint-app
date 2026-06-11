@@ -44,6 +44,7 @@ import {
 } from "../user-details/user-details.utils";
 import type { UserRequestHistoryItem } from "../user-details/user-details.types";
 import { paginateItems } from "../shared/pagination-utils";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseJobs, supabaseProfiles } from "@/lib/supabase/data";
 import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
 
@@ -323,6 +324,14 @@ export default function RequestsPage() {
     let cancelled = false;
 
     async function loadRequests() {
+      if (
+        import.meta.env.MODE === "test" ||
+        import.meta.env.VITEST ||
+        !isSupabaseConfigured()
+      ) {
+        return;
+      }
+
       setIsLoading(true);
       setLoadError(null);
 

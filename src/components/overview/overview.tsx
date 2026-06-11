@@ -1,4 +1,4 @@
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
@@ -37,14 +37,26 @@ import { ROUTES } from "@/components/dashboard/shared/dashboard-navigation";
 import { userDetailsRecords } from "@/components/dashboard/user-details/user-details.data";
 import type { UserRequestHistoryItem } from "@/components/dashboard/user-details/user-details.types";
 import {
-  applyRequestOpsOverride,
-  applyRequestStatusOverride,
   useRequestsStore,
 } from "@/components/dashboard/requests/requests.store";
-import { contractorRecords } from "@/components/dashboard/contractors/contractors.data";
+import {
+  contractorRecords,
+  loadLiveContractorRecords,
+} from "@/components/dashboard/contractors/contractors.data";
+import type { ContractorRecord } from "@/components/dashboard/contractors/contractors.types";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  type PaymentRow,
+  supabaseFinance,
+  supabaseJobs,
+  supabaseProfiles,
+} from "@/lib/supabase/data";
+import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
+import { createLogger } from "@/lib/logger";
 
 const totalRevenuePattern = summaryCardPattern;
 const requestsCardPattern = summaryCardPattern;
+const logger = createLogger("Overview");
 
 type OverviewStatistic = {
   title: string;
@@ -167,6 +179,7 @@ const topServices: TopService[] = [
   { label: "Cleaning", color: "#8B5CF6" },
   { label: "Carpentry", color: "#EC4899" },
 ];
+const liveServicePalette = ["#22C55E", "#22B8CF", "#8B5CF6", "#EC4899"];
 
 type TopServiceRecord = {
   id: string;
@@ -277,6 +290,82 @@ type OpsRequestRow = {
   etaLabel: string;
   urgencyLabel: string;
 };
+
+function buildOpsRequestRow(params: {
+  request: UserRequestHistoryItem;
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+}): OpsRequestRow {
+  const { request, userId, customerName, customerEmail } = params;
+  return {
+    requestId: request.id,
+    requestCode: request.requestCode,
+    userId,
+    customerName,
+    customerEmail,
+    service: request.service,
+    location: request.location,
+    date: request.date,
+    status: request.status,
+    lifecycleStatus: request.lifecycleStatus,
+    etaLabel: request.etaLabel,
+    urgencyLabel: request.urgencyLabel,
+  };
+}
+
+function applyOverviewRequestOverrides(params: {
+  row: OpsRequestRow;
+  requestStatusById: ReturnType<
+    typeof useRequestsStore.getState
+  >["requestStatusById"];
+  requestOpsById: ReturnType<typeof useRequestsStore.getState>["requestOpsById"];
+}): OpsRequestRow {
+  const statusOverride = params.requestStatusById[params.row.requestId];
+  const opsOverride = params.requestOpsById[params.row.requestId];
+  const request = {
+    ...params.row,
+    status: statusOverride?.status ?? params.row.status,
+    lifecycleStatus:
+      statusOverride?.lifecycleStatus ?? params.row.lifecycleStatus,
+    etaLabel: statusOverride?.etaLabel ?? params.row.etaLabel,
+  };
+
+  if (opsOverride?.delayedReason) {
+    request.etaLabel = "Delayed";
+  }
+
+  if (opsOverride?.disputeReason) {
+    request.status = "Pending";
+  }
+
+  if (opsOverride?.monitoringState === "paused") {
+    request.lifecycleStatus = "Assigned";
+  }
+
+  return {
+    ...params.row,
+    requestCode: request.requestCode,
+    service: request.service,
+    location: request.location,
+    date: request.date,
+    status: request.status,
+    lifecycleStatus: request.lifecycleStatus,
+    etaLabel: request.etaLabel,
+    urgencyLabel: request.urgencyLabel,
+  };
+}
+
+function paymentToRevenueRecord(payment: PaymentRow): RevenueRecord {
+  const amount =
+    Number(payment.contractor_payout) || Number(payment.amount) || 0;
+
+  return {
+    id: payment.id,
+    date: payment.created_at.slice(0, 10),
+    amount,
+  };
+}
 
 function getRequestStatusClasses(status: OpsRequestRow["status"]) {
   if (status === "Active") {
@@ -404,47 +493,157 @@ export default function Overview() {
     (state) => state.requestStatusById,
   );
   const requestOpsById = useRequestsStore((state) => state.requestOpsById);
+  const [liveRequestRows, setLiveRequestRows] = useState<
+    OpsRequestRow[] | null
+  >(null);
+  const [liveRevenueRows, setLiveRevenueRows] = useState<
+    RevenueRecord[] | null
+  >(null);
+  const [liveTopServiceRows, setLiveTopServiceRows] = useState<
+    TopServiceRecord[] | null
+  >(null);
+  const [liveContractors, setLiveContractors] = useState<
+    ContractorRecord[] | null
+  >(null);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
 
-  const opsRequestRows = useMemo<OpsRequestRow[]>(() => {
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLiveOverview() {
+      if (
+        import.meta.env.MODE === "test" ||
+        import.meta.env.VITEST ||
+        !isSupabaseConfigured()
+      ) {
+        return;
+      }
+
+      setIsLiveLoading(true);
+      setLiveError(null);
+
+      try {
+        const [jobsResult, paymentsResult, liveContractorRecords] =
+          await Promise.all([
+            supabaseJobs.listLatest({ limit: 500 }),
+            supabaseFinance.listPayments({ limit: 500 }),
+            loadLiveContractorRecords(),
+          ]);
+
+        if (jobsResult.ok === false) {
+          throw new Error(jobsResult.message);
+        }
+        if (paymentsResult.ok === false) {
+          throw new Error(paymentsResult.message);
+        }
+
+        const profileIds = Array.from(
+          new Set(jobsResult.data.map((job) => job.user_id).filter(Boolean)),
+        );
+        const profilesResult = await supabaseProfiles.listByIds(profileIds);
+        if (profilesResult.ok === false) {
+          throw new Error(profilesResult.message);
+        }
+
+        const profilesById = new Map(
+          profilesResult.data.map((profile) => [profile.id, profile]),
+        );
+
+        const nextRequestRows = jobsResult.data.map((job) => {
+          const userProfile = profilesById.get(job.user_id) ?? null;
+          const request = mapJobRowToUserRequestHistoryItem({
+            job,
+            userProfile,
+          });
+          const customerName =
+            userProfile?.full_name?.trim() ||
+            `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim() ||
+            "Customer";
+
+          return buildOpsRequestRow({
+            request,
+            userId: job.user_id,
+            customerName,
+            customerEmail: userProfile?.email?.trim() || "—",
+          });
+        });
+
+        const nextRevenueRows = paymentsResult.data.map(paymentToRevenueRecord);
+        const nextTopServiceRows = jobsResult.data.map((job) => ({
+          id: `top-service-${job.id}`,
+          date: job.created_at.slice(0, 10),
+          label: job.service_type?.trim() || "Other",
+          amount: Number(job.final_price) || Number(job.price_estimate) || 0,
+        }));
+
+        if (cancelled) {
+          return;
+        }
+
+        setLiveRequestRows(nextRequestRows);
+        setLiveRevenueRows(nextRevenueRows);
+        setLiveTopServiceRows(nextTopServiceRows);
+        setLiveContractors(liveContractorRecords);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        logger.error("Failed to load live overview data.", error);
+        setLiveError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load live overview data right now.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLiveLoading(false);
+        }
+      }
+    }
+
+    void loadLiveOverview();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const mockOpsRequestRows = useMemo<OpsRequestRow[]>(() => {
     return userDetailsRecords.flatMap((user) =>
-      user.requestHistory.map((request) => {
-        const statusOverride = requestStatusById[request.id];
-        const opsOverride = requestOpsById[request.id];
-
-        const statusAdjusted = applyRequestStatusOverride(
+      user.requestHistory.map((request) =>
+        buildOpsRequestRow({
           request,
-          statusOverride,
-        );
-        const opsAdjusted = applyRequestOpsOverride(
-          statusAdjusted,
-          opsOverride,
-        );
-
-        return {
-          requestId: opsAdjusted.id,
-          requestCode: opsAdjusted.requestCode,
           userId: user.id,
           customerName: user.name,
           customerEmail: user.email,
-          service: opsAdjusted.service,
-          location: opsAdjusted.location,
-          date: opsAdjusted.date,
-          status: opsAdjusted.status,
-          lifecycleStatus: opsAdjusted.lifecycleStatus,
-          etaLabel: opsAdjusted.etaLabel,
-          urgencyLabel: opsAdjusted.urgencyLabel,
-        };
+        }),
+      ),
+    );
+  }, []);
+
+  const opsRequestRows = useMemo<OpsRequestRow[]>(() => {
+    const baseRows = liveRequestRows ?? mockOpsRequestRows;
+    return baseRows.map((row) =>
+      applyOverviewRequestOverrides({
+        row,
+        requestStatusById,
+        requestOpsById,
       }),
     );
-  }, [requestOpsById, requestStatusById]);
+  }, [liveRequestRows, mockOpsRequestRows, requestOpsById, requestStatusById]);
+
+  const revenueSource = liveRevenueRows ?? revenueRecords;
+  const contractorSource = liveContractors ?? contractorRecords;
+  const topServiceSource = liveTopServiceRows ?? topServiceRecords;
 
   const filteredRevenueRecords = useMemo(() => {
-    if (!fromDate && !toDate) return revenueRecords;
-    return revenueRecords.filter((record) => {
+    if (!fromDate && !toDate) return revenueSource;
+    return revenueSource.filter((record) => {
       const parsed = parseDateForFilter(record.date);
       return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
     });
-  }, [fromDate, toDate]);
+  }, [fromDate, revenueSource, toDate]);
 
   const revenueBars = useMemo<RevenueBar[]>(() => {
     const grouped = new Map<string, number>();
@@ -471,17 +670,28 @@ export default function Overview() {
   }, [filteredRevenueRecords, granularity]);
 
   const filteredTopServiceRecords = useMemo(() => {
-    if (!fromDate && !toDate) return topServiceRecords;
-    return topServiceRecords.filter((record) => {
+    if (!fromDate && !toDate) return topServiceSource;
+    return topServiceSource.filter((record) => {
       const parsed = parseDateForFilter(record.date);
       return parsed ? isWithinInclusiveRange(parsed, fromDate, toDate) : false;
     });
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, topServiceSource]);
 
-  const pieSegmentsSource = useMemo(() => {
-    const totals = new Map<TopService["label"], number>();
+  const serviceLegend = useMemo(() => {
+    const totals = new Map<string, number>();
     for (const record of filteredTopServiceRecords) {
       totals.set(record.label, (totals.get(record.label) ?? 0) + record.amount);
+    }
+
+    if (liveTopServiceRows) {
+      return Array.from(totals.entries())
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 4)
+        .map(([label, amount], index) => ({
+          label,
+          amount,
+          color: liveServicePalette[index % liveServicePalette.length],
+        }));
     }
 
     return topServices.map((service) => ({
@@ -489,7 +699,15 @@ export default function Overview() {
       amount: totals.get(service.label) ?? 0,
       color: service.color,
     }));
-  }, [filteredTopServiceRecords]);
+  }, [filteredTopServiceRecords, liveTopServiceRows]);
+
+  const pieSegmentsSource = useMemo(() => {
+    return serviceLegend.map((service) => ({
+      label: service.label,
+      amount: service.amount,
+      color: service.color,
+    }));
+  }, [serviceLegend]);
 
   const totalTopServicesAmount = pieSegmentsSource.reduce(
     (total, service) => total + service.amount,
@@ -567,27 +785,27 @@ export default function Overview() {
       Boolean(entry?.disputeReason),
     ).length;
 
-    const payoutBlocked = contractorRecords.filter(
+    const payoutBlocked = contractorSource.filter(
       (contractor) => contractor.payoutStatus === "Blocked",
     ).length;
 
-    const kycBlockers = contractorRecords.filter(
+    const kycBlockers = contractorSource.filter(
       (contractor) => contractor.verificationState === "Pending review",
     ).length;
 
-    const highRiskContractors = contractorRecords.filter(
+    const highRiskContractors = contractorSource.filter(
       (contractor) => contractor.riskLevel === "High" || contractor.rating < 4,
     ).length;
 
-    const activeContractorsNow = contractorRecords.filter(
+    const activeContractorsNow = contractorSource.filter(
       (contractor) => contractor.currentStatus === "Online",
     ).length;
 
     const avgResponseMinutes = getAverageMinutes(
-      contractorRecords.map((contractor) => contractor.responseTimeLabel),
+      contractorSource.map((contractor) => contractor.responseTimeLabel),
     );
 
-    const completionRates = contractorRecords
+    const completionRates = contractorSource
       .map((contractor) => contractor.completionRate)
       .filter((value) => Number.isFinite(value));
     const avgCompletionRate = completionRates.length
@@ -610,14 +828,16 @@ export default function Overview() {
       avgResponseMinutes,
       avgCompletionRate,
     };
-  }, [opsRequestRows, requestOpsById]);
+  }, [contractorSource, opsRequestRows, requestOpsById]);
 
   const statistics = useMemo<OverviewStatistic[]>(
     () => [
       {
         title: "Jobs today",
         value: opsSnapshot.jobsToday.toLocaleString("en-US"),
-        trend: "+ 2.3% vs Yesterday",
+        trend: liveRequestRows
+          ? "Derived from live jobs"
+          : "+ 2.3% vs Yesterday",
         Icon: TotalRequestsIcon,
         highlighted: true,
         patternSrc: totalRevenuePattern,
@@ -627,7 +847,9 @@ export default function Overview() {
       {
         title: "Active contractors now",
         value: opsSnapshot.activeContractorsNow.toLocaleString("en-US"),
-        trend: "+ 2.3% vs Yesterday",
+        trend: liveContractors
+          ? "Derived from live contractors"
+          : "+ 2.3% vs Yesterday",
         Icon: TotalContractorsIcon,
         patternSrc: summaryCardPattern,
         patternClassName:
@@ -639,7 +861,9 @@ export default function Overview() {
           opsSnapshot.avgResponseMinutes !== null
             ? `${opsSnapshot.avgResponseMinutes} min avg`
             : "—",
-        trend: "+ 2.3% vs Yesterday",
+        trend: liveContractors
+          ? "Derived from live contractors"
+          : "+ 2.3% vs Yesterday",
         Icon: TotalRevenueIcon,
         patternSrc: summaryCardPattern,
         patternClassName:
@@ -648,18 +872,30 @@ export default function Overview() {
       {
         title: "Completion rate",
         value: formatPercent(opsSnapshot.avgCompletionRate),
-        trend: "+ 2.3% vs Yesterday",
+        trend: liveContractors
+          ? "Derived from live contractors"
+          : "+ 2.3% vs Yesterday",
         Icon: TotalUsersIcon,
         patternSrc: requestsCardPattern,
         patternClassName:
           "absolute -left-[81px] -top-[14px] hidden h-[156px] w-[428px] max-w-none rotate-180 opacity-80 lg:block",
       },
     ],
-    [opsSnapshot],
+    [liveContractors, liveRequestRows, opsSnapshot],
   );
 
   return (
     <DashboardLayout title="Dashboard">
+      {isLiveLoading ? (
+        <div className="mb-5 rounded-2xl border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085] shadow-sm">
+          Loading live overview data...
+        </div>
+      ) : null}
+      {liveError ? (
+        <div className="mb-5 rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318] shadow-sm">
+          {liveError}
+        </div>
+      ) : null}
       <section className="rounded-2xl border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -810,6 +1046,11 @@ export default function Overview() {
           <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold text-[#667085]">Revenue</h2>
+              {liveRevenueRows ? (
+                <p className="mt-1 text-xs text-[#98A2B3]">
+                  Derived from live payments.
+                </p>
+              ) : null}
             </div>
             <ToggleGroup
               type="single"
@@ -906,9 +1147,16 @@ export default function Overview() {
         </article>
         <article className="rounded-2xl border border-[#EAECF0] bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-6 flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold text-[#667085]">
-              Top services
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold text-[#667085]">
+                Top services
+              </h2>
+              {liveTopServiceRows ? (
+                <p className="mt-1 text-xs text-[#98A2B3]">
+                  Derived from live jobs.
+                </p>
+              ) : null}
+            </div>
             <FilterButton
               title="Filter top services by date"
               schema={dateRangeSchema}
@@ -994,7 +1242,7 @@ export default function Overview() {
               </div>
             </div>
             <div className="w-full space-y-3">
-              {topServices.map((service) => (
+              {serviceLegend.map((service) => (
                 <div
                   key={service.label}
                   className={[
@@ -1021,9 +1269,16 @@ export default function Overview() {
       </section>
       <section className="mt-5 rounded-2xl border border-[#EAECF0] bg-white shadow-sm">
         <div className="flex items-center justify-between gap-4 border-b border-[#EAECF0] px-4 py-4 sm:px-5">
-          <h2 className="text-sm font-semibold text-[#667085]">
-            Recent requests
-          </h2>
+          <div>
+            <h2 className="text-sm font-semibold text-[#667085]">
+              Recent requests
+            </h2>
+            {liveRequestRows ? (
+              <p className="mt-1 text-xs text-[#98A2B3]">
+                Read-only live jobs feed.
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => {

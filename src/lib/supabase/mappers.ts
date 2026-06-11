@@ -249,6 +249,7 @@ export function mapContractorDocumentsToKycInitialState(params: {
   const { documents, reviewerProfiles } = params;
 
   const buildDoc = (document: ContractorDocumentRow): ContractorKycDocumentRecord => ({
+    documentId: document.id,
     file: createPlaceholderFile(
       document.file_name || document.document_type,
       document.mime_type || "application/octet-stream",

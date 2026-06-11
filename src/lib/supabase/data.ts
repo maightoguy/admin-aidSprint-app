@@ -117,6 +117,8 @@ export type ContractorDocumentRow = {
   created_at: string;
 };
 
+export type ContractorDocumentReviewStatus = "approved" | "rejected";
+
 export type PaymentRow = {
   id: string;
   job_id: string;
@@ -476,6 +478,49 @@ export const supabaseContractorDocuments = {
       .select("*")
       .in("contractor_id", ids)
       .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as ContractorDocumentRow[] };
+  },
+
+  async reviewDocuments(params: {
+    contractorId: string;
+    documentIds: string[];
+    status: ContractorDocumentReviewStatus;
+    reviewedBy: string;
+    rejectionReason?: string | null;
+  }): Promise<SupabaseResult<ContractorDocumentRow[]>> {
+    const client = requireSupabaseClient();
+    const contractorId = params.contractorId.trim();
+    const reviewedBy = params.reviewedBy.trim();
+    const documentIds = Array.from(
+      new Set(params.documentIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (!contractorId) {
+      return { ok: false, message: "Contractor id is required." };
+    }
+
+    if (documentIds.length === 0) {
+      return { ok: false, message: "No contractor documents were selected for review." };
+    }
+
+    if (!reviewedBy) {
+      return { ok: false, message: "Reviewer id is required." };
+    }
+
+    const { data, error } = await client
+      .from("contractor_documents")
+      .update({
+        status: params.status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewedBy,
+        rejection_reason:
+          params.status === "rejected" ? params.rejectionReason?.trim() || null : null,
+      })
+      .eq("contractor_id", contractorId)
+      .in("id", documentIds)
+      .select("*");
 
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as ContractorDocumentRow[] };

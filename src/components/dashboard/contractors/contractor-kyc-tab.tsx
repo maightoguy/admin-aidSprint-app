@@ -199,23 +199,27 @@ function KycDocumentCard({
 function PendingActions({
   onAccept,
   onReject,
+  disabled = false,
 }: {
   onAccept: () => void;
   onReject: () => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
       <button
         type="button"
         onClick={onAccept}
-        className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+        disabled={disabled}
+        className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877] disabled:cursor-not-allowed disabled:opacity-60"
       >
         Accept
       </button>
       <button
         type="button"
         onClick={onReject}
-        className="inline-flex items-center justify-center rounded-[10px] border border-[#F04438] bg-white px-4 py-3 text-sm font-semibold text-[#F04438] transition hover:bg-[#FEF3F2]"
+        disabled={disabled}
+        className="inline-flex items-center justify-center rounded-[10px] border border-[#F04438] bg-white px-4 py-3 text-sm font-semibold text-[#F04438] transition hover:bg-[#FEF3F2] disabled:cursor-not-allowed disabled:opacity-60"
       >
         Reject
       </button>
@@ -282,6 +286,7 @@ function IdVerificationPanel({
   onView,
   onAccept,
   onReject,
+  isBusy,
 }: {
   contractor: ContractorRecord;
   document: ContractorKycDocumentRecord | null;
@@ -292,6 +297,7 @@ function IdVerificationPanel({
   onView: () => void;
   onAccept: () => void;
   onReject: () => void;
+  isBusy: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -325,7 +331,11 @@ function IdVerificationPanel({
               <div className="space-y-4">
                 <KycDocumentCard document={document} onView={onView} />
                 {status === "pending" ? (
-                  <PendingActions onAccept={onAccept} onReject={onReject} />
+                  <PendingActions
+                    onAccept={onAccept}
+                    onReject={onReject}
+                    disabled={isBusy}
+                  />
                 ) : null}
                 {status === "accepted" && reviewedAt && reviewedBy ? (
                   <div className="space-y-3">
@@ -386,6 +396,7 @@ function PoliceVerificationPanel({
   onView,
   onAccept,
   onReject,
+  isBusy,
 }: {
   document: ContractorKycDocumentRecord | null;
   status: ContractorKycStatus | null;
@@ -395,6 +406,7 @@ function PoliceVerificationPanel({
   onView: () => void;
   onAccept: () => void;
   onReject: () => void;
+  isBusy: boolean;
 }) {
   return (
     <section className="space-y-4 rounded-[16px] border border-[#EAECF0] bg-white px-4 py-5 sm:px-5">
@@ -433,7 +445,11 @@ function PoliceVerificationPanel({
               <div className="min-w-0 flex-1 space-y-4">
                 <KycDocumentCard document={document} onView={onView} />
                 {status === "pending" ? (
-                  <PendingActions onAccept={onAccept} onReject={onReject} />
+                  <PendingActions
+                    onAccept={onAccept}
+                    onReject={onReject}
+                    disabled={isBusy}
+                  />
                 ) : null}
                 {status === "accepted" && reviewedAt && reviewedBy ? (
                   <div className="space-y-3">
@@ -493,6 +509,7 @@ function ServiceProviderPanel({
   reviewedBy,
   onAccept,
   onReject,
+  isBusy,
 }: {
   documents: ContractorKycDocumentRecord[];
   status: ContractorKycStatus | null;
@@ -501,6 +518,7 @@ function ServiceProviderPanel({
   reviewedBy?: string;
   onAccept: () => void;
   onReject: () => void;
+  isBusy: boolean;
 }) {
   if (!documents.length) {
     return (
@@ -584,7 +602,11 @@ function ServiceProviderPanel({
               </div>
             </div>
             {status === "pending" ? (
-              <PendingActions onAccept={onAccept} onReject={onReject} />
+              <PendingActions
+                onAccept={onAccept}
+                onReject={onReject}
+                disabled={isBusy}
+              />
             ) : null}
             {status === "accepted" && reviewedAt && reviewedBy ? (
               <div className="space-y-3">
@@ -641,6 +663,9 @@ export function ContractorKycTab({
 }) {
   const {
     state,
+    isReviewSaving,
+    reviewError,
+    clearReviewError,
     setActiveCategory,
     acceptDocument,
     rejectDocument,
@@ -657,13 +682,17 @@ export function ContractorKycTab({
   );
   const selectedConfig = categoryDetails[selectedCategory];
 
-  const handleAcceptConfirm = () => {
-    acceptDocument(selectedCategory);
+  const handleAcceptConfirm = async () => {
+    const result = await acceptDocument(selectedCategory);
+    if (result.ok === false) {
+      return;
+    }
+
     setIsAcceptOpen(false);
   };
 
-  const handleRejectConfirm = () => {
-    const result = rejectDocument(selectedCategory, rejectReason);
+  const handleRejectConfirm = async () => {
+    const result = await rejectDocument(selectedCategory, rejectReason);
     if (result.ok === false) {
       return;
     }
@@ -683,8 +712,15 @@ export function ContractorKycTab({
           reviewedAt={selectedSnapshot.reviewedAt}
           reviewedBy={selectedSnapshot.reviewedBy}
           onView={() => openDocument("id")}
-          onAccept={() => setIsAcceptOpen(true)}
-          onReject={() => setIsRejectOpen(true)}
+          onAccept={() => {
+            clearReviewError();
+            setIsAcceptOpen(true);
+          }}
+          onReject={() => {
+            clearReviewError();
+            setIsRejectOpen(true);
+          }}
+          isBusy={isReviewSaving}
         />
       );
     }
@@ -698,8 +734,15 @@ export function ContractorKycTab({
           reviewedAt={selectedSnapshot.reviewedAt}
           reviewedBy={selectedSnapshot.reviewedBy}
           onView={() => openDocument("police")}
-          onAccept={() => setIsAcceptOpen(true)}
-          onReject={() => setIsRejectOpen(true)}
+          onAccept={() => {
+            clearReviewError();
+            setIsAcceptOpen(true);
+          }}
+          onReject={() => {
+            clearReviewError();
+            setIsRejectOpen(true);
+          }}
+          isBusy={isReviewSaving}
         />
       );
     }
@@ -711,8 +754,15 @@ export function ContractorKycTab({
         reason={selectedSnapshot.reason}
         reviewedAt={selectedSnapshot.reviewedAt}
         reviewedBy={selectedSnapshot.reviewedBy}
-        onAccept={() => setIsAcceptOpen(true)}
-        onReject={() => setIsRejectOpen(true)}
+        onAccept={() => {
+          clearReviewError();
+          setIsAcceptOpen(true);
+        }}
+        onReject={() => {
+          clearReviewError();
+          setIsRejectOpen(true);
+        }}
+        isBusy={isReviewSaving}
       />
     );
   };
@@ -765,7 +815,19 @@ export function ContractorKycTab({
         </div>
       </section>
 
-      <Dialog open={isAcceptOpen} onOpenChange={setIsAcceptOpen}>
+      <Dialog
+        open={isAcceptOpen}
+        onOpenChange={(open) => {
+          if (isReviewSaving) {
+            return;
+          }
+
+          setIsAcceptOpen(open);
+          if (!open) {
+            clearReviewError();
+          }
+        }}
+      >
         <DialogContent className="w-[calc(100vw-32px)] max-w-[420px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
           <div className="px-6 py-6">
             <DialogTitle className="text-xl font-bold text-[#101828]">
@@ -775,20 +837,27 @@ export function ContractorKycTab({
               Confirm that {selectedConfig.title.toLowerCase()} has been
               reviewed and approved.
             </DialogDescription>
+            {reviewError ? (
+              <div className="mt-4 rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]">
+                {reviewError}
+              </div>
+            ) : null}
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setIsAcceptOpen(false)}
-                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                disabled={isReviewSaving}
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleAcceptConfirm}
-                className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+                disabled={isReviewSaving}
+                className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Confirm
+                {isReviewSaving ? "Saving..." : "Confirm"}
               </button>
             </div>
           </div>
@@ -798,9 +867,14 @@ export function ContractorKycTab({
       <Dialog
         open={isRejectOpen}
         onOpenChange={(open) => {
+          if (isReviewSaving) {
+            return;
+          }
+
           setIsRejectOpen(open);
           if (!open) {
             setRejectReason("");
+            clearReviewError();
           }
         }}
       >
@@ -812,6 +886,11 @@ export function ContractorKycTab({
             <DialogDescription className="mt-2 text-sm text-[#667085]">
               Provide a reason before rejecting this document.
             </DialogDescription>
+            {reviewError ? (
+              <div className="mt-4 rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]">
+                {reviewError}
+              </div>
+            ) : null}
             <div className="mt-4 rounded-[12px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
               <p className="text-sm text-[#92400E]">
                 Rejecting this document keeps the panel read-only and signals
@@ -827,6 +906,7 @@ export function ContractorKycTab({
                 value={rejectReason}
                 onChange={(event) => setRejectReason(event.target.value)}
                 aria-label="Rejection reason"
+                disabled={isReviewSaving}
                 className="mt-2 min-h-[132px]"
                 placeholder="Enter the reason for rejection"
               />
@@ -842,18 +922,20 @@ export function ContractorKycTab({
                 onClick={() => {
                   setIsRejectOpen(false);
                   setRejectReason("");
+                  clearReviewError();
                 }}
-                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                disabled={isReviewSaving}
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleRejectConfirm}
-                disabled={!rejectReason.trim()}
+                disabled={!rejectReason.trim() || isReviewSaving}
                 className="inline-flex items-center justify-center rounded-[10px] bg-[#F04438] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#D92D20] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Confirm rejection
+                {isReviewSaving ? "Saving..." : "Confirm rejection"}
               </button>
             </div>
           </div>

@@ -3,6 +3,14 @@
 ## Status: In-Progress
 
 ## Latest Changes:
+- Completed integration Phase D Chunk D1 (KYC approval/rejection writes).
+  - Added live contractor document review mutations in `src/lib/supabase/data.ts` so admin review decisions now persist `status`, `reviewed_at`, `reviewed_by`, and `rejection_reason` to `contractor_documents`.
+  - Extended `ContractorKycProvider` in `src/components/dashboard/contractors/contractor-kyc-context.tsx` with async approve/reject actions, mutation loading state, inline error handling, and local-only fallback behavior for tests or non-live flows.
+  - Updated `contractor-kyc-tab.tsx` to await review saves, disable duplicate submissions, and surface save errors inside the existing accept/reject dialogs without redesigning the KYC UX.
+  - Passed `contractorId` from `contractor-details-page.tsx` into the KYC provider so live contractor-detail reviews write against the correct Supabase document rows.
+  - Added `documentId` to the KYC document record contract and populated it from Supabase mappers so grouped service-licence reviews can update all relevant `service_licence` rows together.
+  - Marked D1 as done in `Integration-task-readiness-plan.md`.
+- Verified D1 with `npm run test -- contractor-kyc-tab.test.tsx` and `npm run typecheck`.
 - Replaced the outdated root `Task_handover.md` with a PRD-based frontend assessment instead of speculative backend/auth documentation.
 - Documented what the admin frontend currently supports across `Overview`, `Users`, `Contractors`, `Requests`, `Transactions`, `Support`, `Settings`, and shared dashboard utilities.
 - Compared the current frontend against the PRD and identified missing areas: operations dashboard, real-time monitoring, disputes, pricing, service categories, promo codes, push notifications, fraud/risk tooling, payout workflows, and auth-ready UX.

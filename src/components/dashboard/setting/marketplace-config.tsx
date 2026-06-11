@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MoreVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -17,6 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabaseSettings } from "@/lib/supabase/data";
+import {
+  mapServiceCategoryRowsToRecords,
+  mapUrgencyTierRowsToRecords,
+} from "@/lib/supabase/mappers";
+import { createLogger } from "@/lib/logger";
 import {
   initialNotificationCampaigns,
   initialPromos,
@@ -32,6 +39,8 @@ import type {
   ServiceCategoryRecord,
   UrgencyTierRecord,
 } from "./marketplace-config.types";
+
+const logger = createLogger("MarketplaceConfig");
 
 type MarketplaceActionTarget =
   | { type: "category"; record: ServiceCategoryRecord }
@@ -294,7 +303,8 @@ function TierMultiplierDialog({
               {tier?.label ?? "Tier"}
             </p>
             <p className="mt-1 text-sm text-[#667085]">
-              Current multiplier {tier ? formatMultiplier(tier.multiplier) : "—"}
+              Current multiplier{" "}
+              {tier ? formatMultiplier(tier.multiplier) : "—"}
             </p>
           </div>
 
@@ -424,7 +434,8 @@ function PromoEditorDialog({
             {mode === "create" ? "Create promo" : "Edit promo"}
           </DialogTitle>
           <DialogDescription className="mt-2 text-sm text-[#667085]">
-            Model promo configuration as backend-ready state even before API integration.
+            Model promo configuration as backend-ready state even before API
+            integration.
           </DialogDescription>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -575,7 +586,9 @@ export function MarketplaceConfigTab() {
     useState<ServiceCategoryRecord | null>(null);
 
   const [tierDialogOpen, setTierDialogOpen] = useState(false);
-  const [editingTier, setEditingTier] = useState<UrgencyTierRecord | null>(null);
+  const [editingTier, setEditingTier] = useState<UrgencyTierRecord | null>(
+    null,
+  );
 
   const [promoDialogOpen, setPromoDialogOpen] = useState(false);
   const [promoMode, setPromoMode] = useState<"create" | "edit">("create");
@@ -583,10 +596,96 @@ export function MarketplaceConfigTab() {
 
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [platformConfigCount, setPlatformConfigCount] = useState<number | null>(
+    null,
+  );
+  const [liveServiceTypeCount, setLiveServiceTypeCount] = useState<
+    number | null
+  >(null);
   const [pendingAction, setPendingAction] = useState<{
     kind: MarketplaceActionKind;
     target: MarketplaceActionTarget;
   } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLiveMarketplaceReadData() {
+      if (
+        import.meta.env.MODE === "test" ||
+        import.meta.env.VITEST ||
+        !isSupabaseConfigured()
+      ) {
+        return;
+      }
+
+      setIsLiveLoading(true);
+      setLiveError(null);
+
+      try {
+        const [
+          configResult,
+          categoriesResult,
+          serviceTypesResult,
+          tiersResult,
+        ] = await Promise.all([
+          supabaseSettings.listPlatformConfig(),
+          supabaseSettings.listServiceCategories(),
+          supabaseSettings.listServiceTypes(),
+          supabaseSettings.listUrgencyTiers(),
+        ]);
+
+        if (configResult.ok === false) {
+          throw new Error(configResult.message);
+        }
+        if (categoriesResult.ok === false) {
+          throw new Error(categoriesResult.message);
+        }
+        if (serviceTypesResult.ok === false) {
+          throw new Error(serviceTypesResult.message);
+        }
+        if (tiersResult.ok === false) {
+          throw new Error(tiersResult.message);
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setCategories(
+          mapServiceCategoryRowsToRecords({
+            categories: categoriesResult.data,
+            serviceTypes: serviceTypesResult.data,
+          }),
+        );
+        setTiers(mapUrgencyTierRowsToRecords(tiersResult.data));
+        setPlatformConfigCount(configResult.data.length);
+        setLiveServiceTypeCount(serviceTypesResult.data.length);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        logger.error("Failed to load live marketplace settings.", error);
+        setLiveError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load live marketplace settings right now.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLiveLoading(false);
+        }
+      }
+    }
+
+    void loadLiveMarketplaceReadData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const reasonDialogCopy = useMemo(() => {
     if (!pendingAction) {
@@ -639,7 +738,10 @@ export function MarketplaceConfigTab() {
     return "Disabled";
   };
 
-  const openReasonDialog = (kind: MarketplaceActionKind, target: MarketplaceActionTarget) => {
+  const openReasonDialog = (
+    kind: MarketplaceActionKind,
+    target: MarketplaceActionTarget,
+  ) => {
     setPendingAction({ kind, target });
     setReason("");
     setReasonDialogOpen(true);
@@ -660,7 +762,10 @@ export function MarketplaceConfigTab() {
             item.id === target.record.id
               ? {
                   ...item,
-                  status: applyToggle(item.status, kind === "enable" ? "enable" : "disable"),
+                  status: applyToggle(
+                    item.status,
+                    kind === "enable" ? "enable" : "disable",
+                  ),
                   updatedAtLabel: "Just now",
                 }
               : item,
@@ -677,7 +782,10 @@ export function MarketplaceConfigTab() {
             item.id === target.record.id
               ? {
                   ...item,
-                  status: applyToggle(item.status, kind === "enable" ? "enable" : "disable"),
+                  status: applyToggle(
+                    item.status,
+                    kind === "enable" ? "enable" : "disable",
+                  ),
                   updatedAtLabel: "Just now",
                 }
               : item,
@@ -689,7 +797,9 @@ export function MarketplaceConfigTab() {
 
     if (target.type === "promo") {
       if (kind === "delete") {
-        setPromos((prev) => prev.filter((item) => item.id !== target.record.id));
+        setPromos((prev) =>
+          prev.filter((item) => item.id !== target.record.id),
+        );
         toast.success("Promo deleted", { description: trimmedReason });
       } else if (kind === "disable" || kind === "enable") {
         setPromos((prev) =>
@@ -697,7 +807,10 @@ export function MarketplaceConfigTab() {
             item.id === target.record.id
               ? {
                   ...item,
-                  status: applyToggle(item.status, kind === "enable" ? "enable" : "disable"),
+                  status: applyToggle(
+                    item.status,
+                    kind === "enable" ? "enable" : "disable",
+                  ),
                   updatedAtLabel: "Just now",
                 }
               : item,
@@ -714,7 +827,10 @@ export function MarketplaceConfigTab() {
             item.id === target.record.id
               ? {
                   ...item,
-                  status: applyToggle(item.status, kind === "enable" ? "enable" : "disable"),
+                  status: applyToggle(
+                    item.status,
+                    kind === "enable" ? "enable" : "disable",
+                  ),
                   updatedAtLabel: "Just now",
                 }
               : item,
@@ -778,7 +894,9 @@ export function MarketplaceConfigTab() {
       }
       return [promo, ...prev];
     });
-    toast.success("Promo saved", { description: `${promo.code} has been saved.` });
+    toast.success("Promo saved", {
+      description: `${promo.code} has been saved.`,
+    });
     setPromoDialogOpen(false);
   };
 
@@ -803,7 +921,9 @@ export function MarketplaceConfigTab() {
         },
         ...prev,
       ]);
-      toast.success("Category created", { description: `${name} is now enabled.` });
+      toast.success("Category created", {
+        description: `${name} is now enabled.`,
+      });
     } else if (editingCategory) {
       setCategories((prev) =>
         prev.map((item) =>
@@ -812,7 +932,9 @@ export function MarketplaceConfigTab() {
             : item,
         ),
       );
-      toast.success("Category updated", { description: `${name} has been saved.` });
+      toast.success("Category updated", {
+        description: `${name} has been saved.`,
+      });
     }
     setCategoryDialogOpen(false);
   };
@@ -893,7 +1015,12 @@ export function MarketplaceConfigTab() {
           : "bg-[#FFF4DB] text-[#B7791F]";
 
     return (
-      <span className={cn("inline-flex rounded-full px-3 py-1 text-xs font-semibold", tone)}>
+      <span
+        className={cn(
+          "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+          tone,
+        )}
+      >
         {channel}
       </span>
     );
@@ -901,6 +1028,32 @@ export function MarketplaceConfigTab() {
 
   return (
     <div className="space-y-6">
+      {isLiveLoading ? (
+        <div className="rounded-[14px] border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085]">
+          Loading live marketplace settings...
+        </div>
+      ) : null}
+      {liveError ? (
+        <div className="rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]">
+          {liveError}
+        </div>
+      ) : null}
+      {platformConfigCount !== null || liveServiceTypeCount !== null ? (
+        <div className="rounded-[14px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
+          Live read source loaded from Supabase:
+          {platformConfigCount !== null
+            ? ` ${platformConfigCount} platform config keys`
+            : ""}
+          {platformConfigCount !== null && liveServiceTypeCount !== null
+            ? ","
+            : ""}
+          {liveServiceTypeCount !== null
+            ? ` ${liveServiceTypeCount} service types`
+            : ""}
+          . Promos and notification campaigns remain temporary until a matching
+          schema is added.
+        </div>
+      ) : null}
       <MarketplaceSectionShell
         title="Service categories"
         description="Manage service categories and enable/disable availability in the marketplace."
@@ -949,32 +1102,35 @@ export function MarketplaceConfigTab() {
                     {category.updatedAtLabel}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    {renderActionsMenu(`Category actions for ${category.name}`, [
-                      {
-                        label: "Edit category",
-                        onClick: () => openEditCategory(category),
-                        separator: true,
-                      },
-                      category.status === "Enabled"
-                        ? {
-                            label: "Disable category",
-                            tone: "danger",
-                            onClick: () =>
-                              openReasonDialog("disable", {
-                                type: "category",
-                                record: category,
-                              }),
-                          }
-                        : {
-                            label: "Enable category",
-                            tone: "primary",
-                            onClick: () =>
-                              openReasonDialog("enable", {
-                                type: "category",
-                                record: category,
-                              }),
-                          },
-                    ])}
+                    {renderActionsMenu(
+                      `Category actions for ${category.name}`,
+                      [
+                        {
+                          label: "Edit category",
+                          onClick: () => openEditCategory(category),
+                          separator: true,
+                        },
+                        category.status === "Enabled"
+                          ? {
+                              label: "Disable category",
+                              tone: "danger",
+                              onClick: () =>
+                                openReasonDialog("disable", {
+                                  type: "category",
+                                  record: category,
+                                }),
+                            }
+                          : {
+                              label: "Enable category",
+                              tone: "primary",
+                              onClick: () =>
+                                openReasonDialog("enable", {
+                                  type: "category",
+                                  record: category,
+                                }),
+                            },
+                      ],
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1185,7 +1341,9 @@ export function MarketplaceConfigTab() {
                       {campaign.description}
                     </p>
                   </td>
-                  <td className="px-5 py-4">{channelBadge(campaign.channel)}</td>
+                  <td className="px-5 py-4">
+                    {channelBadge(campaign.channel)}
+                  </td>
                   <td className="px-5 py-4">
                     <span
                       className={cn(
@@ -1200,27 +1358,30 @@ export function MarketplaceConfigTab() {
                     {campaign.updatedAtLabel}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    {renderActionsMenu(`Notification actions for ${campaign.name}`, [
-                      campaign.status === "Enabled"
-                        ? {
-                            label: "Disable campaign",
-                            tone: "danger",
-                            onClick: () =>
-                              openReasonDialog("disable", {
-                                type: "notification",
-                                record: campaign,
-                              }),
-                          }
-                        : {
-                            label: "Enable campaign",
-                            tone: "primary",
-                            onClick: () =>
-                              openReasonDialog("enable", {
-                                type: "notification",
-                                record: campaign,
-                              }),
-                          },
-                    ])}
+                    {renderActionsMenu(
+                      `Notification actions for ${campaign.name}`,
+                      [
+                        campaign.status === "Enabled"
+                          ? {
+                              label: "Disable campaign",
+                              tone: "danger",
+                              onClick: () =>
+                                openReasonDialog("disable", {
+                                  type: "notification",
+                                  record: campaign,
+                                }),
+                            }
+                          : {
+                              label: "Enable campaign",
+                              tone: "primary",
+                              onClick: () =>
+                                openReasonDialog("enable", {
+                                  type: "notification",
+                                  record: campaign,
+                                }),
+                            },
+                      ],
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1277,4 +1438,3 @@ export function MarketplaceConfigTab() {
     </div>
   );
 }
-

@@ -37,6 +37,7 @@ export type ContractorKycCategory = "id" | "police" | "serviceProvider";
 export type ContractorKycStatus = "pending" | "accepted" | "rejected";
 
 export type ContractorKycDocumentRecord = {
+  documentId?: string;
   file: File;
   fileName: string;
   fileSize: number;

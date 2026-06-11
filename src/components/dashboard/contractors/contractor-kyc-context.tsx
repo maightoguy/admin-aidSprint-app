@@ -8,6 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAuthStore } from "@/auth/auth.store";
+import { createLogger } from "@/lib/logger";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabaseContractorDocuments } from "@/lib/supabase/data";
 import type {
   ContractorKycCategory,
   ContractorKycDocumentRecord,
@@ -20,13 +24,16 @@ type UploadResult = { ok: true } | { ok: false; error: string };
 type ContractorKycContextValue = {
   state: ContractorKycState;
   completedCount: number;
+  isReviewSaving: boolean;
+  reviewError: string | null;
+  clearReviewError: () => void;
   setActiveCategory: (category: ContractorKycCategory) => void;
   uploadDocument: (category: ContractorKycCategory, file: File) => UploadResult;
-  acceptDocument: (category: ContractorKycCategory) => void;
+  acceptDocument: (category: ContractorKycCategory) => Promise<UploadResult>;
   rejectDocument: (
     category: ContractorKycCategory,
     reason: string,
-  ) => UploadResult;
+  ) => Promise<UploadResult>;
   resetDocument: (category: ContractorKycCategory) => void;
   openDocument: (
     category: ContractorKycCategory,
@@ -38,7 +45,7 @@ const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const MAX_SERVICE_PROVIDER_DOCUMENTS = 4;
 const ACCEPTED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const ACCEPTED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
-const REVIEW_ADMIN_NAME = "Alison Eyo";
+const logger = createLogger("ContractorKyc");
 
 const defaultState: ContractorKycState = {
   activeCategory: "id",
@@ -107,6 +114,21 @@ function buildDocumentRecord(file: File): ContractorKycDocumentRecord {
   };
 }
 
+function getDocumentsForCategory(
+  state: ContractorKycState,
+  category: ContractorKycCategory,
+) {
+  if (category === "id") {
+    return state.idDoc ? [state.idDoc] : [];
+  }
+
+  if (category === "police") {
+    return state.policeDoc ? [state.policeDoc] : [];
+  }
+
+  return state.serviceProviderDocs;
+}
+
 function getStatusKey(category: ContractorKycCategory) {
   if (category === "id") {
     return "idStatus";
@@ -170,15 +192,28 @@ function getReviewedByKey(category: ContractorKycCategory) {
 export function ContractorKycProvider({
   children,
   initialState,
+  contractorId,
 }: {
   children: ReactNode;
   initialState?: Partial<ContractorKycState>;
+  contractorId?: string;
 }) {
+  const session = useAuthStore((store) => store.session);
   const [state, setState] = useState<ContractorKycState>({
     ...defaultState,
     ...initialState,
   });
+  const [isReviewSaving, setIsReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const objectUrlsRef = useRef<Set<string>>(new Set());
+  const isMountedRef = useRef(true);
+
+  const reviewerLabel = session?.userEmail?.trim() || "Alison Eyo";
+  const shouldPersistReviews =
+    Boolean(contractorId?.trim()) &&
+    import.meta.env.MODE !== "test" &&
+    !import.meta.env.VITEST &&
+    isSupabaseConfigured();
 
   const trackObjectUrl = useCallback((objectUrl: string) => {
     objectUrlsRef.current.add(objectUrl);
@@ -194,7 +229,10 @@ export function ContractorKycProvider({
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     return () => {
+      isMountedRef.current = false;
       objectUrlsRef.current.forEach((objectUrl) => {
         URL.revokeObjectURL(objectUrl);
       });
@@ -213,6 +251,7 @@ export function ContractorKycProvider({
   }, [state.idDoc, state.policeDoc, state.serviceProviderDocs]);
 
   const setActiveCategory = useCallback((category: ContractorKycCategory) => {
+    setReviewError(null);
     setState((previous) => ({
       ...previous,
       activeCategory: category,
@@ -221,6 +260,8 @@ export function ContractorKycProvider({
 
   const uploadDocument = useCallback(
     (category: ContractorKycCategory, file: File): UploadResult => {
+      setReviewError(null);
+
       if (!isAcceptedFileType(file)) {
         return {
           ok: false,
@@ -298,25 +339,112 @@ export function ContractorKycProvider({
     [revokeObjectUrl, state.serviceProviderDocs.length, trackObjectUrl],
   );
 
-  const acceptDocument = useCallback((category: ContractorKycCategory) => {
-    setState((previous) => {
-      const statusKey = getStatusKey(category);
-      const reviewedAtKey = getReviewedAtKey(category);
-      const reviewedByKey = getReviewedByKey(category);
-      const reasonKey = getReasonKey(category);
+  const applyReviewDecision = useCallback(
+    (
+      category: ContractorKycCategory,
+      status: ContractorKycStatus,
+      reason?: string,
+    ) => {
+      setState((previous) => {
+        const statusKey = getStatusKey(category);
+        const reviewedAtKey = getReviewedAtKey(category);
+        const reviewedByKey = getReviewedByKey(category);
+        const reasonKey = getReasonKey(category);
 
-      return {
-        ...previous,
-        [statusKey]: "accepted" satisfies ContractorKycStatus,
-        [reasonKey]: undefined,
-        [reviewedAtKey]: formatTimestamp(new Date()),
-        [reviewedByKey]: REVIEW_ADMIN_NAME,
-      };
-    });
-  }, []);
+        return {
+          ...previous,
+          [statusKey]: status,
+          [reasonKey]: reason?.trim() || undefined,
+          [reviewedAtKey]: formatTimestamp(new Date()),
+          [reviewedByKey]: reviewerLabel,
+        };
+      });
+    },
+    [reviewerLabel],
+  );
+
+  const acceptDocument = useCallback(
+    async (category: ContractorKycCategory): Promise<UploadResult> => {
+      setReviewError(null);
+
+      const documents = getDocumentsForCategory(state, category);
+      if (documents.length === 0) {
+        return {
+          ok: false,
+          error: "No submitted document is available to approve.",
+        };
+      }
+
+      if (!shouldPersistReviews) {
+        applyReviewDecision(category, "accepted");
+        return { ok: true as const };
+      }
+
+      const reviewerId = session?.userId?.trim() || "";
+      if (!reviewerId) {
+        const error = "Your admin session has expired. Please sign in again.";
+        setReviewError(error);
+        return { ok: false, error };
+      }
+
+      const documentIds = documents
+        .map((document) => document.documentId?.trim() || "")
+        .filter(Boolean);
+
+      if (documentIds.length !== documents.length) {
+        const error =
+          "This document cannot be reviewed yet because its live record is missing.";
+        setReviewError(error);
+        return { ok: false, error };
+      }
+
+      setIsReviewSaving(true);
+
+      const result = await supabaseContractorDocuments.reviewDocuments({
+        contractorId: contractorId?.trim() || "",
+        documentIds,
+        status: "approved",
+        reviewedBy: reviewerId,
+      });
+
+      if (isMountedRef.current) {
+        setIsReviewSaving(false);
+      }
+
+      if (result.ok === false) {
+        logger.error("Failed to approve contractor KYC document.", {
+          contractorId,
+          category,
+          result,
+        });
+        if (isMountedRef.current) {
+          setReviewError(result.message);
+        }
+        return { ok: false, error: result.message };
+      }
+
+      if (isMountedRef.current) {
+        applyReviewDecision(category, "accepted");
+      }
+
+      return { ok: true as const };
+    },
+    [
+      applyReviewDecision,
+      contractorId,
+      session?.userId,
+      shouldPersistReviews,
+      state,
+    ],
+  );
 
   const rejectDocument = useCallback(
-    (category: ContractorKycCategory, reason: string): UploadResult => {
+    async (
+      category: ContractorKycCategory,
+      reason: string,
+    ): Promise<UploadResult> => {
+      setReviewError(null);
+
       if (!reason.trim()) {
         return {
           ok: false,
@@ -324,28 +452,81 @@ export function ContractorKycProvider({
         };
       }
 
-      setState((previous) => {
-        const statusKey = getStatusKey(category);
-        const reasonKey = getReasonKey(category);
-        const reviewedAtKey = getReviewedAtKey(category);
-        const reviewedByKey = getReviewedByKey(category);
-
+      const documents = getDocumentsForCategory(state, category);
+      if (documents.length === 0) {
         return {
-          ...previous,
-          [statusKey]: "rejected" satisfies ContractorKycStatus,
-          [reasonKey]: reason.trim(),
-          [reviewedAtKey]: formatTimestamp(new Date()),
-          [reviewedByKey]: REVIEW_ADMIN_NAME,
+          ok: false,
+          error: "No submitted document is available to reject.",
         };
+      }
+
+      if (!shouldPersistReviews) {
+        applyReviewDecision(category, "rejected", reason);
+        return { ok: true as const };
+      }
+
+      const reviewerId = session?.userId?.trim() || "";
+      if (!reviewerId) {
+        const error = "Your admin session has expired. Please sign in again.";
+        setReviewError(error);
+        return { ok: false, error };
+      }
+
+      const documentIds = documents
+        .map((document) => document.documentId?.trim() || "")
+        .filter(Boolean);
+
+      if (documentIds.length !== documents.length) {
+        const error =
+          "This document cannot be reviewed yet because its live record is missing.";
+        setReviewError(error);
+        return { ok: false, error };
+      }
+
+      setIsReviewSaving(true);
+
+      const result = await supabaseContractorDocuments.reviewDocuments({
+        contractorId: contractorId?.trim() || "",
+        documentIds,
+        status: "rejected",
+        reviewedBy: reviewerId,
+        rejectionReason: reason,
       });
 
-      return { ok: true };
+      if (isMountedRef.current) {
+        setIsReviewSaving(false);
+      }
+
+      if (result.ok === false) {
+        logger.error("Failed to reject contractor KYC document.", {
+          contractorId,
+          category,
+          result,
+        });
+        if (isMountedRef.current) {
+          setReviewError(result.message);
+        }
+        return { ok: false, error: result.message };
+      }
+
+      if (isMountedRef.current) {
+        applyReviewDecision(category, "rejected", reason);
+      }
+
+      return { ok: true as const };
     },
-    [],
+    [
+      applyReviewDecision,
+      contractorId,
+      session?.userId,
+      shouldPersistReviews,
+      state,
+    ],
   );
 
   const resetDocument = useCallback(
     (category: ContractorKycCategory) => {
+      setReviewError(null);
       setState((previous) => {
         const statusKey = getStatusKey(category);
         const reasonKey = getReasonKey(category);
@@ -387,6 +568,10 @@ export function ContractorKycProvider({
     [revokeObjectUrl],
   );
 
+  const clearReviewError = useCallback(() => {
+    setReviewError(null);
+  }, []);
+
   const openDocument = useCallback(
     (category: ContractorKycCategory, documentIndex = 0) => {
       const document =
@@ -420,6 +605,9 @@ export function ContractorKycProvider({
     () => ({
       state,
       completedCount,
+      isReviewSaving,
+      reviewError,
+      clearReviewError,
       setActiveCategory,
       uploadDocument,
       acceptDocument,
@@ -430,6 +618,9 @@ export function ContractorKycProvider({
     [
       state,
       completedCount,
+      isReviewSaving,
+      reviewError,
+      clearReviewError,
       setActiveCategory,
       uploadDocument,
       acceptDocument,

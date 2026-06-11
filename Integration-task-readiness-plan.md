@@ -517,6 +517,16 @@ NOTE:
 - Do not add ad-hoc SQL files to `supabase/migrations/` during integration planning. This can cause `supabase db pull` to fail with migration-history mismatches when local files differ from the remote migration history.
 - When SQL is needed, store it under `supabase/manual_sql/` using descriptive filenames (no timestamp-based migration naming).
 - I run the SQL and update the current Supabase state after any SQL you provide, including updating the locally stored schema snapshot as needed. Assume the Supabase table state I report back is correct after I apply a SQL change.
+- The repo Supabase workspace folder is `c:\Users\hp\Desktop\Work\Assignment\aidSprint-app\admin-aidSprint-app\supabase`. Use this location for `config.toml`, `manual_sql`, `backups`, and `migrations` instead of looking for a separate hidden project folder first.
+- The admin app should operate on the same shared domain tables the mobile app uses. Separation should happen through auth, roles, and RLS policies, not duplicated admin-only copies of the business tables.
+- Current shared domain tables from the schema snapshot:
+  - Identity / roles: `public.profiles`
+  - Contractor ops: `public.contractors`, `public.contractor_documents`, `public.contractor_bank_accounts`
+  - Jobs / fulfillment: `public.jobs`, `public.job_attachments`, `public.job_declined_contractors`
+  - Comms: `public.chat_conversations`, `public.chat_messages`, `public.notifications`
+  - Money movement: `public.payments`, `public.withdrawals`
+  - Marketplace config: `public.platform_config`, `public.service_categories`, `public.service_types`, `public.urgency_tiers`
+  - Reputation: `public.reviews`
 ```
 
 #### Chunk A2 - Replace mock sign-in/session with real Supabase auth (DONE)
@@ -622,7 +632,7 @@ Requirements:
 - Avoid write integration in this chunk.
 ```
 
-#### Chunk C3 - Overview and settings read-only live fetch
+#### Chunk C3 - Overview and settings read-only live fetch (DONE)
 
 ```text
 Integration task: Convert the overview operational dashboard and settings read-only panels to live Supabase data while preserving the current shell and layout. Pull overview counts/aggregates from live jobs, contractors, payments, and related tables, and load settings data from service categories, service types, urgency tiers, and platform config.
@@ -639,7 +649,7 @@ Requirements:
 
 ### Phase D - Contractor And KYC Write Integration
 
-#### Chunk D1 - KYC approval/rejection writes
+#### Chunk D1 - KYC approval/rejection writes (DONE)
 
 ```text
 Integration task: Connect the KYC review workflow to live Supabase writes while preserving the current read-only review + approve/reject UX. Persist document review decisions, reviewed metadata, and rejection reasons using the contractor documents backend contract.
@@ -654,7 +664,7 @@ Requirements:
 - Add focused tests only for changed interaction logic.
 ```
 
-#### Chunk D2 - Contractor admin action writes
+#### Chunk D2 - Contractor admin action writes (IN PROGRESS - SCHEMA READY)
 
 ```text
 Integration task: Connect contractor admin actions to live backend writes where the schema supports them, and explicitly document any suspension/restore contract gaps that still require schema work. Preserve the current contractor operations UX.
@@ -667,6 +677,11 @@ Scope:
 Requirements:
 - Do not fake a final backend contract if the table structure is missing.
 - If suspension fields do not exist yet, implement only the supported actions and leave clear TODO boundaries.
+
+Current snapshot note:
+- The latest snapshot now includes the D2 suspension / restore audit fields on `public.contractors`: `suspended_at`, `suspended_by`, `suspension_reason`, `restored_at`, `restored_by`, and `restore_reason`.
+- The latest snapshot also now includes admin RLS support via `public.is_admin_user()` plus admin contractor/document/jobs/payments/withdrawals/notifications policies.
+- D2 is now cleared to move from schema validation into real frontend contractor lifecycle writes against the shared tables.
 ```
 
 ### Phase E - Requests And Job Monitoring Write Integration
