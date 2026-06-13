@@ -732,7 +732,7 @@ Current snapshot note:
 
 ### Phase F - Settings Integration
 
-#### Chunk F1 - Categories, service types, urgency tiers live writes
+#### Chunk F1 - Categories, service types, urgency tiers live writes (IN PROGRESS - SQL REQUIRED)
 
 ```text
 Integration task: Convert the settings marketplace configuration workspace from mock state to live Supabase-backed categories, service types, urgency tiers, and platform config writes while preserving the current settings UI and internal section structure.
@@ -747,6 +747,12 @@ Requirements:
 - Preserve reason-capture patterns where already implemented.
 - Keep the current Settings route and visual language unchanged.
 - Add focused tests only where integration materially changes observable behavior.
+
+Current snapshot note:
+- The config tables exist and are already readable: `public.platform_config`, `public.service_categories`, `public.service_types`, `public.urgency_tiers`.
+- The current snapshot only guarantees read policies for these tables; admin insert/update policies are required before live writes can succeed under RLS.
+- Run `supabase/manual_sql/admin_marketplace_settings_policies.sql`, then `supabase db pull`, then continue verifying the live writes.
+- The `/marketplace` route is now wired to the same Marketplace configuration UI (no longer a placeholder).
 ```
 
 #### Chunk F2 - Settings contract cleanup and unsupported areas

@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseSettings } from "@/lib/supabase/data";
 import {
+  mapPlatformConfigRowsToRecords,
   mapServiceCategoryRowsToRecords,
+  mapServiceTypeRowsToRecords,
   mapUrgencyTierRowsToRecords,
 } from "@/lib/supabase/mappers";
 import { createLogger } from "@/lib/logger";
@@ -34,9 +36,11 @@ import type {
   MarketplaceEntityStatus,
   NotificationCampaignRecord,
   NotificationChannel,
+  PlatformConfigRecord,
   PromoDiscountType,
   PromoRecord,
   ServiceCategoryRecord,
+  ServiceTypeRecord,
   UrgencyTierRecord,
 } from "./marketplace-config.types";
 
@@ -44,6 +48,7 @@ const logger = createLogger("MarketplaceConfig");
 
 type MarketplaceActionTarget =
   | { type: "category"; record: ServiceCategoryRecord }
+  | { type: "serviceType"; record: ServiceTypeRecord }
   | { type: "tier"; record: UrgencyTierRecord }
   | { type: "promo"; record: PromoRecord }
   | { type: "notification"; record: NotificationCampaignRecord };
@@ -250,6 +255,303 @@ function CategoryEditorDialog({
               className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
             >
               {mode === "create" ? "Create category" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlatformConfigEditorDialog({
+  open,
+  mode,
+  initialKey,
+  initialValue,
+  initialDescription,
+  onSubmit,
+  onOpenChange,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  initialKey: string;
+  initialValue: string;
+  initialDescription: string;
+  onSubmit: (values: {
+    key: string;
+    value: string;
+    description: string;
+  }) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [key, setKey] = useState(initialKey);
+  const [value, setValue] = useState(initialValue);
+  const [description, setDescription] = useState(initialDescription);
+  const [touched, setTouched] = useState(false);
+
+  const valid = Boolean(key.trim());
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) {
+          setKey(initialKey);
+          setValue(initialValue);
+          setDescription(initialDescription);
+          setTouched(false);
+        }
+      }}
+    >
+      <DialogContent className="w-[calc(100vw-32px)] max-w-[640px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+        <div className="px-6 py-6">
+          <DialogTitle className="text-xl font-bold text-[#101828]">
+            {mode === "create" ? "Add platform config" : "Edit platform config"}
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-[#667085]">
+            {mode === "create"
+              ? "Create a platform config key used by the marketplace."
+              : "Update the platform config value while keeping the key stable."}
+          </DialogDescription>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Key
+              </label>
+              <Input
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="e.g. marketplace_min_order_value"
+                className="mt-2"
+                aria-label="Platform config key"
+                disabled={mode === "edit"}
+              />
+              {touched && !valid ? (
+                <p className="mt-2 text-xs font-medium text-[#B42318]">
+                  Enter a config key.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Value
+              </label>
+              <Input
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                className="mt-2"
+                aria-label="Platform config value"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Description
+              </label>
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="mt-2 min-h-[110px]"
+                aria-label="Platform config description"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTouched(true);
+                if (!valid) return;
+                onSubmit({
+                  key: key.trim(),
+                  value,
+                  description: description.trim(),
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+            >
+              {mode === "create" ? "Create key" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ServiceTypeEditorDialog({
+  open,
+  mode,
+  initial,
+  categories,
+  onSubmit,
+  onOpenChange,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  initial: {
+    categoryId: string;
+    name: string;
+    basePrice: number;
+    isAdditional: boolean;
+  };
+  categories: ServiceCategoryRecord[];
+  onSubmit: (values: {
+    categoryId: string;
+    name: string;
+    basePrice: number;
+    isAdditional: boolean;
+  }) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [name, setName] = useState(initial.name);
+  const [basePrice, setBasePrice] = useState(String(initial.basePrice));
+  const [isAdditional, setIsAdditional] = useState(initial.isAdditional);
+  const [touched, setTouched] = useState(false);
+
+  const parsedBasePrice = Number(basePrice);
+  const valid =
+    Boolean(name.trim()) &&
+    Boolean(categoryId.trim()) &&
+    Number.isFinite(parsedBasePrice) &&
+    parsedBasePrice >= 0;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) {
+          setCategoryId(initial.categoryId);
+          setName(initial.name);
+          setBasePrice(String(initial.basePrice));
+          setIsAdditional(initial.isAdditional);
+          setTouched(false);
+        }
+      }}
+    >
+      <DialogContent className="w-[calc(100vw-32px)] max-w-[640px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+        <div className="px-6 py-6">
+          <DialogTitle className="text-xl font-bold text-[#101828]">
+            {mode === "create" ? "Add service type" : "Edit service type"}
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-[#667085]">
+            {mode === "create"
+              ? "Create a service type under an existing category."
+              : "Update the service type details while keeping it backend-ready."}
+          </DialogDescription>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Category
+              </label>
+              <select
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+                onBlur={() => setTouched(true)}
+                aria-label="Service type category"
+                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Name
+              </label>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="e.g. Faucet installation"
+                className="mt-2"
+                aria-label="Service type name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-[#344054]">
+                Base price
+              </label>
+              <Input
+                value={basePrice}
+                onChange={(event) => setBasePrice(event.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="0.00"
+                className="mt-2"
+                aria-label="Service type base price"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-[#344054]">
+                Pricing
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAdditional((prev) => !prev)}
+                className={cn(
+                  "mt-2 inline-flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm font-semibold",
+                  isAdditional
+                    ? "border-[#071B58] bg-[#EFF8FF] text-[#071B58]"
+                    : "border-[#D0D5DD] bg-white text-[#344054]",
+                )}
+                aria-label="Toggle additional pricing"
+              >
+                {isAdditional ? "Additional pricing" : "Base pricing"}
+              </button>
+            </div>
+          </div>
+
+          {touched && !valid ? (
+            <p className="mt-3 text-xs font-medium text-[#B42318]">
+              Fill all fields with valid values.
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTouched(true);
+                if (!valid) return;
+                onSubmit({
+                  categoryId: categoryId.trim(),
+                  name: name.trim(),
+                  basePrice: parsedBasePrice,
+                  isAdditional,
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+            >
+              {mode === "create" ? "Create service type" : "Save changes"}
             </button>
           </div>
         </div>
@@ -575,6 +877,10 @@ export function MarketplaceConfigTab() {
     initialServiceCategories,
   );
   const [tiers, setTiers] = useState<UrgencyTierRecord[]>(initialUrgencyTiers);
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeRecord[]>([]);
+  const [platformConfig, setPlatformConfig] = useState<PlatformConfigRecord[]>(
+    [],
+  );
   const [promos, setPromos] = useState<PromoRecord[]>(initialPromos);
   const [campaigns, setCampaigns] = useState<NotificationCampaignRecord[]>(
     initialNotificationCampaigns,
@@ -585,10 +891,22 @@ export function MarketplaceConfigTab() {
   const [editingCategory, setEditingCategory] =
     useState<ServiceCategoryRecord | null>(null);
 
+  const [serviceTypeDialogOpen, setServiceTypeDialogOpen] = useState(false);
+  const [serviceTypeMode, setServiceTypeMode] = useState<"create" | "edit">(
+    "create",
+  );
+  const [editingServiceType, setEditingServiceType] =
+    useState<ServiceTypeRecord | null>(null);
+
   const [tierDialogOpen, setTierDialogOpen] = useState(false);
   const [editingTier, setEditingTier] = useState<UrgencyTierRecord | null>(
     null,
   );
+
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [configMode, setConfigMode] = useState<"create" | "edit">("create");
+  const [editingConfig, setEditingConfig] =
+    useState<PlatformConfigRecord | null>(null);
 
   const [promoDialogOpen, setPromoDialogOpen] = useState(false);
   const [promoMode, setPromoMode] = useState<"create" | "edit">("create");
@@ -660,7 +978,14 @@ export function MarketplaceConfigTab() {
             serviceTypes: serviceTypesResult.data,
           }),
         );
+        setServiceTypes(
+          mapServiceTypeRowsToRecords({
+            categories: categoriesResult.data,
+            serviceTypes: serviceTypesResult.data,
+          }),
+        );
         setTiers(mapUrgencyTierRowsToRecords(tiersResult.data));
+        setPlatformConfig(mapPlatformConfigRowsToRecords(configResult.data));
         setPlatformConfigCount(configResult.data.length);
         setLiveServiceTypeCount(serviceTypesResult.data.length);
       } catch (error) {
@@ -687,6 +1012,62 @@ export function MarketplaceConfigTab() {
     };
   }, []);
 
+  const reloadLiveMarketplaceData = async () => {
+    if (
+      import.meta.env.MODE === "test" ||
+      import.meta.env.VITEST ||
+      !isSupabaseConfigured()
+    ) {
+      return;
+    }
+
+    setIsLiveLoading(true);
+    setLiveError(null);
+
+    try {
+      const [configResult, categoriesResult, serviceTypesResult, tiersResult] =
+        await Promise.all([
+          supabaseSettings.listPlatformConfig(),
+          supabaseSettings.listServiceCategories(),
+          supabaseSettings.listServiceTypes(),
+          supabaseSettings.listUrgencyTiers(),
+        ]);
+
+      if (configResult.ok === false) throw new Error(configResult.message);
+      if (categoriesResult.ok === false)
+        throw new Error(categoriesResult.message);
+      if (serviceTypesResult.ok === false)
+        throw new Error(serviceTypesResult.message);
+      if (tiersResult.ok === false) throw new Error(tiersResult.message);
+
+      setCategories(
+        mapServiceCategoryRowsToRecords({
+          categories: categoriesResult.data,
+          serviceTypes: serviceTypesResult.data,
+        }),
+      );
+      setServiceTypes(
+        mapServiceTypeRowsToRecords({
+          categories: categoriesResult.data,
+          serviceTypes: serviceTypesResult.data,
+        }),
+      );
+      setTiers(mapUrgencyTierRowsToRecords(tiersResult.data));
+      setPlatformConfig(mapPlatformConfigRowsToRecords(configResult.data));
+      setPlatformConfigCount(configResult.data.length);
+      setLiveServiceTypeCount(serviceTypesResult.data.length);
+    } catch (error) {
+      logger.error("Failed to reload live marketplace settings.", error);
+      setLiveError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load live marketplace settings right now.",
+      );
+    } finally {
+      setIsLiveLoading(false);
+    }
+  };
+
   const reasonDialogCopy = useMemo(() => {
     if (!pendingAction) {
       return null;
@@ -695,11 +1076,13 @@ export function MarketplaceConfigTab() {
     const name =
       pendingAction.target.type === "category"
         ? pendingAction.target.record.name
-        : pendingAction.target.type === "tier"
-          ? pendingAction.target.record.label
-          : pendingAction.target.type === "promo"
-            ? pendingAction.target.record.code
-            : pendingAction.target.record.name;
+        : pendingAction.target.type === "serviceType"
+          ? pendingAction.target.record.name
+          : pendingAction.target.type === "tier"
+            ? pendingAction.target.record.label
+            : pendingAction.target.type === "promo"
+              ? pendingAction.target.record.code
+              : pendingAction.target.record.name;
 
     if (pendingAction.kind === "disable") {
       return {
@@ -747,50 +1130,124 @@ export function MarketplaceConfigTab() {
     setReasonDialogOpen(true);
   };
 
-  const confirmReasonAction = () => {
+  const confirmReasonAction = async () => {
     if (!pendingAction || !reason.trim()) {
       return;
     }
 
     const trimmedReason = reason.trim();
     const { kind, target } = pendingAction;
+    const hasLiveMarketplaceRead =
+      platformConfigCount !== null || liveServiceTypeCount !== null;
+    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
 
     if (target.type === "category") {
       if (kind === "disable" || kind === "enable") {
-        setCategories((prev) =>
-          prev.map((item) =>
-            item.id === target.record.id
-              ? {
-                  ...item,
-                  status: applyToggle(
-                    item.status,
-                    kind === "enable" ? "enable" : "disable",
-                  ),
-                  updatedAtLabel: "Just now",
-                }
-              : item,
-          ),
-        );
+        if (isLiveWriteFlow) {
+          const updateResult = await supabaseSettings.updateServiceCategory({
+            id: target.record.id,
+            isActive: kind === "enable",
+          });
+
+          if (updateResult.ok === false) {
+            toast.error("Unable to update category", {
+              description: updateResult.message,
+            });
+            return;
+          }
+
+          await reloadLiveMarketplaceData();
+        } else {
+          setCategories((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+        }
+
         toast.success("Category updated", { description: trimmedReason });
+      }
+    }
+
+    if (target.type === "serviceType") {
+      if (kind === "disable" || kind === "enable") {
+        if (isLiveWriteFlow) {
+          const updateResult = await supabaseSettings.updateServiceType({
+            id: target.record.id,
+            isActive: kind === "enable",
+          });
+
+          if (updateResult.ok === false) {
+            toast.error("Unable to update service type", {
+              description: updateResult.message,
+            });
+            return;
+          }
+
+          await reloadLiveMarketplaceData();
+        } else {
+          setServiceTypes((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+        }
+
+        toast.success("Service type updated", { description: trimmedReason });
       }
     }
 
     if (target.type === "tier") {
       if (kind === "disable" || kind === "enable") {
-        setTiers((prev) =>
-          prev.map((item) =>
-            item.id === target.record.id
-              ? {
-                  ...item,
-                  status: applyToggle(
-                    item.status,
-                    kind === "enable" ? "enable" : "disable",
-                  ),
-                  updatedAtLabel: "Just now",
-                }
-              : item,
-          ),
-        );
+        if (isLiveWriteFlow) {
+          const updateResult = await supabaseSettings.updateUrgencyTier({
+            id: target.record.id,
+            isActive: kind === "enable",
+          });
+
+          if (updateResult.ok === false) {
+            toast.error("Unable to update tier", {
+              description: updateResult.message,
+            });
+            return;
+          }
+
+          await reloadLiveMarketplaceData();
+        } else {
+          setTiers((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+        }
+
         toast.success("Tier updated", { description: trimmedReason });
       }
     }
@@ -869,9 +1326,33 @@ export function MarketplaceConfigTab() {
     setCategoryDialogOpen(true);
   };
 
+  const openCreateServiceType = () => {
+    setServiceTypeMode("create");
+    setEditingServiceType(null);
+    setServiceTypeDialogOpen(true);
+  };
+
+  const openEditServiceType = (serviceType: ServiceTypeRecord) => {
+    setServiceTypeMode("edit");
+    setEditingServiceType(serviceType);
+    setServiceTypeDialogOpen(true);
+  };
+
   const openUpdateTier = (tier: UrgencyTierRecord) => {
     setEditingTier(tier);
     setTierDialogOpen(true);
+  };
+
+  const openCreatePlatformConfig = () => {
+    setConfigMode("create");
+    setEditingConfig(null);
+    setConfigDialogOpen(true);
+  };
+
+  const openEditPlatformConfig = (config: PlatformConfigRecord) => {
+    setConfigMode("edit");
+    setEditingConfig(config);
+    setConfigDialogOpen(true);
   };
 
   const openCreatePromo = () => {
@@ -900,7 +1381,11 @@ export function MarketplaceConfigTab() {
     setPromoDialogOpen(false);
   };
 
-  const handleCategorySubmit = (name: string) => {
+  const handleCategorySubmit = async (name: string) => {
+    const hasLiveMarketplaceRead =
+      platformConfigCount !== null || liveServiceTypeCount !== null;
+    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+
     if (categoryMode === "create") {
       const duplicate = categories.some(
         (category) => category.name.toLowerCase() === name.toLowerCase(),
@@ -911,46 +1396,262 @@ export function MarketplaceConfigTab() {
         });
         return;
       }
-      setCategories((prev) => [
-        {
-          id: `category-${name.toLowerCase().replace(/\s+/g, "-")}`,
+
+      if (isLiveWriteFlow) {
+        const result = await supabaseSettings.createServiceCategory({
           name,
-          status: "Enabled",
-          serviceTypesCount: 0,
-          updatedAtLabel: "Just now",
-        },
-        ...prev,
-      ]);
-      toast.success("Category created", {
-        description: `${name} is now enabled.`,
-      });
+          isActive: true,
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to create category", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Category created", {
+          description: `${name} is now enabled.`,
+        });
+      } else {
+        setCategories((prev) => [
+          {
+            id: `category-${name.toLowerCase().replace(/\s+/g, "-")}`,
+            name,
+            status: "Enabled",
+            serviceTypesCount: 0,
+            updatedAtLabel: "Just now",
+          },
+          ...prev,
+        ]);
+        toast.success("Category created", {
+          description: `${name} is now enabled.`,
+        });
+      }
     } else if (editingCategory) {
-      setCategories((prev) =>
-        prev.map((item) =>
-          item.id === editingCategory.id
-            ? { ...item, name, updatedAtLabel: "Just now" }
-            : item,
-        ),
-      );
-      toast.success("Category updated", {
-        description: `${name} has been saved.`,
-      });
+      if (isLiveWriteFlow) {
+        const result = await supabaseSettings.updateServiceCategory({
+          id: editingCategory.id,
+          name,
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to update category", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Category updated", {
+          description: `${name} has been saved.`,
+        });
+      } else {
+        setCategories((prev) =>
+          prev.map((item) =>
+            item.id === editingCategory.id
+              ? { ...item, name, updatedAtLabel: "Just now" }
+              : item,
+          ),
+        );
+        toast.success("Category updated", {
+          description: `${name} has been saved.`,
+        });
+      }
     }
     setCategoryDialogOpen(false);
   };
 
-  const handleTierSubmit = (nextMultiplier: number, reason: string) => {
+  const handleTierSubmit = async (nextMultiplier: number, reason: string) => {
     if (!editingTier) return;
-    setTiers((prev) =>
-      prev.map((item) =>
-        item.id === editingTier.id
-          ? { ...item, multiplier: nextMultiplier, updatedAtLabel: "Just now" }
-          : item,
-      ),
-    );
-    toast.success("Tier updated", { description: reason });
+    const hasLiveMarketplaceRead =
+      platformConfigCount !== null || liveServiceTypeCount !== null;
+    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+
+    if (isLiveWriteFlow) {
+      const extraFee = Math.max(0, (nextMultiplier - 1) * 100);
+      const result = await supabaseSettings.updateUrgencyTier({
+        id: editingTier.id,
+        extraFee,
+      });
+
+      if (result.ok === false) {
+        toast.error("Unable to update tier", {
+          description: result.message,
+        });
+        return;
+      }
+
+      await reloadLiveMarketplaceData();
+      toast.success("Tier updated", { description: reason });
+    } else {
+      setTiers((prev) =>
+        prev.map((item) =>
+          item.id === editingTier.id
+            ? {
+                ...item,
+                multiplier: nextMultiplier,
+                updatedAtLabel: "Just now",
+              }
+            : item,
+        ),
+      );
+      toast.success("Tier updated", { description: reason });
+    }
+
     setTierDialogOpen(false);
     setEditingTier(null);
+  };
+
+  const handleServiceTypeSubmit = async (values: {
+    categoryId: string;
+    name: string;
+    basePrice: number;
+    isAdditional: boolean;
+  }) => {
+    const hasLiveMarketplaceRead =
+      platformConfigCount !== null || liveServiceTypeCount !== null;
+    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+
+    if (serviceTypeMode === "create") {
+      if (isLiveWriteFlow) {
+        const result = await supabaseSettings.createServiceType({
+          categoryId: values.categoryId,
+          name: values.name,
+          basePrice: values.basePrice,
+          isPriceAdditional: values.isAdditional,
+          isActive: true,
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to create service type", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Service type created", {
+          description: `${values.name} is now enabled.`,
+        });
+      } else {
+        const categoryName =
+          categories.find((category) => category.id === values.categoryId)
+            ?.name ?? "—";
+        setServiceTypes((prev) => [
+          {
+            id: `service-type-${values.name.toLowerCase().replace(/\s+/g, "-")}`,
+            name: values.name,
+            categoryId: values.categoryId,
+            categoryName,
+            basePrice: values.basePrice,
+            isAdditional: values.isAdditional,
+            status: "Enabled",
+            updatedAtLabel: "Just now",
+          },
+          ...prev,
+        ]);
+        toast.success("Service type created", {
+          description: `${values.name} is now enabled.`,
+        });
+      }
+    } else if (editingServiceType) {
+      if (isLiveWriteFlow) {
+        const result = await supabaseSettings.updateServiceType({
+          id: editingServiceType.id,
+          categoryId: values.categoryId,
+          name: values.name,
+          basePrice: values.basePrice,
+          isPriceAdditional: values.isAdditional,
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to update service type", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Service type updated", {
+          description: `${values.name} has been saved.`,
+        });
+      } else {
+        const categoryName =
+          categories.find((category) => category.id === values.categoryId)
+            ?.name ?? "—";
+        setServiceTypes((prev) =>
+          prev.map((item) =>
+            item.id === editingServiceType.id
+              ? {
+                  ...item,
+                  name: values.name,
+                  categoryId: values.categoryId,
+                  categoryName,
+                  basePrice: values.basePrice,
+                  isAdditional: values.isAdditional,
+                  updatedAtLabel: "Just now",
+                }
+              : item,
+          ),
+        );
+        toast.success("Service type updated", {
+          description: `${values.name} has been saved.`,
+        });
+      }
+    }
+
+    setServiceTypeDialogOpen(false);
+    setEditingServiceType(null);
+  };
+
+  const handlePlatformConfigSubmit = async (values: {
+    key: string;
+    value: string;
+    description: string;
+  }) => {
+    const hasLiveMarketplaceRead =
+      platformConfigCount !== null || liveServiceTypeCount !== null;
+    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+
+    if (isLiveWriteFlow) {
+      const result = await supabaseSettings.upsertPlatformConfig(values);
+      if (result.ok === false) {
+        toast.error("Unable to save config", { description: result.message });
+        return;
+      }
+
+      await reloadLiveMarketplaceData();
+      toast.success("Platform config saved", {
+        description: `${values.key} has been saved.`,
+      });
+    } else {
+      setPlatformConfig((prev) => {
+        const existing = prev.find((item) => item.key === values.key);
+        const nextRecord: PlatformConfigRecord = {
+          key: values.key,
+          value: values.value,
+          description: values.description,
+          updatedAtLabel: "Just now",
+        };
+
+        if (!existing) {
+          return [nextRecord, ...prev];
+        }
+
+        return prev.map((item) =>
+          item.key === values.key ? nextRecord : item,
+        );
+      });
+
+      toast.success("Platform config saved", {
+        description: `${values.key} has been saved.`,
+      });
+    }
+
+    setConfigDialogOpen(false);
+    setEditingConfig(null);
   };
 
   const renderActionsMenu = (
@@ -1054,6 +1755,72 @@ export function MarketplaceConfigTab() {
           schema is added.
         </div>
       ) : null}
+
+      <MarketplaceSectionShell
+        title="Platform config"
+        description="Manage key/value configuration used across the marketplace experience."
+        action={
+          <button
+            type="button"
+            onClick={openCreatePlatformConfig}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#041133] px-4 text-sm font-semibold text-white transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20"
+          >
+            <Plus className="h-4 w-4" />
+            Add key
+          </button>
+        }
+      >
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#F9FAFB]">
+              <tr className="text-left text-xs font-semibold text-[#667085]">
+                <th className="px-5 py-4">Key</th>
+                <th className="px-5 py-4">Value</th>
+                <th className="px-5 py-4">Description</th>
+                <th className="px-5 py-4">Last updated</th>
+                <th className="px-5 py-4 text-right" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EAECF0]">
+              {platformConfig.map((config) => (
+                <tr key={config.key}>
+                  <td className="px-5 py-4 text-sm font-semibold text-[#101828]">
+                    {config.key}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {config.value}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {config.description || "—"}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {config.updatedAtLabel}
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    {renderActionsMenu(`Config actions for ${config.key}`, [
+                      {
+                        label: "Edit config",
+                        onClick: () => openEditPlatformConfig(config),
+                      },
+                    ])}
+                  </td>
+                </tr>
+              ))}
+              {platformConfig.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-6 text-sm font-medium text-[#98A2B3]"
+                  >
+                    No platform config keys are loaded yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </MarketplaceSectionShell>
+
       <MarketplaceSectionShell
         title="Service categories"
         description="Manage service categories and enable/disable availability in the marketplace."
@@ -1134,6 +1901,109 @@ export function MarketplaceConfigTab() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </MarketplaceSectionShell>
+
+      <MarketplaceSectionShell
+        title="Service types"
+        description="Manage service types under service categories and enable/disable availability."
+        action={
+          <button
+            type="button"
+            onClick={openCreateServiceType}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#041133] px-4 text-sm font-semibold text-white transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20"
+          >
+            <Plus className="h-4 w-4" />
+            Add service type
+          </button>
+        }
+      >
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#F9FAFB]">
+              <tr className="text-left text-xs font-semibold text-[#667085]">
+                <th className="px-5 py-4">Service type</th>
+                <th className="px-5 py-4">Category</th>
+                <th className="px-5 py-4">Base price</th>
+                <th className="px-5 py-4">Pricing</th>
+                <th className="px-5 py-4">Status</th>
+                <th className="px-5 py-4">Last updated</th>
+                <th className="px-5 py-4 text-right" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EAECF0]">
+              {serviceTypes.map((serviceType) => (
+                <tr key={serviceType.id}>
+                  <td className="px-5 py-4 text-sm font-semibold text-[#101828]">
+                    {serviceType.name}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {serviceType.categoryName}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {serviceType.basePrice.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {serviceType.isAdditional ? "Additional" : "Base"}
+                  </td>
+                  <td className="px-5 py-4">
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                        getStatusClasses(serviceType.status),
+                      )}
+                    >
+                      {serviceType.status}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[#667085]">
+                    {serviceType.updatedAtLabel}
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    {renderActionsMenu(
+                      `Service type actions for ${serviceType.name}`,
+                      [
+                        {
+                          label: "Edit service type",
+                          onClick: () => openEditServiceType(serviceType),
+                          separator: true,
+                        },
+                        serviceType.status === "Enabled"
+                          ? {
+                              label: "Disable service type",
+                              tone: "danger",
+                              onClick: () =>
+                                openReasonDialog("disable", {
+                                  type: "serviceType",
+                                  record: serviceType,
+                                }),
+                            }
+                          : {
+                              label: "Enable service type",
+                              tone: "primary",
+                              onClick: () =>
+                                openReasonDialog("enable", {
+                                  type: "serviceType",
+                                  record: serviceType,
+                                }),
+                            },
+                      ],
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {serviceTypes.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-6 text-sm font-medium text-[#98A2B3]"
+                  >
+                    No service types are loaded yet.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -1396,6 +2266,40 @@ export function MarketplaceConfigTab() {
         initialName={editingCategory?.name ?? ""}
         onSubmit={handleCategorySubmit}
         onOpenChange={setCategoryDialogOpen}
+      />
+
+      <PlatformConfigEditorDialog
+        open={configDialogOpen}
+        mode={configMode}
+        initialKey={editingConfig?.key ?? ""}
+        initialValue={editingConfig?.value ?? ""}
+        initialDescription={editingConfig?.description ?? ""}
+        onSubmit={handlePlatformConfigSubmit}
+        onOpenChange={(open) => {
+          setConfigDialogOpen(open);
+          if (!open) {
+            setEditingConfig(null);
+          }
+        }}
+      />
+
+      <ServiceTypeEditorDialog
+        open={serviceTypeDialogOpen}
+        mode={serviceTypeMode}
+        initial={{
+          categoryId: editingServiceType?.categoryId ?? categories[0]?.id ?? "",
+          name: editingServiceType?.name ?? "",
+          basePrice: editingServiceType?.basePrice ?? 0,
+          isAdditional: editingServiceType?.isAdditional ?? false,
+        }}
+        categories={categories}
+        onSubmit={handleServiceTypeSubmit}
+        onOpenChange={(open) => {
+          setServiceTypeDialogOpen(open);
+          if (!open) {
+            setEditingServiceType(null);
+          }
+        }}
       />
 
       <TierMultiplierDialog

@@ -710,6 +710,39 @@ export const supabaseSettings = {
     return { ok: true, data: (data ?? []) as PlatformConfigRow[] };
   },
 
+  async upsertPlatformConfig(params: {
+    key: string;
+    value: string;
+    description?: string;
+  }): Promise<SupabaseResult<PlatformConfigRow>> {
+    const client = requireSupabaseClient();
+    const key = params.key.trim();
+    const value = params.value ?? "";
+    const description = params.description?.trim() ?? "";
+
+    if (!key) {
+      return { ok: false, message: "Config key is required." };
+    }
+
+    const { data, error } = await client
+      .from("platform_config")
+      .upsert(
+        {
+          key,
+          value,
+          description,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      )
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Platform config could not be saved." };
+    return { ok: true, data: data as PlatformConfigRow };
+  },
+
   async listServiceCategories(): Promise<SupabaseResult<ServiceCategoryRow[]>> {
     const client = requireSupabaseClient();
     const { data, error } = await client
@@ -719,6 +752,81 @@ export const supabaseSettings = {
 
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as ServiceCategoryRow[] };
+  },
+
+  async createServiceCategory(params: {
+    name: string;
+    description?: string;
+    iconKey?: string;
+    displayOrder?: number;
+    minHours?: number;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<ServiceCategoryRow>> {
+    const client = requireSupabaseClient();
+    const name = params.name.trim();
+
+    if (!name) {
+      return { ok: false, message: "Category name is required." };
+    }
+
+    const { data, error } = await client
+      .from("service_categories")
+      .insert({
+        name,
+        description: params.description?.trim() ?? "",
+        icon_key: params.iconKey?.trim() ?? "",
+        display_order: params.displayOrder ?? 0,
+        min_hours: params.minHours ?? 1,
+        is_active: params.isActive ?? true,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Category could not be created." };
+    return { ok: true, data: data as ServiceCategoryRow };
+  },
+
+  async updateServiceCategory(params: {
+    id: string;
+    name?: string;
+    description?: string;
+    iconKey?: string;
+    displayOrder?: number;
+    minHours?: number;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<ServiceCategoryRow>> {
+    const client = requireSupabaseClient();
+    const id = params.id.trim();
+
+    if (!id) {
+      return { ok: false, message: "Category id is required." };
+    }
+
+    const payload: Partial<ServiceCategoryRow> & {
+      icon_key?: string;
+      display_order?: number;
+      min_hours?: number;
+      is_active?: boolean;
+    } = {};
+
+    if (typeof params.name === "string") payload.name = params.name.trim();
+    if (typeof params.description === "string") payload.description = params.description.trim();
+    if (typeof params.iconKey === "string") payload.icon_key = params.iconKey.trim();
+    if (typeof params.displayOrder === "number") payload.display_order = params.displayOrder;
+    if (typeof params.minHours === "number") payload.min_hours = params.minHours;
+    if (typeof params.isActive === "boolean") payload.is_active = params.isActive;
+
+    const { data, error } = await client
+      .from("service_categories")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Category could not be updated." };
+    return { ok: true, data: data as ServiceCategoryRow };
   },
 
   async listServiceTypes(): Promise<SupabaseResult<ServiceTypeRow[]>> {
@@ -732,6 +840,84 @@ export const supabaseSettings = {
     return { ok: true, data: (data ?? []) as ServiceTypeRow[] };
   },
 
+  async createServiceType(params: {
+    categoryId: string;
+    name: string;
+    basePrice?: number;
+    isPriceAdditional?: boolean;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<ServiceTypeRow>> {
+    const client = requireSupabaseClient();
+    const categoryId = params.categoryId.trim();
+    const name = params.name.trim();
+
+    if (!categoryId) {
+      return { ok: false, message: "Category id is required." };
+    }
+
+    if (!name) {
+      return { ok: false, message: "Service type name is required." };
+    }
+
+    const { data, error } = await client
+      .from("service_types")
+      .insert({
+        category_id: categoryId,
+        name,
+        base_price: params.basePrice ?? 0,
+        is_price_additional: params.isPriceAdditional ?? false,
+        is_active: params.isActive ?? true,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Service type could not be created." };
+    return { ok: true, data: data as ServiceTypeRow };
+  },
+
+  async updateServiceType(params: {
+    id: string;
+    categoryId?: string;
+    name?: string;
+    basePrice?: number;
+    isPriceAdditional?: boolean;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<ServiceTypeRow>> {
+    const client = requireSupabaseClient();
+    const id = params.id.trim();
+
+    if (!id) {
+      return { ok: false, message: "Service type id is required." };
+    }
+
+    const payload: Partial<ServiceTypeRow> & {
+      category_id?: string;
+      base_price?: number;
+      is_price_additional?: boolean;
+      is_active?: boolean;
+    } = {};
+
+    if (typeof params.categoryId === "string") payload.category_id = params.categoryId.trim();
+    if (typeof params.name === "string") payload.name = params.name.trim();
+    if (typeof params.basePrice === "number") payload.base_price = params.basePrice;
+    if (typeof params.isPriceAdditional === "boolean") {
+      payload.is_price_additional = params.isPriceAdditional;
+    }
+    if (typeof params.isActive === "boolean") payload.is_active = params.isActive;
+
+    const { data, error } = await client
+      .from("service_types")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Service type could not be updated." };
+    return { ok: true, data: data as ServiceTypeRow };
+  },
+
   async listUrgencyTiers(): Promise<SupabaseResult<UrgencyTierRow[]>> {
     const client = requireSupabaseClient();
     const { data, error } = await client
@@ -741,5 +927,44 @@ export const supabaseSettings = {
 
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as UrgencyTierRow[] };
+  },
+
+  async updateUrgencyTier(params: {
+    id: string;
+    label?: string;
+    description?: string;
+    extraFee?: number;
+    displayOrder?: number;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<UrgencyTierRow>> {
+    const client = requireSupabaseClient();
+    const id = params.id.trim();
+
+    if (!id) {
+      return { ok: false, message: "Urgency tier id is required." };
+    }
+
+    const payload: Partial<UrgencyTierRow> & {
+      extra_fee?: number;
+      display_order?: number;
+      is_active?: boolean;
+    } = {};
+
+    if (typeof params.label === "string") payload.label = params.label.trim();
+    if (typeof params.description === "string") payload.description = params.description.trim();
+    if (typeof params.extraFee === "number") payload.extra_fee = params.extraFee;
+    if (typeof params.displayOrder === "number") payload.display_order = params.displayOrder;
+    if (typeof params.isActive === "boolean") payload.is_active = params.isActive;
+
+    const { data, error } = await client
+      .from("urgency_tiers")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Urgency tier could not be updated." };
+    return { ok: true, data: data as UrgencyTierRow };
   },
 };

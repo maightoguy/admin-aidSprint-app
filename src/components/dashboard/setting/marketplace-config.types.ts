@@ -16,6 +16,24 @@ export type UrgencyTierRecord = {
   updatedAtLabel: string;
 };
 
+export type ServiceTypeRecord = {
+  id: string;
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  basePrice: number;
+  isAdditional: boolean;
+  status: MarketplaceEntityStatus;
+  updatedAtLabel: string;
+};
+
+export type PlatformConfigRecord = {
+  key: string;
+  value: string;
+  description: string;
+  updatedAtLabel: string;
+};
+
 export type PromoDiscountType = "Percent" | "Amount";
 
 export type PromoRecord = {
@@ -40,4 +58,3 @@ export type NotificationCampaignRecord = {
   updatedAtLabel: string;
   description: string;
 };
-

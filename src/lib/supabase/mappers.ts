@@ -1,8 +1,26 @@
 import type { UserRequestHistoryItem, UserRequestStatus } from "@/components/dashboard/user-details/user-details.types";
 import type { ContractorKycDocumentRecord, ContractorKycState, ContractorRecord, ContractorCurrentStatus, ContractorLifecycleState, ContractorPayoutStatus, ContractorServiceCategory, ContractorTransactionRecord, ContractorVerificationState } from "@/components/dashboard/contractors/contractors.types";
-import type { ServiceCategoryRecord, UrgencyTierRecord } from "@/components/dashboard/setting/marketplace-config.types";
+import type {
+  PlatformConfigRecord,
+  ServiceCategoryRecord,
+  ServiceTypeRecord,
+  UrgencyTierRecord,
+} from "@/components/dashboard/setting/marketplace-config.types";
 import type { TransactionFilterableRecord } from "@/components/dashboard/transactions/transactions.utils";
-import type { ContractorBankAccountRow, ContractorDocumentRow, ContractorRow, JobRow, PaymentRow, ProfileRow, ReviewRow, ServiceCategoryRow, ServiceTypeRow, UrgencyTierRow, WithdrawalRow } from "./data";
+import type {
+  ContractorBankAccountRow,
+  ContractorDocumentRow,
+  ContractorRow,
+  JobRow,
+  PaymentRow,
+  PlatformConfigRow,
+  ProfileRow,
+  ReviewRow,
+  ServiceCategoryRow,
+  ServiceTypeRow,
+  UrgencyTierRow,
+  WithdrawalRow,
+} from "./data";
 
 function formatDateLabel(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -433,6 +451,37 @@ export function mapUrgencyTierRowsToRecords(rows: UrgencyTierRow[]): UrgencyTier
       updatedAtLabel: formatDateLabel(row.created_at),
     };
   });
+}
+
+export function mapServiceTypeRowsToRecords(params: {
+  serviceTypes: ServiceTypeRow[];
+  categories: ServiceCategoryRow[];
+}): ServiceTypeRecord[] {
+  const categoryNameById = new Map(
+    params.categories.map((category) => [category.id, category.name]),
+  );
+
+  return params.serviceTypes.map((serviceType) => ({
+    id: serviceType.id,
+    name: serviceType.name,
+    categoryId: serviceType.category_id,
+    categoryName: categoryNameById.get(serviceType.category_id) ?? "—",
+    basePrice: Number(serviceType.base_price) || 0,
+    isAdditional: Boolean(serviceType.is_price_additional),
+    status: serviceType.is_active ? "Enabled" : "Disabled",
+    updatedAtLabel: formatDateLabel(serviceType.created_at),
+  }));
+}
+
+export function mapPlatformConfigRowsToRecords(
+  rows: PlatformConfigRow[],
+): PlatformConfigRecord[] {
+  return rows.map((row) => ({
+    key: row.key,
+    value: row.value,
+    description: row.description,
+    updatedAtLabel: formatDateLabel(row.updated_at),
+  }));
 }
 
 function mapPaymentStatusToFinanceStatus(value: string) {
