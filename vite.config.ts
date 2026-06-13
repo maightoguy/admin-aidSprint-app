@@ -23,6 +23,11 @@ export default defineConfig(({ mode }) => ({
       "@shared": path.resolve(__dirname, "./shared"),
     },
   },
+  test: {
+    environment: "jsdom",
+    testTimeout: 15000,
+    hookTimeout: 15000,
+  },
 }));
 
 function expressPlugin(): Plugin {

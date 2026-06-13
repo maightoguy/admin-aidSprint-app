@@ -21,6 +21,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  supabaseContractorBankAccounts,
+  supabaseFinance,
+  supabaseProfiles,
+  type ContractorBankAccountRow,
+  type PaymentRow,
+  type ProfileRow,
+  type WithdrawalRow,
+} from "@/lib/supabase/data";
+import { formatDateLabel } from "@/lib/supabase/mappers";
 import {
   Dialog,
   DialogContent,
@@ -418,6 +429,143 @@ function downloadCsv(rows: FinanceTransactionRecord[]) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+function compactTransactionCode(prefix: string, id: string) {
+  const fragment = String(id)
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 8)
+    .toUpperCase();
+  return `#${prefix}-${fragment || "UNKNOWN"}`;
+}
+
+function mapPaymentStatusToFinanceStatus(
+  value: string,
+): Extract<FinanceTransactionStatus, ServicePaymentLifecycleStatus> {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "captured" || normalized === "paid") return "Captured";
+  if (normalized === "authorized") return "Authorized";
+  if (normalized === "refunded") return "Refunded";
+  if (normalized.includes("chargeback")) return "Chargeback";
+  if (
+    normalized === "failed" ||
+    normalized === "requires_payment_method" ||
+    normalized === "cancelled"
+  ) {
+    return "Failed";
+  }
+  return "Authorized";
+}
+
+function mapWithdrawalStatusToFinanceStatus(
+  value: string,
+): Extract<FinanceTransactionStatus, WithdrawalLifecycleStatus> {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "completed") return "Completed";
+  if (normalized === "failed") return "Failed";
+  if (normalized === "processing") return "Processing";
+  if (normalized === "reversed") return "Reversed";
+  return "Requested";
+}
+
+function pickBankAccount(
+  accounts: ContractorBankAccountRow[],
+  bankAccountId: string | null,
+) {
+  if (bankAccountId) {
+    const match = accounts.find((account) => account.id === bankAccountId);
+    if (match) return match;
+  }
+  return accounts[0] ?? null;
+}
+
+function mapPaymentRowToFinanceTransactionRecord(params: {
+  payment: PaymentRow;
+  contractorProfile?: Pick<ProfileRow, "id" | "full_name" | "email"> | null;
+  bankAccount?: ContractorBankAccountRow | null;
+}): FinanceTransactionRecord {
+  const { payment, contractorProfile, bankAccount } = params;
+  const amount = Number(payment.amount) || 0;
+  const fee = Number(payment.platform_fee) || 0;
+  const netAmount = Number(payment.contractor_payout) || amount - fee;
+  const status = mapPaymentStatusToFinanceStatus(payment.status);
+  const payoutReadiness: PayoutReadiness = bankAccount ? "Ready" : "Blocked";
+  const blockerReason = bankAccount ? undefined : "Missing bank details.";
+
+  return {
+    id: payment.id,
+    transactionCode:
+      payment.stripe_payment_intent_id?.trim() ||
+      compactTransactionCode("PAY", payment.id),
+    externalReference:
+      payment.stripe_charge_id?.trim() ||
+      payment.stripe_transfer_id?.trim() ||
+      payment.stripe_payment_intent_id?.trim() ||
+      payment.id,
+    contractorId: payment.payee_id ?? payment.payer_id,
+    contractorName: contractorProfile?.full_name?.trim() || "—",
+    contractorEmail: contractorProfile?.email?.trim() || "—",
+    type: "Service payment",
+    amount,
+    createdAtLabel: formatDateLabel(payment.created_at),
+    updatedAtLabel: formatDateLabel(payment.updated_at || payment.created_at),
+    status,
+    payoutReadiness,
+    reconciliationState: status === "Captured" ? "Reconciled" : "Pending",
+    blockerReason,
+    accountNumber: bankAccount?.account_number || "—",
+    accountName:
+      bankAccount?.account_name || contractorProfile?.full_name?.trim() || "—",
+    bankName: bankAccount?.bank_name || "—",
+    fee,
+    netAmount,
+    payoutBatchCode: "—",
+    auditTrail: [],
+  };
+}
+
+function mapWithdrawalRowToFinanceTransactionRecord(params: {
+  withdrawal: WithdrawalRow;
+  contractorProfile?: Pick<ProfileRow, "id" | "full_name" | "email"> | null;
+  bankAccount?: ContractorBankAccountRow | null;
+}): FinanceTransactionRecord {
+  const { withdrawal, contractorProfile, bankAccount } = params;
+  const amount = -(Number(withdrawal.amount) || 0);
+  const status = mapWithdrawalStatusToFinanceStatus(withdrawal.status);
+  const payoutReadiness: PayoutReadiness = bankAccount ? "Ready" : "Blocked";
+  const blockerReason = bankAccount ? undefined : "Missing bank details.";
+
+  return {
+    id: withdrawal.id,
+    transactionCode:
+      withdrawal.reference?.trim() ||
+      compactTransactionCode("WDR", withdrawal.id),
+    externalReference:
+      withdrawal.stripe_payout_id?.trim() ||
+      withdrawal.reference?.trim() ||
+      withdrawal.id,
+    contractorId: withdrawal.contractor_id,
+    contractorName: contractorProfile?.full_name?.trim() || "—",
+    contractorEmail: contractorProfile?.email?.trim() || "—",
+    type: "Withdrawal",
+    amount,
+    createdAtLabel: formatDateLabel(withdrawal.created_at),
+    updatedAtLabel: formatDateLabel(
+      withdrawal.processed_at || withdrawal.created_at,
+    ),
+    status,
+    payoutReadiness,
+    reconciliationState: status === "Completed" ? "Reconciled" : "Pending",
+    blockerReason,
+    accountNumber: bankAccount?.account_number || "—",
+    accountName:
+      bankAccount?.account_name || contractorProfile?.full_name?.trim() || "—",
+    bankName: bankAccount?.bank_name || "—",
+    fee: 0,
+    netAmount: amount,
+    payoutBatchCode: "—",
+    auditTrail: [],
+  };
 }
 
 function buildTransactions(
@@ -1244,6 +1392,12 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<FinanceTransactionRecord[]>(
     () => buildTransactions(contractorRecords),
   );
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveCounts, setLiveCounts] = useState<{
+    payments: number;
+    withdrawals: number;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
@@ -1280,6 +1434,125 @@ export default function TransactionsPage() {
       : null;
   const toFilter =
     typeof urlFilters.to === "string" && urlFilters.to ? urlFilters.to : null;
+
+  useEffect(() => {
+    const isTestEnv = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+    if (isTestEnv || !isSupabaseConfigured()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLiveFinance = async () => {
+      try {
+        setIsLiveLoading(true);
+        setLiveError(null);
+
+        const [paymentsResult, withdrawalsResult] = await Promise.all([
+          supabaseFinance.listPayments({ limit: 200 }),
+          supabaseFinance.listWithdrawals({ limit: 200 }),
+        ]);
+
+        if (paymentsResult.ok === false)
+          throw new Error(paymentsResult.message);
+        if (withdrawalsResult.ok === false) {
+          throw new Error(withdrawalsResult.message);
+        }
+
+        const payments = paymentsResult.data;
+        const withdrawals = withdrawalsResult.data;
+
+        const contractorIds = Array.from(
+          new Set([
+            ...payments.map((row) => row.payee_id).filter(Boolean),
+            ...withdrawals.map((row) => row.contractor_id),
+          ]),
+        ) as string[];
+
+        const [profilesResult, bankAccountsResult] = await Promise.all([
+          supabaseProfiles.listByIds(contractorIds),
+          supabaseContractorBankAccounts.listByContractorIds(contractorIds),
+        ]);
+
+        if (profilesResult.ok === false)
+          throw new Error(profilesResult.message);
+        if (bankAccountsResult.ok === false) {
+          throw new Error(bankAccountsResult.message);
+        }
+
+        const profileById = new Map<string, ProfileRow>(
+          profilesResult.data.map((profile) => [profile.id, profile]),
+        );
+        const accountsByContractorId = bankAccountsResult.data.reduce<
+          Record<string, ContractorBankAccountRow[]>
+        >((acc, account) => {
+          const key = account.contractor_id;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(account);
+          return acc;
+        }, {});
+
+        const paymentRecords = payments.map((payment) => {
+          const contractorId = payment.payee_id ?? "";
+          const profile = contractorId
+            ? (profileById.get(contractorId) ?? null)
+            : null;
+          const accounts = contractorId
+            ? (accountsByContractorId[contractorId] ?? [])
+            : [];
+          const bankAccount = pickBankAccount(accounts, null);
+
+          return mapPaymentRowToFinanceTransactionRecord({
+            payment,
+            contractorProfile: profile,
+            bankAccount,
+          });
+        });
+
+        const withdrawalRecords = withdrawals.map((withdrawal) => {
+          const contractorId = withdrawal.contractor_id;
+          const profile = profileById.get(contractorId) ?? null;
+          const accounts = accountsByContractorId[contractorId] ?? [];
+          const bankAccount = pickBankAccount(
+            accounts,
+            withdrawal.bank_account_id,
+          );
+
+          return mapWithdrawalRowToFinanceTransactionRecord({
+            withdrawal,
+            contractorProfile: profile,
+            bankAccount,
+          });
+        });
+
+        if (cancelled) return;
+
+        setTransactions([...withdrawalRecords, ...paymentRecords]);
+        setLiveCounts({
+          payments: payments.length,
+          withdrawals: withdrawals.length,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setLiveCounts(null);
+        setLiveError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load live finance data.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLiveLoading(false);
+        }
+      }
+    };
+
+    void loadLiveFinance();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1500,7 +1773,9 @@ export default function TransactionsPage() {
       reversePayout: "Payout reversal recorded.",
     };
 
-    toast.success(toastSummary[action]);
+    toast.success(
+      `${toastSummary[action]}${liveCounts ? " (local-only)" : ""}`,
+    );
   };
 
   const handleExport = () => {
@@ -1513,6 +1788,24 @@ export default function TransactionsPage() {
   return (
     <DashboardLayout title="Transactions">
       <div className="space-y-5">
+        {isLiveLoading ? (
+          <div className="rounded-[14px] border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085]">
+            Loading live finance transactions from Supabase...
+          </div>
+        ) : null}
+        {liveError ? (
+          <div className="rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]">
+            {liveError}
+          </div>
+        ) : null}
+        {liveCounts ? (
+          <div className="rounded-[14px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
+            Live finance data loaded from Supabase: {liveCounts.withdrawals}{" "}
+            withdrawals, {liveCounts.payments} payments. Admin status actions
+            remain local-only until a supported finance write contract is added.
+          </div>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <TransactionSummaryCard key={card.title} card={card} />

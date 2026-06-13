@@ -755,7 +755,7 @@ Current snapshot note:
 - The `/marketplace` route is now wired to the same Marketplace configuration UI (no longer a placeholder), so it is no longer hidden behind a planned-module screen.
 ```
 
-#### Chunk F2 - Settings contract cleanup and unsupported areas
+#### Chunk F2 - Settings contract cleanup and unsupported areas (DONE)
 
 ```text
 Integration task: Harden the live settings integration by isolating unsupported settings areas from fully backed ones. Keep categories/pricing live, and clearly boundary placeholder-only sections such as promos or notification campaigns if the backend schema is not ready yet.
@@ -769,9 +769,14 @@ Requirements:
 - Keep the page coherent and visually unchanged.
 ```
 
+
+Current implementation note:
+- The Settings header messaging is now explicit per tab about what is live-backed vs local-only.
+- Promos and Notifications are clearly labeled as local-only, and their dialogs/toasts no longer imply database persistence.
+
 ### Phase G - Finance Integration
 
-#### Chunk G1 - Finance read-only live fetch
+#### Chunk G1 - Finance read-only live fetch (DONE)
 
 ```text
 Integration task: Convert the transactions finance operations workspace to read-only live Supabase data while preserving the current finance summary cards, urgent queues, filters, table, and sidebar detail patterns. Map current UI states cleanly onto payments, withdrawals, and contractor payout readiness data.
@@ -787,6 +792,11 @@ Requirements:
 - Keep badge/status naming explicit and backend-aligned.
 - Add loading, empty, and error states.
 ```
+
+Current implementation note:
+- Transactions now load live `public.payments` and `public.withdrawals` when Supabase is configured (with test guards to avoid live calls during Vitest).
+- The finance UI remains visually unchanged; export works against the currently loaded (live) filtered records.
+- Finance status actions (approve/reject/flag/reconcile/reverse) remain local-only until a supported finance write contract is added.
 
 #### Chunk G2 - Finance export and supported write actions
 

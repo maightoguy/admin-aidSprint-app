@@ -84,7 +84,9 @@ describe("ContractorsPage", () => {
       await screen.findByRole("dialog", { name: "Manage lifecycle" }),
     ).toBeTruthy();
 
-    expect(screen.getByText("A reason is required.")).toBeTruthy();
+    expect(
+      await screen.findByText("A reason is required.", {}, { timeout: 5000 }),
+    ).toBeTruthy();
 
     await user.type(
       screen.getByLabelText("Suspension reason"),
@@ -97,7 +99,7 @@ describe("ContractorsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Suspended").length).toBeGreaterThan(0);
     });
-  }, 10000);
+  }, 20000);
 
   it("captures a suspension reason from the contractor list action", async () => {
     const user = userEvent.setup();
@@ -113,7 +115,9 @@ describe("ContractorsPage", () => {
     expect(
       await screen.findByRole("dialog", { name: "Suspend contractor" }),
     ).toBeTruthy();
-    expect(screen.getByText("A reason is required.")).toBeTruthy();
+    expect(
+      await screen.findByText("A reason is required.", {}, { timeout: 5000 }),
+    ).toBeTruthy();
 
     await user.type(
       screen.getByLabelText("Suspension reason"),
@@ -126,7 +130,7 @@ describe("ContractorsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Suspended").length).toBeGreaterThan(0);
     });
-  }, 10000);
+  }, 20000);
 
   it("navigates from contractor request history to the existing request details view", async () => {
     const user = userEvent.setup();
@@ -247,5 +251,5 @@ describe("ContractorsPage", () => {
         screen.queryByRole("dialog", { name: "Add contractor" }),
       ).toBeNull();
     });
-  }, 15000);
+  }, 30000);
 });

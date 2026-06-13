@@ -736,8 +736,8 @@ function PromoEditorDialog({
             {mode === "create" ? "Create promo" : "Edit promo"}
           </DialogTitle>
           <DialogDescription className="mt-2 text-sm text-[#667085]">
-            Model promo configuration as backend-ready state even before API
-            integration.
+            Promos are currently local-only in the admin UI. Saving does not
+            persist to the database yet.
           </DialogDescription>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -1257,7 +1257,9 @@ export function MarketplaceConfigTab() {
         setPromos((prev) =>
           prev.filter((item) => item.id !== target.record.id),
         );
-        toast.success("Promo deleted", { description: trimmedReason });
+        toast.info("Promo deleted", {
+          description: `${trimmedReason} (local-only)`,
+        });
       } else if (kind === "disable" || kind === "enable") {
         setPromos((prev) =>
           prev.map((item) =>
@@ -1273,7 +1275,9 @@ export function MarketplaceConfigTab() {
               : item,
           ),
         );
-        toast.success("Promo updated", { description: trimmedReason });
+        toast.info("Promo updated", {
+          description: `${trimmedReason} (local-only)`,
+        });
       }
     }
 
@@ -1293,7 +1297,9 @@ export function MarketplaceConfigTab() {
               : item,
           ),
         );
-        toast.success("Notification updated", { description: trimmedReason });
+        toast.info("Notification updated", {
+          description: `${trimmedReason} (local-only)`,
+        });
       }
     }
 
@@ -1375,8 +1381,8 @@ export function MarketplaceConfigTab() {
       }
       return [promo, ...prev];
     });
-    toast.success("Promo saved", {
-      description: `${promo.code} has been saved.`,
+    toast.info("Promo saved", {
+      description: `${promo.code} saved locally (not yet persisted).`,
     });
     setPromoDialogOpen(false);
   };
@@ -2083,7 +2089,7 @@ export function MarketplaceConfigTab() {
 
       <MarketplaceSectionShell
         title="Promos"
-        description="Create and manage promos. Keep this UI backend-ready even if persistence is mock-data for now."
+        description="Create and manage promos (local-only until backend support is added)."
         action={
           <button
             type="button"
@@ -2187,7 +2193,7 @@ export function MarketplaceConfigTab() {
 
       <MarketplaceSectionShell
         title="Notifications"
-        description="Configure notification templates and campaign toggles for operational visibility."
+        description="Configure notification templates and campaign toggles (local-only until backend support is added)."
       >
         <div className="overflow-x-auto">
           <table className="min-w-full">

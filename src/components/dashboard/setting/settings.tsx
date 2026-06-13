@@ -294,9 +294,9 @@ function IntegrationsTab({
           <Info className="h-5 w-5" aria-hidden="true" />
         </span>
         <p>
-          Note that toggling off any of these integrations means that , it won’t
-          be available for use on Aidsprint until it is toggled back on from
-          here
+          These integration toggles are currently UI-only and are not persisted
+          to the backend yet. They will not affect the live mobile experience
+          until a matching backend contract is implemented.
         </p>
       </div>
 
@@ -407,14 +407,15 @@ export default function SettingsPage() {
     const label =
       integrationsCatalog.find((entry) => entry.id === id)?.label ??
       "Integration";
-    toast.success("Integration updated", {
-      description: `${label} is now ${checked ? "enabled" : "disabled"}.`,
+    toast.info("Integration updated", {
+      description: `${label} is now ${checked ? "enabled" : "disabled"} (UI-only).`,
     });
   };
 
   const handleSubmitSecurity = (_values: SecurityFormValues) => {
-    toast.success("Password updated", {
-      description: "Your password has been updated successfully.",
+    toast.info("Security update", {
+      description:
+        "This screen is not connected to password updates yet. No backend change was made.",
     });
   };
 
@@ -436,7 +437,13 @@ export default function SettingsPage() {
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#F2F4F7] text-[#344054]">
                 <Info className="h-4 w-4" aria-hidden="true" />
               </span>
-              <span>Changes are applied immediately.</span>
+              <span>
+                {activeTab === "marketplace"
+                  ? "Marketplace categories, service types, urgency tiers, and platform config can be live-backed. Promos and notifications remain local-only until the backend schema supports them."
+                  : activeTab === "integrations"
+                    ? "Integration toggles are local-only (not yet connected to the backend)."
+                    : "Security updates are local-only (not yet connected to password updates)."}
+              </span>
             </div>
           </div>
 
