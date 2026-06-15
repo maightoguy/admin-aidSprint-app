@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
@@ -36,15 +43,13 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ROUTES } from "@/components/dashboard/shared/dashboard-navigation";
 import { userDetailsRecords } from "@/components/dashboard/user-details/user-details.data";
 import type { UserRequestHistoryItem } from "@/components/dashboard/user-details/user-details.types";
-import {
-  useRequestsStore,
-} from "@/components/dashboard/requests/requests.store";
+import { useRequestsStore } from "@/components/dashboard/requests/requests.store";
 import {
   contractorRecords,
   loadLiveContractorRecords,
 } from "@/components/dashboard/contractors/contractors.data";
 import type { ContractorRecord } from "@/components/dashboard/contractors/contractors.types";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import {
   type PaymentRow,
   supabaseFinance,
@@ -319,7 +324,9 @@ function applyOverviewRequestOverrides(params: {
   requestStatusById: ReturnType<
     typeof useRequestsStore.getState
   >["requestStatusById"];
-  requestOpsById: ReturnType<typeof useRequestsStore.getState>["requestOpsById"];
+  requestOpsById: ReturnType<
+    typeof useRequestsStore.getState
+  >["requestOpsById"];
 }): OpsRequestRow {
   const statusOverride = params.requestStatusById[params.row.requestId];
   const opsOverride = params.requestOpsById[params.row.requestId];
@@ -507,20 +514,28 @@ export default function Overview() {
   >(null);
   const [isLiveLoading, setIsLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const isActiveRef = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
+    return () => {
+      isActiveRef.current = false;
+    };
+  }, []);
 
-    async function loadLiveOverview() {
+  const loadLiveOverview = useCallback(
+    async (options?: { silent?: boolean; source?: "initial" | "realtime" }) => {
       if (
         import.meta.env.MODE === "test" ||
         import.meta.env.VITEST ||
-        !isSupabaseConfigured()
+        !isSupabaseConfigured() ||
+        !supabase
       ) {
         return;
       }
 
-      setIsLiveLoading(true);
+      if (!options?.silent) {
+        setIsLiveLoading(true);
+      }
       setLiveError(null);
 
       try {
@@ -577,7 +592,7 @@ export default function Overview() {
           amount: Number(job.final_price) || Number(job.price_estimate) || 0,
         }));
 
-        if (cancelled) {
+        if (!isActiveRef.current) {
           return;
         }
 
@@ -586,7 +601,7 @@ export default function Overview() {
         setLiveTopServiceRows(nextTopServiceRows);
         setLiveContractors(liveContractorRecords);
       } catch (error) {
-        if (cancelled) {
+        if (!isActiveRef.current) {
           return;
         }
 
@@ -597,17 +612,92 @@ export default function Overview() {
             : "Unable to load live overview data right now.",
         );
       } finally {
-        if (!cancelled) {
+        if (isActiveRef.current && !options?.silent) {
           setIsLiveLoading(false);
         }
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    void loadLiveOverview({ source: "initial" });
+  }, [loadLiveOverview]);
+
+  useEffect(() => {
+    if (
+      import.meta.env.MODE === "test" ||
+      import.meta.env.VITEST ||
+      !isSupabaseConfigured() ||
+      !supabase
+    ) {
+      return;
     }
 
-    void loadLiveOverview();
-    return () => {
-      cancelled = true;
+    let isActive = true;
+    const refreshTimeoutRef: { current: ReturnType<typeof setTimeout> | null } =
+      {
+        current: null,
+      };
+    let refreshInFlight = false;
+    let pendingRefresh = false;
+
+    const scheduleRefresh = () => {
+      pendingRefresh = true;
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+
+      refreshTimeoutRef.current = setTimeout(async () => {
+        if (!isActive || !pendingRefresh || refreshInFlight) {
+          return;
+        }
+
+        pendingRefresh = false;
+        refreshInFlight = true;
+
+        try {
+          logger.info("Received realtime update. Refreshing overview.");
+          await loadLiveOverview({ silent: true, source: "realtime" });
+        } finally {
+          refreshInFlight = false;
+        }
+      }, 800);
     };
-  }, []);
+
+    const channel = supabase
+      .channel("admin-overview-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "jobs" },
+        () => {
+          if (!isActive) return;
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contractors" },
+        () => {
+          if (!isActive) return;
+          scheduleRefresh();
+        },
+      )
+      .subscribe((status) => {
+        if (!isActive) return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          logger.error("Overview realtime subscription failed.", status);
+        }
+      });
+
+    return () => {
+      isActive = false;
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [loadLiveOverview]);
 
   const mockOpsRequestRows = useMemo<OpsRequestRow[]>(() => {
     return userDetailsRecords.flatMap((user) =>

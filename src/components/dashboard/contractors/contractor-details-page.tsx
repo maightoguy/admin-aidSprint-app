@@ -25,8 +25,9 @@ import { ContractorKycTab } from "./contractor-kyc-tab";
 import { ContractorRequestHistoryTab } from "./contractor-request-history-tab";
 import { ContractorTransactionHistoryTab } from "./contractor-transaction-history-tab";
 import { ContractorDetailsTabs } from "./contractor-details-tabs";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { supabaseContractors } from "@/lib/supabase/data";
+import { createLogger } from "@/lib/logger";
 import {
   contractorRecords,
   loadLiveContractorDetails,
@@ -57,6 +58,8 @@ type ContractorDetailsPageProps = {
     status: ContractorAccountStatus,
   ) => Promise<void> | void;
 };
+
+const logger = createLogger("ContractorDetails");
 
 function LoadingState() {
   return (
@@ -669,6 +672,98 @@ export default function ContractorDetailsPage({
       cancelled = true;
     };
   }, [resolvedContractorId]);
+
+  useEffect(() => {
+    if (
+      import.meta.env.MODE === "test" ||
+      import.meta.env.VITEST ||
+      !hasLiveContractorDetails ||
+      !isSupabaseConfigured() ||
+      !supabase ||
+      !resolvedContractorId
+    ) {
+      return;
+    }
+
+    let isActive = true;
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let pendingRefresh = false;
+
+    const scheduleRefresh = () => {
+      pendingRefresh = true;
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+
+      refreshTimeout = setTimeout(async () => {
+        if (!isActive || !pendingRefresh || refreshInFlight) return;
+        pendingRefresh = false;
+        refreshInFlight = true;
+
+        try {
+          const refreshedDetails = await loadLiveContractorDetails(
+            resolvedContractorId,
+          );
+          if (!isActive || !refreshedDetails) return;
+
+          setCurrentContractor(refreshedDetails.contractor);
+          setKycInitialState({
+            activeCategory: "id",
+            ...refreshedDetails.kycState,
+          });
+          setLiveRequestRows(refreshedDetails.requestRows);
+          setLiveTransactions(refreshedDetails.transactions);
+          setHasLiveContractorDetails(true);
+        } catch (error) {
+          if (isActive) {
+            logger.error("Failed to refresh contractor details from realtime.", error);
+          }
+        } finally {
+          refreshInFlight = false;
+        }
+      }, 700);
+    };
+
+    const channel = supabase
+      .channel(`admin-contractor-details-${resolvedContractorId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "contractors",
+          filter: `id=eq.${resolvedContractorId}`,
+        },
+        () => {
+          if (!isActive) return;
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "jobs",
+          filter: `contractor_id=eq.${resolvedContractorId}`,
+        },
+        () => {
+          if (!isActive) return;
+          scheduleRefresh();
+        },
+      )
+      .subscribe((status) => {
+        if (!isActive) return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          logger.error("Contractor details realtime subscription failed.", status);
+        }
+      });
+
+    return () => {
+      isActive = false;
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      void supabase.removeChannel(channel);
+    };
+  }, [hasLiveContractorDetails, resolvedContractorId]);
 
   const lifecycleAction =
     currentContractor?.lifecycleState === "Suspended" ? "restore" : "suspend";

@@ -34,9 +34,10 @@ import {
   contractorsSummaryPattern,
   loadLiveContractorRecords,
 } from "./contractors.data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/auth/auth.store";
 import { supabaseContractors } from "@/lib/supabase/data";
+import { createLogger } from "@/lib/logger";
 import type {
   ContractorAccountStatus,
   ContractorCurrentStatus,
@@ -67,6 +68,8 @@ const contractorServiceCategories: ContractorServiceCategory[] = [
   "Laundry",
   "Carpentry",
 ];
+
+const logger = createLogger("Contractors");
 
 const contractorFiltersSchema: FilterField[] = [
   {
@@ -441,6 +444,78 @@ export default function ContractorsPage({
     };
   }, []);
 
+  useEffect(() => {
+    if (
+      import.meta.env.MODE === "test" ||
+      import.meta.env.VITEST ||
+      !hasLiveContractors ||
+      !isSupabaseConfigured() ||
+      !supabase
+    ) {
+      return;
+    }
+
+    let isActive = true;
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let pendingRefresh = false;
+
+    const scheduleRefresh = () => {
+      pendingRefresh = true;
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+
+      refreshTimeout = setTimeout(async () => {
+        if (!isActive || !pendingRefresh || refreshInFlight) {
+          return;
+        }
+
+        pendingRefresh = false;
+        refreshInFlight = true;
+
+        try {
+          const records = await loadLiveContractorRecords();
+          if (isActive) {
+            setContractors(records);
+            setHasLiveContractors(true);
+          }
+        } catch (error) {
+          if (isActive) {
+            logger.error("Failed to refresh contractors from realtime.", error);
+          }
+        } finally {
+          refreshInFlight = false;
+        }
+      }, 700);
+    };
+
+    const channel = supabase
+      .channel("admin-contractors-contractors")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contractors" },
+        () => {
+          if (!isActive) return;
+          scheduleRefresh();
+        },
+      )
+      .subscribe((status) => {
+        if (!isActive) return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          logger.error("Contractors realtime subscription failed.", status);
+        }
+      });
+
+    return () => {
+      isActive = false;
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [hasLiveContractors]);
+
   const queueCounts = useMemo(() => getQueueCounts(contractors), [contractors]);
 
   const filteredContractors = useMemo(() => {
@@ -557,7 +632,9 @@ export default function ContractorsPage({
       if (isLiveLifecycleFlow) {
         const actorUserId = adminUserId.trim();
         if (!actorUserId) {
-          throw new Error("Your admin session is missing a user id. Please sign in again.");
+          throw new Error(
+            "Your admin session is missing a user id. Please sign in again.",
+          );
         }
 
         const updateResult = await supabaseContractors.updateLifecycle({
@@ -591,7 +668,8 @@ export default function ContractorsPage({
               accountStatus: nextAccountStatus,
               lifecycleState: nextLifecycleState,
               riskFlags: nextRiskFlags,
-              riskLevel: lifecycleAction === "suspend" ? "High" : item.riskLevel,
+              riskLevel:
+                lifecycleAction === "suspend" ? "High" : item.riskLevel,
               suspensionReason:
                 lifecycleAction === "suspend" ? trimmedReason : undefined,
               restoreReason:
@@ -892,9 +970,11 @@ export default function ContractorsPage({
                             {flag}
                           </span>
                         ))}
-                        {contractor.suspensionReason || contractor.watchlistReason ? (
+                        {contractor.suspensionReason ||
+                        contractor.watchlistReason ? (
                           <p className="w-full text-xs text-[#667085]">
-                            {contractor.suspensionReason ?? contractor.watchlistReason}
+                            {contractor.suspensionReason ??
+                              contractor.watchlistReason}
                           </p>
                         ) : null}
                       </div>

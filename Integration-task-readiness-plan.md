@@ -798,7 +798,7 @@ Current implementation note:
 - The finance UI remains visually unchanged; export works against the currently loaded (live) filtered records.
 - Finance status actions (approve/reject/flag/reconcile/reverse) remain local-only until a supported finance write contract is added.
 
-#### Chunk G2 - Finance export and supported write actions
+#### Chunk G2 - Finance export and supported write actions (DONE)
 
 ```text
 Integration task: Extend the finance integration by making export operate on live filtered data and by wiring only the finance write actions that cleanly map to the existing backend contract. Preserve the current finance operations UX.
@@ -813,7 +813,12 @@ Requirements:
 - Preserve reason-capture UX for any supported admin action.
 ```
 
-#### Chunk G3 - Finance schema gap preparation
+Current implementation note:
+- Export already runs against the currently loaded filtered finance records, including live Supabase reads from `public.payments` and `public.withdrawals`.
+- The latest schema snapshot still exposes admin finance read policies only (`Admins can view payments`, `Admins can view withdrawals`) and does not yet expose admin update policies for finance writes.
+- G2 now enforces that boundary in the UI: live finance records remain read-only, while unsupported payout/reconciliation actions are clearly blocked instead of pretending to persist.
+
+#### Chunk G3 - Finance schema gap preparation (DONE)
 
 ```text
 Integration task: Prepare the finance module for deeper production integration by documenting or scaffolding the missing backend contracts needed for reconciliation, reversals, admin finance audit trails, and payout decision history. Keep this chunk planning-safe if full backend tables are not yet ready.
@@ -828,9 +833,10 @@ Requirements:
 - Keep the current UI intact.
 ```
 
+
 ### Phase H - Realtime Enablement
 
-#### Chunk H1 - Jobs and contractors realtime
+#### Chunk H1 - Jobs and contractors realtime (DONE)
 
 ```text
 Integration task: Add Supabase realtime subscriptions for the most operationally important tables first: jobs and contractors. Preserve the current requests, overview, and contractor monitoring surfaces while letting them refresh from live events.
@@ -844,6 +850,12 @@ Requirements:
 - Avoid duplicate updates and stale-state conflicts.
 - Keep current UX calm and stable; do not introduce noisy redraw behavior.
 ```
+
+Current implementation note:
+- Requests already refresh from realtime `public.jobs` changes (debounced by React render + silent reload).
+- Overview now subscribes to realtime changes on `public.jobs` and `public.contractors` and performs a debounced silent refresh to avoid noisy redraws.
+- Contractor list subscribes to realtime changes on `public.contractors` and refreshes the list with a debounced silent reload.
+- Contractor details subscribes to realtime changes for the current contractor (`public.contractors` filtered by id) and that contractor’s jobs (`public.jobs` filtered by contractor_id), then debounces a silent details refresh.
 
 #### Chunk H2 - Notifications realtime
 
@@ -966,3 +978,7 @@ The admin app is considered truly backend-integrated when:
 - transactions are at least live-read integrated
 - disputes/support have either live backend tables or are intentionally held back pending schema work
 - RLS and admin authorization are enforced
+
+
+
+Proposed backend contract (planning-safe): prefer a new admin-only finance_admin_events table (Option A) to record decisions/audit without changing mobile flows; keep Stripe refunds/reversals server-side, with the admin UI recording intents/events first.

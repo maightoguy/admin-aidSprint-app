@@ -972,10 +972,12 @@ function FinanceActionMenu({
   transactionCode,
   onViewDetails,
   onOpenAction,
+  writesEnabled,
 }: {
   transactionCode: string;
   onViewDetails: () => void;
   onOpenAction: (action: FinanceAction) => void;
+  writesEnabled: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -999,19 +1001,34 @@ function FinanceActionMenu({
         >
           View details
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-[#EAECF0]" />
-        <DropdownMenuItem
-          onClick={() => onOpenAction("approvePayout")}
-          className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#15803D] focus:bg-[#F8FAFC]"
-        >
-          Approve payout
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onOpenAction("rejectPayout")}
-          className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#F04438] focus:bg-[#F8FAFC]"
-        >
-          Reject payout
-        </DropdownMenuItem>
+        {writesEnabled ? (
+          <>
+            <DropdownMenuSeparator className="bg-[#EAECF0]" />
+            <DropdownMenuItem
+              onClick={() => onOpenAction("approvePayout")}
+              className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#15803D] focus:bg-[#F8FAFC]"
+            >
+              Approve payout
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onOpenAction("rejectPayout")}
+              className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#F04438] focus:bg-[#F8FAFC]"
+            >
+              Reject payout
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuSeparator className="bg-[#EAECF0]" />
+            <DropdownMenuItem
+              disabled
+              className="h-auto cursor-not-allowed px-[10px] py-[10px] text-[12px] font-medium leading-4 text-[#98A2B3] opacity-100 focus:bg-transparent"
+            >
+              Finance write actions are not available for live Supabase records
+              yet.
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1061,9 +1078,24 @@ function DetailRow({
 
 function FinanceStatusMenu({
   onSelectAction,
+  writesEnabled,
 }: {
   onSelectAction: (action: FinanceAction) => void;
+  writesEnabled: boolean;
 }) {
+  if (!writesEnabled) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-[13px] text-[14px] font-medium text-[#98A2B3] opacity-100"
+        aria-label="Finance actions unavailable"
+      >
+        Finance actions unavailable
+      </button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1130,6 +1162,7 @@ function TransactionDetailsSidebar({
   initialAction,
   onConsumeInitialAction,
   onApplyAction,
+  writesEnabled,
 }: {
   open: boolean;
   transaction: FinanceTransactionRecord | null;
@@ -1137,6 +1170,7 @@ function TransactionDetailsSidebar({
   initialAction: FinanceAction | null;
   onConsumeInitialAction: () => void;
   onApplyAction: (action: FinanceAction, reason: string) => void;
+  writesEnabled: boolean;
 }) {
   const [pendingAction, setPendingAction] = useState<FinanceAction | null>(
     null,
@@ -1329,27 +1363,44 @@ function TransactionDetailsSidebar({
                     Audit trail
                   </p>
                   <div className="mt-3 space-y-3">
-                    {transaction.auditTrail.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="rounded-[12px] border border-[#EAECF0] bg-white px-4 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-3 text-xs font-semibold text-[#667085]">
-                          <span>{entry.actor}</span>
-                          <span className="text-[#98A2B3]">
-                            {entry.createdAtLabel}
-                          </span>
+                    {transaction.auditTrail.length ? (
+                      transaction.auditTrail.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="rounded-[12px] border border-[#EAECF0] bg-white px-4 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-xs font-semibold text-[#667085]">
+                            <span>{entry.actor}</span>
+                            <span className="text-[#98A2B3]">
+                              {entry.createdAtLabel}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm text-[#101828]">
+                            {entry.summary}
+                          </p>
                         </div>
-                        <p className="mt-2 text-sm text-[#101828]">
-                          {entry.summary}
-                        </p>
+                      ))
+                    ) : (
+                      <div className="rounded-[12px] border border-dashed border-[#D0D5DD] bg-white px-4 py-4 text-sm font-medium text-[#98A2B3]">
+                        No finance audit history is available for this record
+                        yet.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
+                {!writesEnabled ? (
+                  <div className="mt-4 rounded-[10px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
+                    Finance writes are read-only for live Supabase records until
+                    admin payment or withdrawal write policies are added.
+                  </div>
+                ) : null}
+
                 <div className="mt-auto pt-6">
-                  <FinanceStatusMenu onSelectAction={setPendingAction} />
+                  <FinanceStatusMenu
+                    onSelectAction={setPendingAction}
+                    writesEnabled={writesEnabled}
+                  />
                 </div>
               </>
             ) : (
@@ -1631,6 +1682,8 @@ export default function TransactionsPage() {
       ) ?? null,
     [selectedTransactionId, transactions],
   );
+  const liveFinanceReadActive = liveCounts !== null;
+  const financeWritesEnabled = !liveFinanceReadActive;
 
   const summaryCards = useMemo<FinanceSummaryCard[]>(() => {
     const totalPayoutsThisWeek = transactions
@@ -1693,6 +1746,13 @@ export default function TransactionsPage() {
 
   const handleApplyAction = (action: FinanceAction, reason: string) => {
     if (!selectedTransactionId) {
+      return;
+    }
+
+    if (!financeWritesEnabled) {
+      toast.info(
+        "Finance write actions are not available for live Supabase records yet.",
+      );
       return;
     }
 
@@ -1781,7 +1841,9 @@ export default function TransactionsPage() {
   const handleExport = () => {
     downloadCsv(filteredTransactions);
     toast.success("Finance export completed.", {
-      description: `${filteredTransactions.length} records exported for finance ops review.`,
+      description: `${filteredTransactions.length} ${
+        liveFinanceReadActive ? "live " : ""
+      }records exported for finance ops review.`,
     });
   };
 
@@ -1802,7 +1864,7 @@ export default function TransactionsPage() {
           <div className="rounded-[14px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
             Live finance data loaded from Supabase: {liveCounts.withdrawals}{" "}
             withdrawals, {liveCounts.payments} payments. Admin status actions
-            remain local-only until a supported finance write contract is added.
+            are read-only until a supported finance write contract is added.
           </div>
         ) : null}
 
@@ -1996,6 +2058,7 @@ export default function TransactionsPage() {
                           onOpenAction={(action) =>
                             handleViewDetails(transaction.id, action)
                           }
+                          writesEnabled={financeWritesEnabled}
                         />
                       </td>
                     </tr>
@@ -2036,6 +2099,7 @@ export default function TransactionsPage() {
                       onOpenAction={(action) =>
                         handleViewDetails(transaction.id, action)
                       }
+                      writesEnabled={financeWritesEnabled}
                     />
                   </div>
                   <div className="mt-4">
@@ -2144,6 +2208,7 @@ export default function TransactionsPage() {
           }
         }}
         onApplyAction={handleApplyAction}
+        writesEnabled={financeWritesEnabled}
       />
     </DashboardLayout>
   );
