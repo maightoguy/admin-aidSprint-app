@@ -11,6 +11,7 @@ export type DashboardNotificationItem = {
   title: string;
   preview: string;
   time: string;
+  unread?: boolean;
 };
 
 export type DashboardNotificationGroup = {

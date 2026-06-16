@@ -3,6 +3,11 @@
 ## Status: In-Progress
 
 ## Latest Changes:
+- Confirmed Supabase schema includes `public.finance_admin_events` (table + RLS + policies) in the latest snapshot: [20260615063620_remote_schema.sql](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/supabase/migrations/20260615063620_remote_schema.sql#L4-L27).
+- Completed integration Phase H Chunk H1 (Jobs + Contractors realtime) and marked it DONE in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L837-L867).
+- Completed integration Phase H Chunk H2 (Notifications realtime) and marked it DONE in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L860-L885).
+- Completed integration Phase I Chunk I1 (Disputes/Support contract shaping) by adding a manual SQL scaffold for disputes/support tables + admin-only RLS: [disputes_support_contract.sql](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/supabase/manual_sql/disputes_support_contract.sql).
+- Fixed the Transactions table vertical text wrapping regression by removing the global `overflow-wrap:anywhere` / `word-break:break-word` rule from `td/th` so table cells prefer horizontal scroll over breaking mid-word.
 - Completed integration Phase D Chunk D1 (KYC approval/rejection writes).
   - Added live contractor document review mutations in `src/lib/supabase/data.ts` so admin review decisions now persist `status`, `reviewed_at`, `reviewed_by`, and `rejection_reason` to `contractor_documents`.
   - Extended `ContractorKycProvider` in `src/components/dashboard/contractors/contractor-kyc-context.tsx` with async approve/reject actions, mutation loading state, inline error handling, and local-only fallback behavior for tests or non-live flows.
@@ -95,6 +100,7 @@
 - The strongest existing frontend foundations are reusable filters, pagination, table/detail patterns, and the current `Users`, `Contractors`, `Requests`, `Transactions`, and `Support` screens.
 - The largest PRD gap is that the current admin app behaves like a generic dashboard rather than an operations-first help-on-demand control center.
 - Auth readiness is now in place at the routing layer: dashboard routes are protected and login supports backend-ready states (validation, loading, session expiry).
+- Realtime enablement work is in Phase H: H1 (Jobs + Contractors) is done; H2 (Notifications) is next.
 - Phase 1 progress:
   - Prompt 4: Contractor KYC read-only review is done.
   - Prompt 2: Requests dispatch + live monitoring workflow is done.
@@ -117,5 +123,5 @@
 - Desktop tables now prefer horizontal scrolling at constrained widths rather than compressing badge/status text into broken multi-line fragments.
 
 ## Next Steps:
-- Start the first integration slice with real Supabase-backed admin auth, then add shared query/mutation infrastructure before converting modules from mock to live data.
+- Continue Phase I with Chunk I2 (Live disputes/support reads and writes): [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L909-L923).
 - When implementation starts, keep treating Figma as the visual source of truth and the PRD as the workflow source of truth.

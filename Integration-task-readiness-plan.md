@@ -857,7 +857,7 @@ Current implementation note:
 - Contractor list subscribes to realtime changes on `public.contractors` and refreshes the list with a debounced silent reload.
 - Contractor details subscribes to realtime changes for the current contractor (`public.contractors` filtered by id) and that contractor’s jobs (`public.jobs` filtered by contractor_id), then debounces a silent details refresh.
 
-#### Chunk H2 - Notifications realtime
+#### Chunk H2 - Notifications realtime (DONE)
 
 ```text
 Integration task: Add realtime notification handling for the admin-facing workflow where it supports existing operations monitoring. Keep the current visual system intact and only surface changes where the current UI already has a natural home.
@@ -872,9 +872,18 @@ Requirements:
 - Keep realtime updates additive, not disruptive.
 ```
 
+Current work context:
+- `c:\Users\hp\Desktop\Work\Assignment\aidSprint-app\admin-aidSprint-app\Analyze Project Progress and Plan.md#L1602-1605` (current/next step marker)
+- Note: Observed a Transactions table rendering issue after reload where text under “Transaction type” and “Amount” suddenly wraps vertically (breaks every ~2–3 letters).
+
+Current implementation note:
+- Dashboard notifications now load from `public.notifications` and subscribe to realtime changes for the signed-in admin (`recipient_id=eq.<adminUserId>`).
+- Unread count is driven by `read_at`. Opening the drawer marks notifications as read optimistically; persisting `read_at` in Supabase requires an update policy on `public.notifications` if RLS blocks writes.
+- Transactions table vertical text wrapping is fixed by removing the global `overflow-wrap:anywhere` / `word-break:break-word` rule from `td/th` so table cells prefer horizontal scroll over breaking mid-word.
+
 ### Phase I - Disputes And Support Backend Expansion
 
-#### Chunk I1 - Backend contract shaping for disputes/support
+#### Chunk I1 - Backend contract shaping for disputes/support (DONE)
 
 ```text
 Planning and integration task: Define and scaffold the backend-ready contract for disputes and support before full live integration. Use the completed frontend disputes/support surfaces as the workflow target, but do not force unsupported persistence into the current schema.
@@ -890,7 +899,13 @@ Requirements:
 - Prefer separate disputes/support tables over overloading jobs/payments if the workflow is distinct.
 ```
 
+
+Current implementation note:
+- Added a backend-ready disputes/support schema scaffold under `supabase/manual_sql/disputes_support_contract.sql` (admin-only RLS policies via `public.is_admin_user()`).
+- Tables included: `public.support_tickets`, `public.support_ticket_events`, `public.disputes`, `public.dispute_evidence`, `public.dispute_events`.
+- Next when running live integration: apply the SQL in Supabase, then update the local schema snapshot via the existing db pull workflow.
 #### Chunk I2 - Live disputes/support reads and writes
+
 
 ```text
 Integration task: Once the backend contract exists, connect the disputes and support surfaces to live Supabase data while preserving the existing table, filter, and right-side detail panel patterns.

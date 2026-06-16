@@ -1986,8 +1986,12 @@ export default function TransactionsPage() {
                 <tr className="text-left text-[14px] font-semibold leading-5 text-[#667085]">
                   <th className="w-[150px] px-6 py-4">Trans ID</th>
                   <th className="w-[250px] px-6 py-4">Name</th>
-                  <th className="w-[180px] px-6 py-4">Transaction Type</th>
-                  <th className="w-[150px] px-6 py-4">Amount</th>
+                  <th className="w-[180px] px-6 py-4 whitespace-nowrap">
+                    Transaction Type
+                  </th>
+                  <th className="w-[150px] px-6 py-4 whitespace-nowrap">
+                    Amount
+                  </th>
                   <th className="w-[160px] px-6 py-4">Queue</th>
                   <th className="w-[170px] px-6 py-4">Requested at</th>
                   <th className="w-[180px] px-6 py-4">Status</th>
@@ -2010,10 +2014,10 @@ export default function TransactionsPage() {
                           email={transaction.contractorEmail}
                         />
                       </td>
-                      <td className="px-6 py-4 text-[14px] font-semibold leading-5 text-[#101828]">
+                      <td className="min-w-[180px] px-6 py-4 whitespace-nowrap text-[14px] font-semibold leading-5 text-[#101828]">
                         {transaction.type}
                       </td>
-                      <td className="px-6 py-4 text-[14px] leading-5 text-[#667085]">
+                      <td className="min-w-[150px] px-6 py-4 whitespace-nowrap text-[14px] leading-5 text-[#667085]">
                         {formatSignedCurrency(transaction.amount)}
                       </td>
                       <td className="px-6 py-4">

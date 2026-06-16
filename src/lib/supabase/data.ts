@@ -696,6 +696,61 @@ export const supabaseNotifications = {
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as NotificationRow[] };
   },
+
+  async markRead(params: {
+    notificationId: string;
+    recipientId: string;
+    readAt?: string;
+  }): Promise<SupabaseResult<NotificationRow>> {
+    const client = requireSupabaseClient();
+    const notificationId = params.notificationId.trim();
+    const recipientId = params.recipientId.trim();
+
+    if (!notificationId) {
+      return { ok: false, message: "Notification id is required." };
+    }
+
+    if (!recipientId) {
+      return { ok: false, message: "Recipient id is required." };
+    }
+
+    const readAt = params.readAt ?? new Date().toISOString();
+
+    const { data, error } = await client
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("id", notificationId)
+      .eq("recipient_id", recipientId)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: data as NotificationRow };
+  },
+
+  async markAllReadForRecipient(params: {
+    recipientId: string;
+    readAt?: string;
+  }): Promise<SupabaseResult<number>> {
+    const client = requireSupabaseClient();
+    const recipientId = params.recipientId.trim();
+
+    if (!recipientId) {
+      return { ok: false, message: "Recipient id is required." };
+    }
+
+    const readAt = params.readAt ?? new Date().toISOString();
+
+    const { data, error } = await client
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("recipient_id", recipientId)
+      .is("read_at", null)
+      .select("id");
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []).length };
+  },
 };
 
 export const supabaseSettings = {
