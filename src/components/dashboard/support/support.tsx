@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { useAuthStore } from "@/auth/auth.store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +25,6 @@ import {
   type SupportTicketPriority,
   type SupportTicketStatus,
 } from "./support.data";
-import { toast } from "sonner";
 import type {
   FilterField,
   FiltersState,
@@ -32,6 +33,17 @@ import { FilterButton } from "../shared/filters/filter-button";
 import { useUrlFilters } from "../shared/filters/use-url-filters";
 import { filterSupportTickets } from "./support.utils";
 import { paginateItems } from "../shared/pagination-utils";
+import { isSupabaseFeatureEnabled } from "@/lib/supabase/client";
+import {
+  supabaseJobs,
+  supabaseProfiles,
+  supabaseSupport,
+} from "@/lib/supabase/data";
+import {
+  formatDateLabel,
+  mapSupportTicketRowToSupportTicket,
+  mapSupportUiStatusToDbStatus,
+} from "@/lib/supabase/mappers";
 
 const supportStatuses: SupportTicketStatus[] = ["Open", "Pending", "Resolved"];
 const supportPriorities: SupportTicketPriority[] = [
@@ -53,7 +65,10 @@ const supportFiltersSchema: FilterField[] = [
     type: "select",
     key: "status",
     label: "Status",
-    options: supportStatuses.map((status) => ({ label: status, value: status })),
+    options: supportStatuses.map((status) => ({
+      label: status,
+      value: status,
+    })),
   },
   {
     type: "select",
@@ -85,13 +100,16 @@ function getStatusPillClassName(status: SupportTicketStatus) {
   return "bg-[#FEE4E2] text-[#F04438]";
 }
 
-function SupportRowUser({
-  name,
-  email,
-}: {
-  name: string;
-  email: string;
-}) {
+function isLiveAccessFailure(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return (
+    normalized.includes("not authorized to access the admin portal") ||
+    normalized.includes("please sign in again") ||
+    normalized.includes("admin session no longer matches this action")
+  );
+}
+
+function SupportRowUser({ name, email }: { name: string; email: string }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EAECF0] text-[20px] font-semibold text-[#19213D]">
@@ -108,12 +126,16 @@ function SupportRowUser({
 }
 
 export default function SupportPage() {
+  const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
   const [tickets, setTickets] = useState<SupportTicket[]>(supportTicketSeeds);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [hasLiveTickets, setHasLiveTickets] = useState(false);
   const pageSize = expanded ? 10 : 5;
   const { filters: urlFilters } = useUrlFilters({
     schema: supportFiltersSchema,
@@ -121,7 +143,8 @@ export default function SupportPage() {
   });
 
   const statusFilter =
-    urlFilters.status && supportStatuses.includes(urlFilters.status as SupportTicketStatus)
+    urlFilters.status &&
+    supportStatuses.includes(urlFilters.status as SupportTicketStatus)
       ? String(urlFilters.status)
       : null;
   const priorityFilter =
@@ -130,13 +153,22 @@ export default function SupportPage() {
       ? String(urlFilters.priority)
       : null;
   const fromFilter =
-    typeof urlFilters.from === "string" && urlFilters.from ? urlFilters.from : null;
+    typeof urlFilters.from === "string" && urlFilters.from
+      ? urlFilters.from
+      : null;
   const toFilter =
     typeof urlFilters.to === "string" && urlFilters.to ? urlFilters.to : null;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, expanded, statusFilter, priorityFilter, fromFilter, toFilter]);
+  }, [
+    searchQuery,
+    expanded,
+    statusFilter,
+    priorityFilter,
+    fromFilter,
+    toFilter,
+  ]);
 
   const filteredTickets = useMemo(
     () =>
@@ -162,6 +194,97 @@ export default function SupportPage() {
     [selectedTicketId, tickets],
   );
 
+  const loadSupportTickets = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!isSupabaseFeatureEnabled()) {
+        return;
+      }
+
+      if (!options?.silent) {
+        setIsLiveLoading(true);
+      }
+      setLiveError(null);
+
+      try {
+        const ticketsResult = await supabaseSupport.listLatest({ limit: 200 });
+        if (ticketsResult.ok === false) {
+          throw new Error(ticketsResult.message);
+        }
+
+        const ticketRows = ticketsResult.data;
+        const [eventsResult, profilesResult, jobsResult] = await Promise.all([
+          supabaseSupport.listEventsByTicketIds(
+            ticketRows.map((ticket) => ticket.id),
+          ),
+          supabaseProfiles.listByIds(
+            ticketRows.map((ticket) => ticket.requester_id),
+          ),
+          supabaseJobs.listByIds(
+            ticketRows
+              .map((ticket) => ticket.job_id)
+              .filter(Boolean) as string[],
+          ),
+        ]);
+
+        if (eventsResult.ok === false) {
+          throw new Error(eventsResult.message);
+        }
+        if (profilesResult.ok === false) {
+          throw new Error(profilesResult.message);
+        }
+        if (jobsResult.ok === false) {
+          throw new Error(jobsResult.message);
+        }
+
+        const profilesById = new Map(
+          profilesResult.data.map((profile) => [profile.id, profile]),
+        );
+        const jobsById = new Map(jobsResult.data.map((job) => [job.id, job]));
+        const eventsByTicketId = eventsResult.data.reduce<
+          Record<string, typeof eventsResult.data>
+        >((acc, event) => {
+          if (!acc[event.ticket_id]) {
+            acc[event.ticket_id] = [];
+          }
+          acc[event.ticket_id].push(event);
+          return acc;
+        }, {});
+
+        setTickets(
+          ticketRows.map((ticket) =>
+            mapSupportTicketRowToSupportTicket({
+              ticket,
+              requesterProfile: profilesById.get(ticket.requester_id) ?? null,
+              job: ticket.job_id ? (jobsById.get(ticket.job_id) ?? null) : null,
+              events: eventsByTicketId[ticket.id] ?? [],
+            }),
+          ),
+        );
+        setHasLiveTickets(true);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load support tickets right now.";
+        if (isLiveAccessFailure(message)) {
+          setTickets([]);
+          setSelectedTicketId(null);
+        }
+        setHasLiveTickets(false);
+        setLiveError(message);
+      } finally {
+        if (!options?.silent) {
+          setIsLiveLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    void loadSupportTickets();
+  }, [loadSupportTickets]);
+
   const handleUpdateStatus = async (
     status: Extract<SupportTicketStatus, "Pending" | "Resolved">,
   ) => {
@@ -179,26 +302,62 @@ export default function SupportPage() {
     setIsUpdatingStatus(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (hasLiveTickets && selectedTicket?.dataSource === "live") {
+        const actorUserId = adminUserId.trim();
+        if (!actorUserId) {
+          throw new Error(
+            "Your admin session is missing a user id. Please sign in again.",
+          );
+        }
 
-      setTickets((currentTickets) =>
-        currentTickets.map((ticket) =>
-          ticket.id === selectedTicketId
-            ? {
-                ...ticket,
-                status,
-                updatedAt: new Date().toLocaleDateString(),
-              }
-            : ticket,
-        ),
-      );
+        const updateResult = await supabaseSupport.updateStatus({
+          ticketId: selectedTicketId,
+          status: mapSupportUiStatusToDbStatus(status),
+          actorUserId,
+          message: `Support ticket marked as ${status.toLowerCase()}.`,
+        });
+
+        if (updateResult.ok === false) {
+          throw new Error(updateResult.message);
+        }
+
+        setTickets((currentTickets) =>
+          currentTickets.map((ticket) =>
+            ticket.id === selectedTicketId
+              ? {
+                  ...ticket,
+                  status,
+                  backendStatus: updateResult.data.status,
+                  updatedAt: formatDateLabel(updateResult.data.updated_at),
+                }
+              : ticket,
+          ),
+        );
+
+        void loadSupportTickets({ silent: true });
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        setTickets((currentTickets) =>
+          currentTickets.map((ticket) =>
+            ticket.id === selectedTicketId
+              ? {
+                  ...ticket,
+                  status,
+                  updatedAt: new Date().toLocaleDateString(),
+                }
+              : ticket,
+          ),
+        );
+      }
 
       toast.success("Ticket status updated successfully.", {
         description: `The ticket is now marked as ${status.toLowerCase()}.`,
       });
-    } catch {
+    } catch (error) {
       toast.error("Failed to update ticket status.", {
-        description: "Please try again.",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
       setIsUpdatingStatus(false);
@@ -254,6 +413,21 @@ export default function SupportPage() {
             </div>
           </div>
 
+          {isLiveLoading ? (
+            <div className="border-b border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085] sm:px-6">
+              Loading live support tickets...
+            </div>
+          ) : liveError ? (
+            <div className="border-b border-[#EAECF0] bg-[#FEF3F2] px-4 py-3 text-sm font-medium text-[#B42318] sm:px-6">
+              {liveError}
+            </div>
+          ) : hasLiveTickets ? (
+            <div className="border-b border-[#EAECF0] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467] sm:px-6">
+              Live support reads and ticket status writes are active for the
+              current admin session.
+            </div>
+          ) : null}
+
           {/* Table Content */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1080px]">
@@ -303,15 +477,18 @@ export default function SupportPage() {
                       <td className="px-6 py-4 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button 
+                            <button
                               className="h-10 w-10 inline-flex items-center justify-center rounded-[6px] border border-[#D0D5DD] bg-white text-[#101828] hover:bg-[#F8FAFC]"
                               aria-label={`Actions for ticket ${ticket.ticketId}`}
                             >
                               <MoreVertical className="h-4 w-4" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-[190px] rounded-[10px] p-0 shadow-lg">
-                            <DropdownMenuItem 
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-[190px] rounded-[10px] p-0 shadow-lg"
+                          >
+                            <DropdownMenuItem
                               onClick={() => setSelectedTicketId(ticket.id)}
                               className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#2D3036] focus:bg-[#F8FAFC]"
                             >
@@ -324,7 +501,10 @@ export default function SupportPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-sm font-medium text-[#98A2B3]">
+                    <td
+                      colSpan={7}
+                      className="px-6 py-12 text-center text-sm font-medium text-[#98A2B3]"
+                    >
                       No support tickets match the current search.
                     </td>
                   </tr>
@@ -439,7 +619,9 @@ export default function SupportPage() {
                 onClick={() => setCurrentPage(page)}
                 className={cn(
                   "h-9 w-9 inline-flex items-center justify-center rounded-[8px] text-[14px] font-semibold",
-                  currentPage === page ? "border border-[#071B58] bg-white text-[#101828]" : "text-[#98A2B3]"
+                  currentPage === page
+                    ? "border border-[#071B58] bg-white text-[#101828]"
+                    : "text-[#98A2B3]",
                 )}
               >
                 {page}

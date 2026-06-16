@@ -178,7 +178,7 @@ export function SupportDetailsSidebar({
                   </span>
                 </div>
                 <Link
-                  to={`/contractors/${ticket.userId}`}
+                  to={ticket.profilePath || `/users/${ticket.userId}`}
                   className="inline-flex h-8 shrink-0 items-center justify-center rounded-[4px] border border-[#EAECF0] px-3 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F9FAFB]"
                 >
                   View profile

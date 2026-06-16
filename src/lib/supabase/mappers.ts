@@ -8,9 +8,28 @@ import type {
 } from "@/components/dashboard/setting/marketplace-config.types";
 import type { TransactionFilterableRecord } from "@/components/dashboard/transactions/transactions.utils";
 import type {
+  SupportTicket,
+  SupportTicketAttachment,
+  SupportTicketPriority,
+  SupportTicketStatus,
+} from "@/components/dashboard/support/support.data";
+import type {
+  DisputeActionLogEntry,
+  DisputeAttachment,
+  DisputeLifecycleState,
+  DisputeNote,
+  DisputePriority,
+  DisputeReason,
+  DisputeRecord,
+  DisputeResolutionType,
+} from "@/components/dashboard/disputes/disputes.types";
+import type {
   ContractorBankAccountRow,
   ContractorDocumentRow,
   ContractorRow,
+  DisputeEvidenceRow,
+  DisputeEventRow,
+  DisputeRow,
   JobRow,
   PaymentRow,
   PlatformConfigRow,
@@ -18,6 +37,8 @@ import type {
   ReviewRow,
   ServiceCategoryRow,
   ServiceTypeRow,
+  SupportTicketEventRow,
+  SupportTicketRow,
   UrgencyTierRow,
   WithdrawalRow,
 } from "./data";
@@ -614,6 +635,341 @@ export function sumPendingWithdrawalAmount(rows: WithdrawalRow[]) {
       })
       .reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
   );
+}
+
+function formatShortCode(prefix: string, id: string) {
+  const fragment = String(id).replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase();
+  return `#${prefix}-${fragment || "UNKNOWN"}`;
+}
+
+function getProfileDisplayName(profile?: Pick<ProfileRow, "full_name" | "first_name" | "last_name"> | null) {
+  if (!profile) return "—";
+  return (
+    profile.full_name?.trim() ||
+    `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+    "—"
+  );
+}
+
+function toUiPriority(
+  value: string,
+): SupportTicketPriority | DisputePriority {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "urgent") return "Urgent";
+  if (normalized === "high") return "High";
+  if (normalized === "medium") return "Medium";
+  return "Low";
+}
+
+export function mapSupportStatusToUiStatus(value: string): SupportTicketStatus {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "open") return "Open";
+  if (normalized === "resolved" || normalized === "closed") return "Resolved";
+  return "Pending";
+}
+
+export function mapSupportUiStatusToDbStatus(
+  status: Extract<SupportTicketStatus, "Pending" | "Resolved">,
+) {
+  return status === "Resolved" ? "resolved" : "in_review";
+}
+
+function inferSupportCategory(subject: string, description: string) {
+  const haystack = `${subject} ${description}`.toLowerCase();
+  if (haystack.includes("withdraw")) return "Withdrawal";
+  if (haystack.includes("payment") || haystack.includes("charge") || haystack.includes("refund")) {
+    return "Service payment";
+  }
+  if (haystack.includes("verif") || haystack.includes("kyc")) return "Verification";
+  if (haystack.includes("account")) return "Account";
+  return "General";
+}
+
+function extractSupportAttachments(
+  events: SupportTicketEventRow[],
+): SupportTicketAttachment[] {
+  const attachments: SupportTicketAttachment[] = [];
+
+  for (const event of events) {
+    const rawAttachments = Array.isArray(event.metadata?.attachments)
+      ? event.metadata.attachments
+      : [];
+
+    for (const attachment of rawAttachments) {
+      if (!attachment || typeof attachment !== "object") continue;
+      const record = attachment as Record<string, unknown>;
+      const url = typeof record.url === "string" ? record.url.trim() : "";
+      if (!url) continue;
+      attachments.push({
+        id:
+          (typeof record.id === "string" && record.id.trim()) ||
+          `${event.id}-${attachments.length + 1}`,
+        url,
+        name:
+          (typeof record.name === "string" && record.name.trim()) ||
+          "attachment",
+        type:
+          (typeof record.type === "string" && record.type.trim()) ||
+          "application/octet-stream",
+      });
+    }
+  }
+
+  return attachments;
+}
+
+export function mapSupportTicketRowToSupportTicket(params: {
+  ticket: SupportTicketRow;
+  requesterProfile?: ProfileRow | null;
+  job?: JobRow | null;
+  events?: SupportTicketEventRow[];
+}): SupportTicket {
+  const { ticket, requesterProfile, job, events = [] } = params;
+  const requesterRole =
+    ticket.requester_role === "contractor" ? "contractor" : ticket.requester_role === "admin" ? "admin" : "user";
+
+  return {
+    id: ticket.id,
+    ticketId: formatShortCode("TKT", ticket.id),
+    userId: ticket.requester_id,
+    userName: getProfileDisplayName(requesterProfile),
+    userEmail: requesterProfile?.email?.trim() || "—",
+    requesterRole,
+    profilePath:
+      requesterRole === "contractor"
+        ? `/contractors/${ticket.requester_id}`
+        : `/users/${ticket.requester_id}`,
+    category: inferSupportCategory(ticket.subject, ticket.description),
+    subject: ticket.subject || "Support ticket",
+    description: ticket.description || "—",
+    status: mapSupportStatusToUiStatus(ticket.status),
+    backendStatus: ticket.status,
+    priority: toUiPriority(ticket.priority) as SupportTicketPriority,
+    dateCreated: formatDateLabel(ticket.created_at),
+    updatedAt: formatDateLabel(ticket.updated_at),
+    requestId: job ? formatShortCode("REQ", job.id) : undefined,
+    attachments: extractSupportAttachments(events),
+    dataSource: "live",
+  };
+}
+
+export function mapDisputeStatusToLifecycleState(
+  value: string,
+): DisputeLifecycleState {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "open") return "Opened";
+  if (normalized === "awaiting_evidence") return "EvidenceRequested";
+  if (normalized === "proposed_resolution") return "ProposedResolution";
+  if (normalized === "resolved") return "Resolved";
+  if (normalized === "rejected") return "Rejected";
+  return "UnderReview";
+}
+
+export function mapDisputeResolutionTypeToDb(
+  value: DisputeResolutionType,
+):
+  | "no_action"
+  | "refund"
+  | "partial_refund"
+  | "payout_block"
+  | "chargeback"
+  | null {
+  if (value === "NoAction") return "no_action";
+  if (value === "RefundCustomer") return "refund";
+  if (value === "PartialRefund") return "partial_refund";
+  if (value === "ReversePayout") return "payout_block";
+  return null;
+}
+
+function mapDbResolutionTypeToUi(
+  value: string | null | undefined,
+): DisputeResolutionType | undefined {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "refund") return "RefundCustomer";
+  if (normalized === "partial_refund") return "PartialRefund";
+  if (normalized === "payout_block") return "ReversePayout";
+  if (normalized === "no_action") return "NoAction";
+  return undefined;
+}
+
+function deriveDisputeReason(
+  disputeType: string,
+  reason: string,
+): DisputeReason {
+  const normalizedReason = String(reason).trim().toLowerCase();
+  if (normalizedReason.includes("fraud")) return "Fraud";
+  if (normalizedReason.includes("no show") || normalizedReason.includes("no-show")) {
+    return "NoShow";
+  }
+  if (normalizedReason.includes("overcharge") || normalizedReason.includes("over charge")) {
+    return "Overcharge";
+  }
+
+  const normalizedType = String(disputeType).trim().toLowerCase();
+  if (normalizedType === "service_quality") return "ServiceQuality";
+  if (normalizedType === "payment") return "Overcharge";
+  if (normalizedType === "behavior") return "NoShow";
+  if (normalizedType === "safety") return "Safety";
+  return "Other";
+}
+
+function mapDisputeEvidenceToAttachments(
+  rows: DisputeEvidenceRow[],
+): DisputeAttachment[] {
+  return rows
+    .filter((row) => Boolean(row.url))
+    .map((row) => ({
+      id: row.id,
+      type:
+        row.evidence_type === "image"
+          ? "Image"
+          : "Document",
+      label: row.description?.trim() || `Evidence ${formatDateLabel(row.created_at)}`,
+      url: row.url?.trim() || "",
+    }));
+}
+
+function mapDisputeEvidenceToNotes(
+  rows: DisputeEvidenceRow[],
+  profilesById: Map<string, ProfileRow>,
+): DisputeNote[] {
+  return rows
+    .filter((row) => row.evidence_type === "text" || !row.url)
+    .map((row) => ({
+      id: row.id,
+      createdAtLabel: formatDateLabel(row.created_at),
+      createdBy: getProfileDisplayName(profilesById.get(row.submitted_by_id)),
+      body: row.description?.trim() || "Text evidence added.",
+    }));
+}
+
+function formatDisputeEventSummary(event: DisputeEventRow) {
+  const actionLabel = event.action.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  const message =
+    typeof event.metadata?.message === "string" ? event.metadata.message.trim() : "";
+  const parts = [actionLabel, event.reason?.trim(), message].filter(Boolean);
+  return parts.join(". ");
+}
+
+function mapDisputeEventsToActionLog(
+  rows: DisputeEventRow[],
+  profilesById: Map<string, ProfileRow>,
+): DisputeActionLogEntry[] {
+  return rows.map((row) => ({
+    id: row.id,
+    createdAtLabel: formatDateLabel(row.created_at),
+    actor: getProfileDisplayName(profilesById.get(row.actor_id)),
+    summary: formatDisputeEventSummary(row),
+  }));
+}
+
+function deriveDisputePayoutStatus(params: {
+  dispute: DisputeRow;
+  payment?: PaymentRow | null;
+  withdrawal?: WithdrawalRow | null;
+}): DisputeRecord["payoutStatus"] {
+  const { dispute, payment, withdrawal } = params;
+  if (withdrawal) {
+    const status = String(withdrawal.status).trim().toLowerCase();
+    if (status === "completed") return "Paid";
+    if (status === "failed") return "Blocked";
+    return "Ready";
+  }
+  if (payment) {
+    if (String(dispute.resolution_type).trim().toLowerCase() === "payout_block") {
+      return "Blocked";
+    }
+    return "Ready";
+  }
+  return "Unknown";
+}
+
+export function mapDisputeRowToDisputeRecord(params: {
+  dispute: DisputeRow;
+  job?: JobRow | null;
+  openedByProfile?: ProfileRow | null;
+  customerProfile?: ProfileRow | null;
+  contractorProfile?: ProfileRow | null;
+  assignedAdminProfile?: ProfileRow | null;
+  payment?: PaymentRow | null;
+  withdrawal?: WithdrawalRow | null;
+  evidenceRows?: DisputeEvidenceRow[];
+  eventRows?: DisputeEventRow[];
+  profilesById?: Map<string, ProfileRow>;
+}): DisputeRecord {
+  const {
+    dispute,
+    job,
+    customerProfile,
+    contractorProfile,
+    assignedAdminProfile,
+    payment,
+    withdrawal,
+    evidenceRows = [],
+    eventRows = [],
+    profilesById = new Map<string, ProfileRow>(),
+  } = params;
+
+  const reason = deriveDisputeReason(dispute.dispute_type, dispute.reason);
+  const title =
+    dispute.reason?.trim() ||
+    `${reason.replace(/([A-Z])/g, " $1").trim()} dispute`;
+  const actionLog = mapDisputeEventsToActionLog(eventRows, profilesById);
+  const notes = mapDisputeEvidenceToNotes(evidenceRows, profilesById);
+  const chargeAmount =
+    Number(payment?.amount) ||
+    Number(job?.final_price) ||
+    Number(job?.price_estimate) ||
+    0;
+  const payoutAmount =
+    Number(withdrawal?.amount) ||
+    Number(payment?.contractor_payout) ||
+    0;
+
+  return {
+    id: dispute.id,
+    disputeId: dispute.id,
+    disputeCode: formatShortCode("DSP", dispute.id),
+    title,
+    lifecycleState: mapDisputeStatusToLifecycleState(dispute.status),
+    reason,
+    priority: toUiPriority(dispute.priority) as DisputePriority,
+    payoutImpact: Boolean(
+      dispute.related_payment_id ||
+        dispute.related_withdrawal_id ||
+        dispute.dispute_type === "payment",
+    ),
+    requestId: job?.id || dispute.job_id,
+    requestCode: formatShortCode("REQ", job?.id || dispute.job_id),
+    service: job?.service_type || "Service",
+    location: job?.address || "—",
+    createdAtLabel: formatDateLabel(dispute.created_at),
+    updatedAtLabel: formatDateLabel(dispute.updated_at),
+    lastUpdatedBy: getProfileDisplayName(assignedAdminProfile) || "Ops Admin",
+    customerId: job?.user_id || "",
+    customerName: getProfileDisplayName(customerProfile),
+    contractorId: job?.contractor_id || "",
+    contractorName: getProfileDisplayName(contractorProfile),
+    chargeAmount,
+    payoutAmount,
+    payoutStatus: deriveDisputePayoutStatus({ dispute, payment, withdrawal }),
+    attachments: mapDisputeEvidenceToAttachments(evidenceRows),
+    notes,
+    actionLog:
+      actionLog.length > 0
+        ? actionLog
+        : [
+            {
+              id: `${dispute.id}-created`,
+              createdAtLabel: formatDateLabel(dispute.created_at),
+              actor: getProfileDisplayName(params.openedByProfile),
+              summary: "Created.",
+            },
+          ],
+    proposedResolutionType: mapDbResolutionTypeToUi(dispute.resolution_type),
+    backendStatus: dispute.status,
+    dataSource: "live",
+  };
 }
 
 export { formatDateLabel, formatCurrency, formatSignedCurrency };

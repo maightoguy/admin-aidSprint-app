@@ -14,15 +14,19 @@ export type SupportTicket = {
   userId: string;
   userName: string;
   userEmail: string;
+  requesterRole?: "user" | "contractor" | "admin";
+  profilePath?: string;
   category: string;
   subject: string;
   description: string;
   status: SupportTicketStatus;
+  backendStatus?: string;
   priority: SupportTicketPriority;
   dateCreated: string;
   updatedAt: string;
   requestId?: string;
   attachments: SupportTicketAttachment[];
+  dataSource?: "mock" | "live";
 };
 
 const supportTicketBaseSeeds: SupportTicket[] = [

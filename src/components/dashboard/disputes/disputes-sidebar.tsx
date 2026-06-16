@@ -44,6 +44,13 @@ type DisputeSidebarAction =
   | "reject"
   | null;
 
+type DisputeActionRequest = {
+  action: Exclude<DisputeSidebarAction, null>;
+  reason: string;
+  message?: string;
+  resolutionType?: DisputeResolutionType;
+};
+
 const resolutionOptions: Array<{
   value: DisputeResolutionType;
   label: string;
@@ -111,6 +118,7 @@ function ActionReasonDialog({
   confirmLabel,
   confirmTone,
   reason,
+  isSubmitting,
   onReasonChange,
   onConfirm,
   onOpenChange,
@@ -123,6 +131,7 @@ function ActionReasonDialog({
   confirmLabel: string;
   confirmTone: "danger" | "primary";
   reason: string;
+  isSubmitting?: boolean;
   onReasonChange: (value: string) => void;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
@@ -171,7 +180,7 @@ function ActionReasonDialog({
             </button>
             <button
               type="button"
-              disabled={!canConfirm}
+              disabled={!canConfirm || isSubmitting}
               onClick={onConfirm}
               className={cn(
                 "inline-flex items-center justify-center rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
@@ -228,6 +237,7 @@ export function DisputeDetailsSidebar({
   initialAction,
   onConsumeInitialAction,
   onUpdateDispute,
+  onApplyAction,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -235,6 +245,15 @@ export function DisputeDetailsSidebar({
   initialAction: DisputeSidebarAction;
   onConsumeInitialAction: () => void;
   onUpdateDispute: (updated: DisputeRecord) => void;
+  onApplyAction?: (request: DisputeActionRequest) => Promise<
+    | {
+        ok: true;
+      }
+    | {
+        ok: false;
+        message: string;
+      }
+  >;
 }) {
   const [activeSection, setActiveSection] = React.useState<
     "overview" | "evidence" | "timeline"
@@ -244,6 +263,7 @@ export function DisputeDetailsSidebar({
   const [message, setMessage] = React.useState("");
   const [resolutionType, setResolutionType] =
     React.useState<DisputeResolutionType>("RefundCustomer");
+  const [isApplyingAction, setIsApplyingAction] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) {
@@ -252,6 +272,7 @@ export function DisputeDetailsSidebar({
       setReason("");
       setMessage("");
       setResolutionType("RefundCustomer");
+      setIsApplyingAction(false);
       return;
     }
     if (initialAction) {
@@ -281,9 +302,44 @@ export function DisputeDetailsSidebar({
   };
 
   const closeAction = () => {
+    if (isApplyingAction) {
+      return;
+    }
     setAction(null);
     setReason("");
     setMessage("");
+  };
+
+  const applyActionUpdate = async (
+    request: DisputeActionRequest,
+    patch: Partial<DisputeRecord>,
+    logSummary: string,
+    successTitle: string,
+    successDescription: string,
+  ) => {
+    if (isApplyingAction) {
+      return;
+    }
+
+    if (onApplyAction) {
+      setIsApplyingAction(true);
+      const result = await onApplyAction(request);
+      setIsApplyingAction(false);
+
+      if (result.ok === false) {
+        toast.error(successTitle, {
+          description: result.message,
+        });
+        return;
+      }
+    } else {
+      applyUpdate(patch, logSummary);
+    }
+
+    toast.success(successTitle, {
+      description: successDescription,
+    });
+    closeAction();
   };
 
   const canModify =
@@ -604,19 +660,23 @@ export function DisputeDetailsSidebar({
             confirmLabel="Send request"
             confirmTone="primary"
             reason={reason}
+            isSubmitting={isApplyingAction}
             onReasonChange={setReason}
-            onConfirm={() => {
+            onConfirm={async () => {
               if (!reason.trim()) return;
-              applyUpdate(
+              await applyActionUpdate(
+                {
+                  action: "requestEvidence",
+                  reason: reason.trim(),
+                  message: message.trim() || undefined,
+                },
                 {
                   lifecycleState: "EvidenceRequested",
                 },
                 `Evidence requested. ${reason.trim()}`,
+                "Evidence requested",
+                "Evidence request has been logged for audit.",
               );
-              toast.success("Evidence requested", {
-                description: "Evidence request has been logged for audit.",
-              });
-              closeAction();
             }}
           >
             <div>
@@ -644,20 +704,24 @@ export function DisputeDetailsSidebar({
             confirmLabel="Confirm proposal"
             confirmTone="primary"
             reason={reason}
+            isSubmitting={isApplyingAction}
             onReasonChange={setReason}
-            onConfirm={() => {
+            onConfirm={async () => {
               if (!reason.trim()) return;
-              applyUpdate(
+              await applyActionUpdate(
+                {
+                  action: "proposeResolution",
+                  reason: reason.trim(),
+                  resolutionType,
+                },
                 {
                   lifecycleState: "ProposedResolution",
                   proposedResolutionType: resolutionType,
                 },
                 `Proposed resolution: ${resolutionType}. ${reason.trim()}`,
+                "Resolution proposed",
+                "Proposal recorded and ready for next steps.",
               );
-              toast.success("Resolution proposed", {
-                description: "Proposal recorded and ready for next steps.",
-              });
-              closeAction();
             }}
           >
             <ResolutionSelector
@@ -677,20 +741,24 @@ export function DisputeDetailsSidebar({
             confirmLabel="Confirm resolution"
             confirmTone="primary"
             reason={reason}
+            isSubmitting={isApplyingAction}
             onReasonChange={setReason}
-            onConfirm={() => {
+            onConfirm={async () => {
               if (!reason.trim()) return;
-              applyUpdate(
+              await applyActionUpdate(
+                {
+                  action: "resolve",
+                  reason: reason.trim(),
+                  resolutionType,
+                },
                 {
                   lifecycleState: "Resolved",
                   proposedResolutionType: resolutionType,
                 },
                 `Resolved with ${resolutionType}. ${reason.trim()}`,
+                "Dispute resolved",
+                "Resolution recorded for audit.",
               );
-              toast.success("Dispute resolved", {
-                description: "Resolution recorded for audit.",
-              });
-              closeAction();
             }}
           >
             <ResolutionSelector
@@ -710,19 +778,22 @@ export function DisputeDetailsSidebar({
             confirmLabel="Confirm rejection"
             confirmTone="danger"
             reason={reason}
+            isSubmitting={isApplyingAction}
             onReasonChange={setReason}
-            onConfirm={() => {
+            onConfirm={async () => {
               if (!reason.trim()) return;
-              applyUpdate(
+              await applyActionUpdate(
+                {
+                  action: "reject",
+                  reason: reason.trim(),
+                },
                 {
                   lifecycleState: "Rejected",
                 },
                 `Rejected. ${reason.trim()}`,
+                "Dispute rejected",
+                "Rejection recorded for audit.",
               );
-              toast.success("Dispute rejected", {
-                description: "Rejection recorded for audit.",
-              });
-              closeAction();
             }}
           />
         </DialogPrimitive.Content>

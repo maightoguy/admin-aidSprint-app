@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -7,6 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useAuthStore } from "@/auth/auth.store";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DashboardLayout } from "../shared/dashboard-layout";
@@ -37,6 +39,19 @@ import {
   getDisputeStatusPillClassName,
 } from "./disputes.utils";
 import { DisputeDetailsSidebar } from "./disputes-sidebar";
+import { isSupabaseFeatureEnabled } from "@/lib/supabase/client";
+import {
+  supabaseDisputes,
+  supabaseFinance,
+  supabaseJobs,
+  supabaseProfiles,
+} from "@/lib/supabase/data";
+import {
+  formatDateLabel,
+  mapDisputeResolutionTypeToDb,
+  mapDisputeRowToDisputeRecord,
+  mapDisputeStatusToLifecycleState,
+} from "@/lib/supabase/mappers";
 
 const disputeLifecycleStates: DisputeLifecycleState[] = [
   "Opened",
@@ -142,7 +157,17 @@ function DisputeRowUser({
   );
 }
 
+function isLiveAccessFailure(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return (
+    normalized.includes("not authorized to access the admin portal") ||
+    normalized.includes("please sign in again") ||
+    normalized.includes("admin session no longer matches this action")
+  );
+}
+
 export default function DisputesPage() {
+  const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
   const [disputes, setDisputes] = useState<DisputeRecord[]>(disputeSeeds);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -153,6 +178,9 @@ export default function DisputesPage() {
   const [sidebarAction, setSidebarAction] = useState<
     "requestEvidence" | "proposeResolution" | "resolve" | "reject" | null
   >(null);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [hasLiveDisputes, setHasLiveDisputes] = useState(false);
 
   const pageSize = expanded ? 10 : 5;
   const { filters: urlFilters } = useUrlFilters({
@@ -250,6 +278,267 @@ export default function DisputesPage() {
     );
   };
 
+  const loadDisputes = useCallback(async (options?: { silent?: boolean }) => {
+    if (!isSupabaseFeatureEnabled()) {
+      return;
+    }
+
+    if (!options?.silent) {
+      setIsLiveLoading(true);
+    }
+    setLiveError(null);
+
+    try {
+      const disputesResult = await supabaseDisputes.listLatest({ limit: 200 });
+      if (disputesResult.ok === false) {
+        throw new Error(disputesResult.message);
+      }
+
+      const disputeRows = disputesResult.data;
+      const [
+        jobsResult,
+        evidenceResult,
+        eventsResult,
+        paymentsResult,
+        withdrawalsResult,
+      ] = await Promise.all([
+        supabaseJobs.listByIds(disputeRows.map((dispute) => dispute.job_id)),
+        supabaseDisputes.listEvidenceByDisputeIds(
+          disputeRows.map((dispute) => dispute.id),
+        ),
+        supabaseDisputes.listEventsByDisputeIds(
+          disputeRows.map((dispute) => dispute.id),
+        ),
+        supabaseFinance.listPaymentsByIds(
+          disputeRows
+            .map((dispute) => dispute.related_payment_id)
+            .filter(Boolean) as string[],
+        ),
+        supabaseFinance.listWithdrawalsByIds(
+          disputeRows
+            .map((dispute) => dispute.related_withdrawal_id)
+            .filter(Boolean) as string[],
+        ),
+      ]);
+
+      if (jobsResult.ok === false) throw new Error(jobsResult.message);
+      if (evidenceResult.ok === false) throw new Error(evidenceResult.message);
+      if (eventsResult.ok === false) throw new Error(eventsResult.message);
+      if (paymentsResult.ok === false) throw new Error(paymentsResult.message);
+      if (withdrawalsResult.ok === false)
+        throw new Error(withdrawalsResult.message);
+
+      const jobsById = new Map(jobsResult.data.map((job) => [job.id, job]));
+      const paymentsById = new Map(
+        paymentsResult.data.map((payment) => [payment.id, payment]),
+      );
+      const withdrawalsById = new Map(
+        withdrawalsResult.data.map((withdrawal) => [withdrawal.id, withdrawal]),
+      );
+      const evidenceByDisputeId = evidenceResult.data.reduce<
+        Record<string, typeof evidenceResult.data>
+      >((acc, evidence) => {
+        if (!acc[evidence.dispute_id]) {
+          acc[evidence.dispute_id] = [];
+        }
+        acc[evidence.dispute_id].push(evidence);
+        return acc;
+      }, {});
+      const eventsByDisputeId = eventsResult.data.reduce<
+        Record<string, typeof eventsResult.data>
+      >((acc, event) => {
+        if (!acc[event.dispute_id]) {
+          acc[event.dispute_id] = [];
+        }
+        acc[event.dispute_id].push(event);
+        return acc;
+      }, {});
+
+      const profileIds = Array.from(
+        new Set(
+          disputeRows
+            .flatMap((dispute) => {
+              const job = jobsById.get(dispute.job_id);
+              const evidenceRows = evidenceByDisputeId[dispute.id] ?? [];
+              const eventRows = eventsByDisputeId[dispute.id] ?? [];
+
+              return [
+                dispute.opened_by_id,
+                dispute.assigned_admin_id,
+                job?.user_id,
+                job?.contractor_id,
+                ...evidenceRows.map((row) => row.submitted_by_id),
+                ...eventRows.map((row) => row.actor_id),
+              ];
+            })
+            .filter(Boolean) as string[],
+        ),
+      );
+
+      const profilesResult = await supabaseProfiles.listByIds(profileIds);
+      if (profilesResult.ok === false) {
+        throw new Error(profilesResult.message);
+      }
+
+      const profilesById = new Map(
+        profilesResult.data.map((profile) => [profile.id, profile]),
+      );
+
+      setDisputes(
+        disputeRows.map((dispute) => {
+          const job = jobsById.get(dispute.job_id) ?? null;
+          return mapDisputeRowToDisputeRecord({
+            dispute,
+            job,
+            openedByProfile: profilesById.get(dispute.opened_by_id) ?? null,
+            customerProfile: job?.user_id
+              ? (profilesById.get(job.user_id) ?? null)
+              : null,
+            contractorProfile: job?.contractor_id
+              ? (profilesById.get(job.contractor_id) ?? null)
+              : null,
+            assignedAdminProfile: dispute.assigned_admin_id
+              ? (profilesById.get(dispute.assigned_admin_id) ?? null)
+              : null,
+            payment: dispute.related_payment_id
+              ? (paymentsById.get(dispute.related_payment_id) ?? null)
+              : null,
+            withdrawal: dispute.related_withdrawal_id
+              ? (withdrawalsById.get(dispute.related_withdrawal_id) ?? null)
+              : null,
+            evidenceRows: evidenceByDisputeId[dispute.id] ?? [],
+            eventRows: eventsByDisputeId[dispute.id] ?? [],
+            profilesById,
+          });
+        }),
+      );
+      setHasLiveDisputes(true);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load disputes right now.";
+      if (isLiveAccessFailure(message)) {
+        setDisputes([]);
+        setSelectedDisputeId(null);
+        setSidebarAction(null);
+      }
+      setHasLiveDisputes(false);
+      setLiveError(message);
+    } finally {
+      if (!options?.silent) {
+        setIsLiveLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDisputes();
+  }, [loadDisputes]);
+
+  const handleApplyLiveAction = useCallback(
+    async (request: {
+      action: "requestEvidence" | "proposeResolution" | "resolve" | "reject";
+      reason: string;
+      message?: string;
+      resolutionType?: import("./disputes.types").DisputeResolutionType;
+    }) => {
+      if (!selectedDispute || selectedDispute.dataSource !== "live") {
+        return {
+          ok: false as const,
+          message: "Live dispute details are unavailable.",
+        };
+      }
+
+      const actorUserId = adminUserId.trim();
+      if (!actorUserId) {
+        return {
+          ok: false as const,
+          message:
+            "Your admin session is missing a user id. Please sign in again.",
+        };
+      }
+
+      if (
+        request.resolutionType &&
+        (request.resolutionType === "BanContractor" ||
+          request.resolutionType === "WarnContractor")
+      ) {
+        return {
+          ok: false as const,
+          message:
+            "The current dispute backend contract does not persist contractor warning or ban resolutions yet. Use Refund customer, Reverse payout, Partial refund, or No action instead.",
+        };
+      }
+
+      const actionMap = {
+        requestEvidence: "request_evidence",
+        proposeResolution: "propose_resolution",
+        resolve: "resolve",
+        reject: "reject",
+      } as const;
+
+      const resolutionType = request.resolutionType
+        ? mapDisputeResolutionTypeToDb(request.resolutionType)
+        : null;
+
+      const result = await supabaseDisputes.applyAction({
+        disputeId: selectedDispute.id,
+        actorUserId,
+        action: actionMap[request.action],
+        reason: request.reason,
+        message: request.message,
+        resolutionType: resolutionType ?? undefined,
+      });
+
+      if (result.ok === false) {
+        return { ok: false as const, message: result.message };
+      }
+
+      const actionSummary =
+        request.action === "requestEvidence"
+          ? `Request Evidence. ${request.reason}`
+          : request.action === "proposeResolution"
+            ? `Propose Resolution. ${request.reason}`
+            : request.action === "resolve"
+              ? `Resolve. ${request.reason}`
+              : `Reject. ${request.reason}`;
+
+      setDisputes((currentDisputes) =>
+        currentDisputes.map((dispute) =>
+          dispute.id === selectedDispute.id
+            ? {
+                ...dispute,
+                lifecycleState: mapDisputeStatusToLifecycleState(
+                  result.data.status,
+                ),
+                backendStatus: result.data.status,
+                updatedAtLabel: formatDateLabel(result.data.updated_at),
+                proposedResolutionType:
+                  request.action === "proposeResolution" ||
+                  request.action === "resolve"
+                    ? (request.resolutionType ?? dispute.proposedResolutionType)
+                    : dispute.proposedResolutionType,
+                actionLog: [
+                  {
+                    id: `local-${Date.now()}`,
+                    createdAtLabel: formatDateLabel(result.data.updated_at),
+                    actor: "Ops Admin",
+                    summary: actionSummary,
+                  },
+                  ...dispute.actionLog,
+                ],
+              }
+            : dispute,
+        ),
+      );
+
+      void loadDisputes({ silent: true });
+      return { ok: true as const };
+    },
+    [adminUserId, loadDisputes, selectedDispute],
+  );
+
   return (
     <DashboardLayout title="Disputes">
       <div className="space-y-5">
@@ -297,6 +586,21 @@ export default function DisputesPage() {
               />
             </div>
           </div>
+
+          {isLiveLoading ? (
+            <div className="border-b border-[#EAECF0] bg-[#F9FAFB] px-4 py-3 text-sm font-medium text-[#667085] sm:px-6">
+              Loading live disputes...
+            </div>
+          ) : liveError ? (
+            <div className="border-b border-[#EAECF0] bg-[#FEF3F2] px-4 py-3 text-sm font-medium text-[#B42318] sm:px-6">
+              {liveError}
+            </div>
+          ) : hasLiveDisputes ? (
+            <div className="border-b border-[#EAECF0] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467] sm:px-6">
+              Live dispute reads, evidence, and timeline audit updates are
+              active for supported actions.
+            </div>
+          ) : null}
 
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1280px]">
@@ -601,6 +905,11 @@ export default function DisputesPage() {
           initialAction={sidebarAction}
           onConsumeInitialAction={() => setSidebarAction(null)}
           onUpdateDispute={updateDispute}
+          onApplyAction={
+            selectedDispute?.dataSource === "live"
+              ? async (request) => handleApplyLiveAction(request)
+              : undefined
+          }
         />
       </div>
     </DashboardLayout>

@@ -5,8 +5,50 @@ export type SupabaseResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string };
 
+const ADMIN_UNAUTHORIZED_MESSAGE =
+  "Your account is not authorized to access the admin portal.";
+const ADMIN_SESSION_REQUIRED_MESSAGE = "Please sign in again to continue.";
+const ADMIN_SESSION_MISMATCH_MESSAGE =
+  "Your admin session no longer matches this action. Please sign in again.";
+const ADMIN_ACCESS_CACHE_TTL_MS = 30_000;
+
+let cachedAdminAccess:
+  | {
+      userId: string;
+      checkedAtMs: number;
+    }
+  | null = null;
+
+function clearCachedAdminAccess() {
+  cachedAdminAccess = null;
+}
+
+function isPermissionDeniedError(error: PostgrestError | null) {
+  const combined = [
+    error?.code,
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    error?.code === "42501" ||
+    combined.includes("permission denied") ||
+    combined.includes("row-level security") ||
+    combined.includes("not authorized") ||
+    combined.includes("not allowed") ||
+    combined.includes("insufficient privilege")
+  );
+}
+
 function formatPostgrestError(error: PostgrestError | null) {
   if (!error) return "Something went wrong. Please try again.";
+  if (isPermissionDeniedError(error)) {
+    return ADMIN_UNAUTHORIZED_MESSAGE;
+  }
   const message = error.message?.trim();
   if (message) return message;
   return "Something went wrong. Please try again.";
@@ -19,6 +61,74 @@ export function requireSupabaseClient(): SupabaseClient {
     );
   }
   return supabase;
+}
+
+async function requireAdminAccess(params?: {
+  expectedUserId?: string;
+}): Promise<SupabaseResult<{ userId: string }>> {
+  const client = requireSupabaseClient();
+  const expectedUserId = params?.expectedUserId?.trim() ?? "";
+  const {
+    data: sessionData,
+    error: sessionError,
+  } = await client.auth.getSession();
+  const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+
+  if (sessionError || !sessionUserId) {
+    clearCachedAdminAccess();
+    return {
+      ok: false,
+      message: sessionError?.message?.trim() || ADMIN_SESSION_REQUIRED_MESSAGE,
+    };
+  }
+
+  if (expectedUserId && expectedUserId !== sessionUserId) {
+    clearCachedAdminAccess();
+    return { ok: false, message: ADMIN_SESSION_MISMATCH_MESSAGE };
+  }
+
+  if (
+    cachedAdminAccess &&
+    cachedAdminAccess.userId === sessionUserId &&
+    Date.now() - cachedAdminAccess.checkedAtMs < ADMIN_ACCESS_CACHE_TTL_MS
+  ) {
+    return {
+      ok: true,
+      data: {
+        userId: sessionUserId,
+      },
+    };
+  }
+
+  const { data, error } = await client
+    .from("profiles")
+    .select("role")
+    .eq("id", sessionUserId)
+    .single();
+
+  if (error) {
+    clearCachedAdminAccess();
+    return { ok: false, message: formatPostgrestError(error) };
+  }
+
+  const role =
+    typeof data?.role === "string" ? data.role.trim().toLowerCase() : "";
+  if (role !== "admin") {
+    clearCachedAdminAccess();
+    return { ok: false, message: ADMIN_UNAUTHORIZED_MESSAGE };
+  }
+
+  cachedAdminAccess = {
+    userId: sessionUserId,
+    checkedAtMs: Date.now(),
+  };
+
+  return {
+    ok: true,
+    data: {
+      userId: sessionUserId,
+    },
+  };
 }
 
 export type JobRow = {
@@ -165,6 +275,77 @@ export type WithdrawalRow = {
   failure_message: string | null;
 };
 
+export type SupportTicketRow = {
+  id: string;
+  requester_id: string;
+  requester_role: string;
+  job_id: string | null;
+  subject: string;
+  description: string;
+  status: string;
+  priority: string;
+  assigned_admin_id: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  closed_at: string | null;
+};
+
+export type SupportTicketEventRow = {
+  id: string;
+  ticket_id: string;
+  actor_id: string;
+  actor_role: string;
+  event_type: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type DisputeRow = {
+  id: string;
+  job_id: string;
+  opened_by_id: string;
+  opened_by_role: string;
+  dispute_type: string;
+  status: string;
+  priority: string;
+  reason: string;
+  requested_resolution: string;
+  assigned_admin_id: string | null;
+  related_payment_id: string | null;
+  related_withdrawal_id: string | null;
+  resolution_type: string | null;
+  resolution_amount: number | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  rejected_at: string | null;
+};
+
+export type DisputeEvidenceRow = {
+  id: string;
+  dispute_id: string;
+  submitted_by_id: string;
+  submitted_by_role: string;
+  evidence_type: string;
+  url: string | null;
+  description: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type DisputeEventRow = {
+  id: string;
+  dispute_id: string;
+  actor_id: string;
+  actor_role: string;
+  action: string;
+  reason: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
 export type ReviewRow = {
   id: string;
   job_id: string;
@@ -230,6 +411,8 @@ export type UrgencyTierRow = {
 export const supabaseProfiles = {
   async getRoleById(userId: string): Promise<SupabaseResult<string>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("profiles")
       .select("role")
@@ -245,6 +428,8 @@ export const supabaseProfiles = {
 
   async listByIds(ids: string[]): Promise<SupabaseResult<ProfileRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const uniqueIds = Array.from(
       new Set(ids.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -281,6 +466,8 @@ export const supabaseJobs = {
     status?: string;
   }): Promise<SupabaseResult<JobRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
 
     let query = client.from("jobs").select("*").order("created_at", {
@@ -299,6 +486,8 @@ export const supabaseJobs = {
 
   async getById(jobId: string): Promise<SupabaseResult<JobRow>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("jobs")
       .select("*")
@@ -310,11 +499,34 @@ export const supabaseJobs = {
     return { ok: true, data: data as JobRow };
   },
 
+  async listByIds(jobIds: string[]): Promise<SupabaseResult<JobRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(jobIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("jobs")
+      .select("*")
+      .in("id", ids);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as JobRow[] };
+  },
+
   async listByContractorIds(
     contractorIds: string[],
     params?: { limit?: number },
   ): Promise<SupabaseResult<JobRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(contractorIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -347,6 +559,11 @@ export const supabaseJobs = {
     if (!jobId) {
       return { ok: false, message: "Job id is required." };
     }
+
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: params.actorUserId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
 
     const now = new Date().toISOString();
     const payload =
@@ -406,6 +623,8 @@ export const supabaseJobs = {
 export const supabaseContractors = {
   async listLatest(params?: { limit?: number }): Promise<SupabaseResult<ContractorRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
 
     const { data, error } = await client
@@ -420,6 +639,8 @@ export const supabaseContractors = {
 
   async getById(contractorId: string): Promise<SupabaseResult<ContractorRow>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("contractors")
       .select("*")
@@ -454,6 +675,11 @@ export const supabaseContractors = {
       return { ok: false, message: "A lifecycle reason is required." };
     }
 
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: actorUserId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
     const now = new Date().toISOString();
     const payload =
       params.action === "suspend"
@@ -484,6 +710,8 @@ export const supabaseContractors = {
 export const supabaseFinance = {
   async listPayments(params?: { limit?: number }): Promise<SupabaseResult<PaymentRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
 
     const { data, error } = await client
@@ -500,6 +728,8 @@ export const supabaseFinance = {
     limit?: number;
   }): Promise<SupabaseResult<WithdrawalRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
 
     const { data, error } = await client
@@ -512,11 +742,59 @@ export const supabaseFinance = {
     return { ok: true, data: (data ?? []) as WithdrawalRow[] };
   },
 
+  async listPaymentsByIds(
+    paymentIds: string[],
+  ): Promise<SupabaseResult<PaymentRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(paymentIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("payments")
+      .select("*")
+      .in("id", ids);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as PaymentRow[] };
+  },
+
+  async listWithdrawalsByIds(
+    withdrawalIds: string[],
+  ): Promise<SupabaseResult<WithdrawalRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(withdrawalIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("withdrawals")
+      .select("*")
+      .in("id", ids);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as WithdrawalRow[] };
+  },
+
   async listPaymentsByPayeeIds(
     payeeIds: string[],
     params?: { limit?: number },
   ): Promise<SupabaseResult<PaymentRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(payeeIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -542,6 +820,8 @@ export const supabaseFinance = {
     params?: { limit?: number },
   ): Promise<SupabaseResult<WithdrawalRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(contractorIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -568,6 +848,8 @@ export const supabaseContractorBankAccounts = {
     contractorIds: string[],
   ): Promise<SupabaseResult<ContractorBankAccountRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(contractorIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -592,6 +874,8 @@ export const supabaseContractorDocuments = {
     contractorIds: string[],
   ): Promise<SupabaseResult<ContractorDocumentRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(contractorIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -636,6 +920,11 @@ export const supabaseContractorDocuments = {
       return { ok: false, message: "Reviewer id is required." };
     }
 
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: reviewedBy,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
     const { data, error } = await client
       .from("contractor_documents")
       .update({
@@ -659,6 +948,8 @@ export const supabaseReviews = {
     revieweeIds: string[],
   ): Promise<SupabaseResult<ReviewRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const ids = Array.from(
       new Set(revieweeIds.map((id) => String(id).trim()).filter(Boolean)),
     );
@@ -684,6 +975,10 @@ export const supabaseNotifications = {
     limit?: number;
   }): Promise<SupabaseResult<NotificationRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: params.recipientId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
     const limit = Math.max(1, Math.min(200, params.limit ?? 50));
 
     const { data, error } = await client
@@ -714,6 +1009,11 @@ export const supabaseNotifications = {
       return { ok: false, message: "Recipient id is required." };
     }
 
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: recipientId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
     const readAt = params.readAt ?? new Date().toISOString();
 
     const { data, error } = await client
@@ -739,6 +1039,11 @@ export const supabaseNotifications = {
       return { ok: false, message: "Recipient id is required." };
     }
 
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: recipientId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
     const readAt = params.readAt ?? new Date().toISOString();
 
     const { data, error } = await client
@@ -753,9 +1058,272 @@ export const supabaseNotifications = {
   },
 };
 
+export const supabaseSupport = {
+  async listLatest(params?: {
+    limit?: number;
+  }): Promise<SupabaseResult<SupportTicketRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
+
+    const { data, error } = await client
+      .from("support_tickets")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as SupportTicketRow[] };
+  },
+
+  async listEventsByTicketIds(
+    ticketIds: string[],
+  ): Promise<SupabaseResult<SupportTicketEventRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(ticketIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("support_ticket_events")
+      .select("*")
+      .in("ticket_id", ids)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as SupportTicketEventRow[] };
+  },
+
+  async updateStatus(params: {
+    ticketId: string;
+    status: "in_review" | "resolved";
+    actorUserId: string;
+    message?: string | null;
+  }): Promise<SupabaseResult<SupportTicketRow>> {
+    const client = requireSupabaseClient();
+    const ticketId = params.ticketId.trim();
+    const actorUserId = params.actorUserId.trim();
+
+    if (!ticketId) {
+      return { ok: false, message: "Support ticket id is required." };
+    }
+
+    if (!actorUserId) {
+      return { ok: false, message: "Admin user id is required." };
+    }
+
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: actorUserId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const now = new Date().toISOString();
+    const payload =
+      params.status === "resolved"
+        ? {
+            status: "resolved",
+            updated_at: now,
+            resolved_at: now,
+          }
+        : {
+            status: "in_review",
+            updated_at: now,
+          };
+
+    const { data, error } = await client
+      .from("support_tickets")
+      .update(payload)
+      .eq("id", ticketId)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Support ticket not found." };
+
+    const eventType = params.status === "resolved" ? "resolved" : "status_changed";
+    const { error: eventError } = await client.from("support_ticket_events").insert({
+      ticket_id: ticketId,
+      actor_id: actorUserId,
+      actor_role: "admin",
+      event_type: eventType,
+      message: params.message?.trim() || "",
+      metadata: {
+        next_status: params.status,
+      },
+    });
+
+    if (eventError) return { ok: false, message: formatPostgrestError(eventError) };
+    return { ok: true, data: data as SupportTicketRow };
+  },
+};
+
+export const supabaseDisputes = {
+  async listLatest(params?: { limit?: number }): Promise<SupabaseResult<DisputeRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const limit = Math.max(1, Math.min(200, params?.limit ?? 50));
+
+    const { data, error } = await client
+      .from("disputes")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as DisputeRow[] };
+  },
+
+  async listEvidenceByDisputeIds(
+    disputeIds: string[],
+  ): Promise<SupabaseResult<DisputeEvidenceRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(disputeIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("dispute_evidence")
+      .select("*")
+      .in("dispute_id", ids)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as DisputeEvidenceRow[] };
+  },
+
+  async listEventsByDisputeIds(
+    disputeIds: string[],
+  ): Promise<SupabaseResult<DisputeEventRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(disputeIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("dispute_events")
+      .select("*")
+      .in("dispute_id", ids)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as DisputeEventRow[] };
+  },
+
+  async applyAction(params: {
+    disputeId: string;
+    actorUserId: string;
+    action: "request_evidence" | "propose_resolution" | "resolve" | "reject";
+    reason: string;
+    message?: string | null;
+    resolutionType?: "no_action" | "refund" | "partial_refund" | "payout_block" | "chargeback";
+  }): Promise<SupabaseResult<DisputeRow>> {
+    const client = requireSupabaseClient();
+    const disputeId = params.disputeId.trim();
+    const actorUserId = params.actorUserId.trim();
+    const reason = params.reason.trim();
+
+    if (!disputeId) {
+      return { ok: false, message: "Dispute id is required." };
+    }
+
+    if (!actorUserId) {
+      return { ok: false, message: "Admin user id is required." };
+    }
+
+    if (!reason) {
+      return { ok: false, message: "A dispute action reason is required." };
+    }
+
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: actorUserId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const now = new Date().toISOString();
+    const payload =
+      params.action === "request_evidence"
+        ? {
+            status: "awaiting_evidence",
+            updated_at: now,
+          }
+        : params.action === "propose_resolution"
+          ? {
+              status: "proposed_resolution",
+              updated_at: now,
+              resolution_type: params.resolutionType ?? null,
+              requested_resolution: reason,
+            }
+          : params.action === "resolve"
+            ? {
+                status: "resolved",
+                updated_at: now,
+                resolved_at: now,
+                resolution_type: params.resolutionType ?? null,
+                requested_resolution: reason,
+              }
+            : {
+                status: "rejected",
+                updated_at: now,
+                rejected_at: now,
+              };
+
+    const { data, error } = await client
+      .from("disputes")
+      .update(payload)
+      .eq("id", disputeId)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Dispute not found." };
+
+    const metadata: Record<string, unknown> = {};
+    if (params.message?.trim()) {
+      metadata.message = params.message.trim();
+    }
+    if (params.resolutionType) {
+      metadata.resolution_type = params.resolutionType;
+    }
+
+    const { error: eventError } = await client.from("dispute_events").insert({
+      dispute_id: disputeId,
+      actor_id: actorUserId,
+      actor_role: "admin",
+      action: params.action,
+      reason,
+      metadata,
+    });
+
+    if (eventError) return { ok: false, message: formatPostgrestError(eventError) };
+    return { ok: true, data: data as DisputeRow };
+  },
+};
+
 export const supabaseSettings = {
   async listPlatformConfig(): Promise<SupabaseResult<PlatformConfigRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("platform_config")
       .select("*")
@@ -779,6 +1347,9 @@ export const supabaseSettings = {
       return { ok: false, message: "Config key is required." };
     }
 
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
     const { data, error } = await client
       .from("platform_config")
       .upsert(
@@ -800,6 +1371,8 @@ export const supabaseSettings = {
 
   async listServiceCategories(): Promise<SupabaseResult<ServiceCategoryRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("service_categories")
       .select("*")
@@ -823,6 +1396,9 @@ export const supabaseSettings = {
     if (!name) {
       return { ok: false, message: "Category name is required." };
     }
+
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
 
     const { data, error } = await client
       .from("service_categories")
@@ -858,6 +1434,9 @@ export const supabaseSettings = {
       return { ok: false, message: "Category id is required." };
     }
 
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
     const payload: Partial<ServiceCategoryRow> & {
       icon_key?: string;
       display_order?: number;
@@ -886,6 +1465,8 @@ export const supabaseSettings = {
 
   async listServiceTypes(): Promise<SupabaseResult<ServiceTypeRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("service_types")
       .select("*")
@@ -913,6 +1494,9 @@ export const supabaseSettings = {
     if (!name) {
       return { ok: false, message: "Service type name is required." };
     }
+
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
 
     const { data, error } = await client
       .from("service_types")
@@ -946,6 +1530,9 @@ export const supabaseSettings = {
       return { ok: false, message: "Service type id is required." };
     }
 
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
     const payload: Partial<ServiceTypeRow> & {
       category_id?: string;
       base_price?: number;
@@ -975,6 +1562,8 @@ export const supabaseSettings = {
 
   async listUrgencyTiers(): Promise<SupabaseResult<UrgencyTierRow[]>> {
     const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
     const { data, error } = await client
       .from("urgency_tiers")
       .select("*")
@@ -998,6 +1587,9 @@ export const supabaseSettings = {
     if (!id) {
       return { ok: false, message: "Urgency tier id is required." };
     }
+
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
 
     const payload: Partial<UrgencyTierRow> & {
       extra_fee?: number;
@@ -1023,3 +1615,4 @@ export const supabaseSettings = {
     return { ok: true, data: data as UrgencyTierRow };
   },
 };
+

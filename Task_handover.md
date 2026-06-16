@@ -1,6 +1,19 @@
 # AidSprint Admin Frontend PRD Assessment and Handover
 
-Last updated: 2026-06-05
+Last updated: 2026-06-16
+
+## Recent Integration Update
+- Chunk J1 is now implemented for admin authorization hardening.
+- `src/lib/supabase/data.ts` now performs an explicit admin-session check before admin reads and writes, verifies actor-id mutations against the current session, and maps permission-denied / RLS failures to a shared authorization message.
+- `Support` and `Disputes` now clear seeded rows when live access fails for authorization/session reasons, so the UI surfaces explicit failures instead of quietly leaving mock data in place.
+- Focused hardening coverage was added in `src/lib/supabase/data.test.ts`, alongside new access-failure assertions in `src/components/dashboard/support/support.test.tsx` and `src/components/dashboard/disputes/disputes.test.tsx`.
+- Verification completed with `corepack pnpm vitest run src/lib/supabase/data.test.ts src/components/dashboard/support/support.test.tsx src/components/dashboard/disputes/disputes.test.tsx` and `corepack pnpm typecheck`.
+- Chunk I2 is now implemented for disputes and support.
+- `Support` now reads live `support_tickets` from Supabase, maps requester/job context into the existing table and sidebar UI, and persists supported status updates into `support_tickets` plus `support_ticket_events`.
+- `Disputes` now reads live `disputes`, `dispute_evidence`, and `dispute_events`, maps linked jobs/profiles/payment context into the existing dispute workspace, and persists supported admin actions into `disputes` plus `dispute_events`.
+- The current backend contract supports refund-style and payout-block-style dispute outcomes. The frontend blocks unsupported live contractor-warning / contractor-ban resolution types instead of pretending they persisted.
+- Focused live mutation tests were added in `src/components/dashboard/support/support.test.tsx` and `src/components/dashboard/disputes/disputes.test.tsx`.
+- Verification completed with `corepack pnpm vitest run src/components/dashboard/support/support.test.tsx src/components/dashboard/disputes/disputes.test.tsx` and `corepack pnpm typecheck`.
 
 ## Purpose
 This document replaces earlier speculative handover notes with a reality-based assessment of the current admin frontend against the product requirements document in `PRODUCT REQUIREMENTS DOCUMENT.md`.

@@ -74,5 +74,6 @@ export type DisputeRecord = {
   notes: DisputeNote[];
   actionLog: DisputeActionLogEntry[];
   proposedResolutionType?: DisputeResolutionType;
+  backendStatus?: string;
+  dataSource?: "mock" | "live";
 };
-

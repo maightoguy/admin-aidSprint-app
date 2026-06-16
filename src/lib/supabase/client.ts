@@ -7,6 +7,10 @@ export function isSupabaseConfigured() {
   return getSupabaseEnv() !== null;
 }
 
+export function isSupabaseFeatureEnabled() {
+  return !(import.meta.env.MODE === "test" || import.meta.env.VITEST) && isSupabaseConfigured();
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
   if (cachedClient) {
     return cachedClient;

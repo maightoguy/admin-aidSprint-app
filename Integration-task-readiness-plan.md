@@ -904,7 +904,7 @@ Current implementation note:
 - Added a backend-ready disputes/support schema scaffold under `supabase/manual_sql/disputes_support_contract.sql` (admin-only RLS policies via `public.is_admin_user()`).
 - Tables included: `public.support_tickets`, `public.support_ticket_events`, `public.disputes`, `public.dispute_evidence`, `public.dispute_events`.
 - Next when running live integration: apply the SQL in Supabase, then update the local schema snapshot via the existing db pull workflow.
-#### Chunk I2 - Live disputes/support reads and writes
+#### Chunk I2 - Live disputes/support reads and writes (DONE)
 
 
 ```text
@@ -921,9 +921,16 @@ Requirements:
 - Add focused tests for live mutation paths only where behavior materially changes.
 ```
 
+Current implementation note:
+- `src/components/dashboard/support/support.tsx` now loads live `support_tickets` plus related requester profiles/job context from Supabase, while preserving the existing table, filters, pagination, and right-side detail panel flow.
+- `src/components/dashboard/disputes/disputes.tsx` now loads live `disputes`, `dispute_evidence`, and `dispute_events` plus linked jobs/profiles/payment references, keeping the existing operations-first dispute table and detail panel intact.
+- Support status updates now persist to `public.support_tickets` and write audit entries into `public.support_ticket_events`.
+- Dispute actions now persist supported admin actions to `public.disputes` and `public.dispute_events`, with live evidence/timeline reads rendered from Supabase data.
+- Focused live mutation coverage was added in `support.test.tsx` and `disputes.test.tsx`.
+
 ### Phase J - Final Hardening
 
-#### Chunk J1 - RLS, permissions, and admin safety review
+#### Chunk J1 - RLS, permissions, and admin safety review (DONE)
 
 ```text
 Integration task: Harden the admin integration by reviewing and enforcing Supabase RLS, admin-only access rules, and safe mutation boundaries. Keep UI changes minimal and focus on backend safety and predictable authorization behavior.
@@ -938,6 +945,13 @@ Requirements:
 - Do not weaken existing protected-route behavior.
 - Prefer explicit permission failures over silent fallbacks.
 ```
+
+Current implementation note:
+- `src/lib/supabase/data.ts` now performs an explicit admin-session guard before admin reads and writes, re-checking the signed-in user against `profiles.role`, detecting session/actor mismatches, and normalizing permission-denied / RLS failures to a shared admin authorization message.
+- Mutation paths that carry an actor id now verify that the submitted actor matches the currently authenticated admin session before attempting the write.
+- `src/components/dashboard/support/support.tsx` and `src/components/dashboard/disputes/disputes.tsx` now clear seeded rows on authorization/session failures so access problems surface explicitly instead of quietly leaving mock content in place.
+- Focused hardening coverage was added in `src/lib/supabase/data.test.ts`, with additional access-failure UI coverage in `support.test.tsx` and `disputes.test.tsx`.
+- Verification completed with `corepack pnpm vitest run src/lib/supabase/data.test.ts src/components/dashboard/support/support.test.tsx src/components/dashboard/disputes/disputes.test.tsx` and `corepack pnpm typecheck`.
 
 #### Chunk J2 - Production readiness cleanup
 
