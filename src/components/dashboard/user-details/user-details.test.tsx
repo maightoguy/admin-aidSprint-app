@@ -31,12 +31,16 @@ function renderUserDetails(options?: {
   onStatusChange?: Parameters<typeof UserDetailsPage>[0]["onStatusChange"];
   isLoading?: boolean;
   errorMessage?: string | null;
+  accountActionsEnabled?: boolean;
+  requestActionsEnabled?: boolean;
 }) {
   const {
     route = "/users/emery-torff",
     onStatusChange,
     isLoading = false,
     errorMessage = null,
+    accountActionsEnabled,
+    requestActionsEnabled,
   } = options ?? {};
 
   return render(
@@ -49,6 +53,8 @@ function renderUserDetails(options?: {
               onStatusChange={onStatusChange}
               isLoading={isLoading}
               errorMessage={errorMessage}
+              accountActionsEnabled={accountActionsEnabled}
+              requestActionsEnabled={requestActionsEnabled}
             />
           }
         />
@@ -192,6 +198,41 @@ describe("UserDetailsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
     });
+  });
+
+  it("renders account and request actions as read-only when live writes are disabled", async () => {
+    const user = userEvent.setup();
+
+    renderUserDetails({
+      accountActionsEnabled: false,
+      requestActionsEnabled: false,
+    });
+
+    const updateAccountButton = screen.getByRole("button", {
+      name: /update account/i,
+    });
+    expect(updateAccountButton).toHaveProperty("disabled", true);
+    expect(
+      screen.getByText(
+        /Account updates are view-only here until user lifecycle writes are backed by the backend contract\./i,
+      ),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Request history" }));
+    await user.click(
+      screen.getAllByRole("button", {
+        name: "Open request details for Plumbing",
+      })[0],
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Update request status" }),
+    ).toHaveProperty("disabled", true);
+    expect(
+      screen.getAllByText(
+        /Profile-linked request actions are read-only here\. Use the Requests workspace for live operational actions\./i,
+      ),
+    ).toHaveLength(2);
   });
 
   it("renders loading and missing-user states", () => {

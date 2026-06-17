@@ -26,11 +26,17 @@ const menuItemColors: Record<UserMenuAction, string> = {
 export function UsersActionsMenu({
   user,
   onAction,
+  disabledActions = [],
 }: {
   user: UserRecord;
   onAction?: (action: UserMenuAction, user: UserRecord) => void;
+  disabledActions?: UserMenuAction[];
 }) {
   const handleAction = (action: UserMenuAction) => {
+    if (disabledActions.includes(action)) {
+      return;
+    }
+
     if (onAction) {
       onAction(action, user);
       return;
@@ -61,8 +67,14 @@ export function UsersActionsMenu({
         {menuActions.map((action, index) => (
           <div key={action}>
             <DropdownMenuItem
+              disabled={disabledActions.includes(action)}
               onClick={() => handleAction(action)}
-              className={cn(usersStyles.actionMenuItem, menuItemColors[action])}
+              className={cn(
+                usersStyles.actionMenuItem,
+                disabledActions.includes(action)
+                  ? "cursor-not-allowed text-[#98A2B3] focus:text-[#98A2B3]"
+                  : menuItemColors[action],
+              )}
             >
               {action}
             </DropdownMenuItem>

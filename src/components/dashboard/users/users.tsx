@@ -18,10 +18,7 @@ import type {
 import { FilterButton } from "../shared/filters/filter-button";
 import { useUrlFilters } from "../shared/filters/use-url-filters";
 import { paginateItems } from "../shared/pagination-utils";
-import {
-  userRecords,
-  usersSummaryPattern,
-} from "./users.data";
+import { userRecords, usersSummaryPattern } from "./users.data";
 import { UsersActionsMenu } from "./users-actions-menu";
 import { getNameInitials, loadLiveUsers } from "./users.live";
 import { usersStyles } from "./users.styles";
@@ -102,10 +99,12 @@ export default function Users({
     : [],
   isLoading = false,
   errorMessage = null,
+  accountActionsEnabled,
 }: {
   initialUsers?: UserRecord[];
   isLoading?: boolean;
   errorMessage?: string | null;
+  accountActionsEnabled?: boolean;
 }) {
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [isLiveLoading, setIsLiveLoading] = useState(false);
@@ -120,6 +119,7 @@ export default function Users({
     defaults: userFilterDefaults,
   });
   const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+  const areAccountActionsEnabled = accountActionsEnabled ?? isTestMode;
 
   const loadUsers = useCallback(async () => {
     if (isTestMode || !isSupabaseConfigured()) {
@@ -218,6 +218,14 @@ export default function Users({
     }
 
     if (action === "Activate account" || action === "Deactivate account") {
+      if (!areAccountActionsEnabled) {
+        toast.info("User actions are read-only", {
+          description:
+            "User account lifecycle updates are not live-backed yet.",
+        });
+        return;
+      }
+
       const nextStatus: UserRecord["status"] =
         action === "Activate account" ? "Active" : "Deactivated";
 
@@ -296,9 +304,17 @@ export default function Users({
           </section>
           <section className="mt-5 rounded-[10px] border border-[#EAECF0] bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-[#EAECF0] px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-sm font-semibold text-[#667085]">
-                All users
-              </h2>
+              <div>
+                <h2 className="text-sm font-semibold text-[#667085]">
+                  All users
+                </h2>
+                {!areAccountActionsEnabled ? (
+                  <p className="mt-1 text-xs text-[#98A2B3]">
+                    Account lifecycle actions are view-only until the backend
+                    contract is added.
+                  </p>
+                ) : null}
+              </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <label className="inline-flex h-10 min-w-0 items-center gap-2 rounded-xl border border-[#EAECF0] bg-white px-4 text-sm text-[#667085] shadow-sm sm:min-w-[300px]">
                   <Search className="h-4 w-4 shrink-0" />
@@ -315,7 +331,9 @@ export default function Users({
                   onClick={() => setExpanded((prev) => !prev)}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-[#EAECF0] bg-white px-4 text-sm font-semibold text-[#667085] shadow-sm transition hover:bg-[#F8FAFC]"
                   aria-label={
-                    expanded ? "Show fewer users per page" : "Show more users per page"
+                    expanded
+                      ? "Show fewer users per page"
+                      : "Show more users per page"
                   }
                 >
                   {expanded ? "See less" : "See all"}
@@ -400,6 +418,11 @@ export default function Users({
                             <UsersActionsMenu
                               user={user}
                               onAction={handleUserAction}
+                              disabledActions={
+                                areAccountActionsEnabled
+                                  ? []
+                                  : ["Activate account", "Deactivate account"]
+                              }
                             />
                           </td>
                         </tr>
@@ -417,6 +440,11 @@ export default function Users({
                         <UsersActionsMenu
                           user={user}
                           onAction={handleUserAction}
+                          disabledActions={
+                            areAccountActionsEnabled
+                              ? []
+                              : ["Activate account", "Deactivate account"]
+                          }
                         />
                       </div>
                       <div className="flex min-w-0 items-start gap-3 pr-16">

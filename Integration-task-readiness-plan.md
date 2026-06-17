@@ -427,18 +427,18 @@ This is the recommended immediate path:
 
 ## Module Readiness Matrix
 
-| Module | Frontend Ready | Schema Ready | Integration Readiness | Notes |
-|---|---|---:|---:|---|
-| Auth | High | Medium-Low | Medium | Frontend ready, backend admin-role strategy not finalized |
-| Requests / Jobs | High | High | High | Best first live data module |
-| Contractors | High | High | High | Strong contractor + KYC alignment |
-| Overview | High | Medium-High | Medium-High | Depends on live requests/contractors/payments aggregates |
-| Settings categories/pricing | High | High | High | Good match to schema |
-| Transactions / payouts | High | Medium | Medium | Reads first, writes after contract mapping |
-| Disputes | High | Low | Low-Medium | UI ready, schema not ready enough |
-| Support | Medium | Low | Low-Medium | Needs backend ticket model |
-| Promos | Medium | Low | Low | Needs schema |
-| Notification campaigns | Medium | Low-Medium | Low-Medium | Generic notifications exist, campaigns do not |
+| Module                      | Frontend Ready | Schema Ready | Integration Readiness | Notes                                                     |
+| --------------------------- | -------------- | -----------: | --------------------: | --------------------------------------------------------- |
+| Auth                        | High           |   Medium-Low |                Medium | Frontend ready, backend admin-role strategy not finalized |
+| Requests / Jobs             | High           |         High |                  High | Best first live data module                               |
+| Contractors                 | High           |         High |                  High | Strong contractor + KYC alignment                         |
+| Overview                    | High           |  Medium-High |           Medium-High | Depends on live requests/contractors/payments aggregates  |
+| Settings categories/pricing | High           |         High |                  High | Good match to schema                                      |
+| Transactions / payouts      | High           |       Medium |                Medium | Reads first, writes after contract mapping                |
+| Disputes                    | High           |          Low |            Low-Medium | UI ready, schema not ready enough                         |
+| Support                     | Medium         |          Low |            Low-Medium | Needs backend ticket model                                |
+| Promos                      | Medium         |          Low |                   Low | Needs schema                                              |
+| Notification campaigns      | Medium         |   Low-Medium |            Low-Medium | Generic notifications exist, campaigns do not             |
 
 ## Backend Decisions Needed Before Broad Integration
 
@@ -769,8 +769,8 @@ Requirements:
 - Keep the page coherent and visually unchanged.
 ```
 
-
 Current implementation note:
+
 - The Settings header messaging is now explicit per tab about what is live-backed vs local-only.
 - Promos and Notifications are clearly labeled as local-only, and their dialogs/toasts no longer imply database persistence.
 
@@ -794,6 +794,7 @@ Requirements:
 ```
 
 Current implementation note:
+
 - Transactions now load live `public.payments` and `public.withdrawals` when Supabase is configured (with test guards to avoid live calls during Vitest).
 - The finance UI remains visually unchanged; export works against the currently loaded (live) filtered records.
 - Finance status actions (approve/reject/flag/reconcile/reverse) remain local-only until a supported finance write contract is added.
@@ -814,6 +815,7 @@ Requirements:
 ```
 
 Current implementation note:
+
 - Export already runs against the currently loaded filtered finance records, including live Supabase reads from `public.payments` and `public.withdrawals`.
 - The latest schema snapshot still exposes admin finance read policies only (`Admins can view payments`, `Admins can view withdrawals`) and does not yet expose admin update policies for finance writes.
 - G2 now enforces that boundary in the UI: live finance records remain read-only, while unsupported payout/reconciliation actions are clearly blocked instead of pretending to persist.
@@ -833,7 +835,6 @@ Requirements:
 - Keep the current UI intact.
 ```
 
-
 ### Phase H - Realtime Enablement
 
 #### Chunk H1 - Jobs and contractors realtime (DONE)
@@ -852,6 +853,7 @@ Requirements:
 ```
 
 Current implementation note:
+
 - Requests already refresh from realtime `public.jobs` changes (debounced by React render + silent reload).
 - Overview now subscribes to realtime changes on `public.jobs` and `public.contractors` and performs a debounced silent refresh to avoid noisy redraws.
 - Contractor list subscribes to realtime changes on `public.contractors` and refreshes the list with a debounced silent reload.
@@ -873,10 +875,12 @@ Requirements:
 ```
 
 Current work context:
+
 - `c:\Users\hp\Desktop\Work\Assignment\aidSprint-app\admin-aidSprint-app\Analyze Project Progress and Plan.md#L1602-1605` (current/next step marker)
 - Note: Observed a Transactions table rendering issue after reload where text under “Transaction type” and “Amount” suddenly wraps vertically (breaks every ~2–3 letters).
 
 Current implementation note:
+
 - Dashboard notifications now load from `public.notifications` and subscribe to realtime changes for the signed-in admin (`recipient_id=eq.<adminUserId>`).
 - Unread count is driven by `read_at`. Opening the drawer marks notifications as read optimistically; persisting `read_at` in Supabase requires an update policy on `public.notifications` if RLS blocks writes.
 - Transactions table vertical text wrapping is fixed by removing the global `overflow-wrap:anywhere` / `word-break:break-word` rule from `td/th` so table cells prefer horizontal scroll over breaking mid-word.
@@ -899,13 +903,13 @@ Requirements:
 - Prefer separate disputes/support tables over overloading jobs/payments if the workflow is distinct.
 ```
 
-
 Current implementation note:
+
 - Added a backend-ready disputes/support schema scaffold under `supabase/manual_sql/disputes_support_contract.sql` (admin-only RLS policies via `public.is_admin_user()`).
 - Tables included: `public.support_tickets`, `public.support_ticket_events`, `public.disputes`, `public.dispute_evidence`, `public.dispute_events`.
 - Next when running live integration: apply the SQL in Supabase, then update the local schema snapshot via the existing db pull workflow.
-#### Chunk I2 - Live disputes/support reads and writes (DONE)
 
+#### Chunk I2 - Live disputes/support reads and writes (DONE)
 
 ```text
 Integration task: Once the backend contract exists, connect the disputes and support surfaces to live Supabase data while preserving the existing table, filter, and right-side detail panel patterns.
@@ -922,6 +926,7 @@ Requirements:
 ```
 
 Current implementation note:
+
 - `src/components/dashboard/support/support.tsx` now loads live `support_tickets` plus related requester profiles/job context from Supabase, while preserving the existing table, filters, pagination, and right-side detail panel flow.
 - `src/components/dashboard/disputes/disputes.tsx` now loads live `disputes`, `dispute_evidence`, and `dispute_events` plus linked jobs/profiles/payment references, keeping the existing operations-first dispute table and detail panel intact.
 - Support status updates now persist to `public.support_tickets` and write audit entries into `public.support_ticket_events`.
@@ -947,13 +952,14 @@ Requirements:
 ```
 
 Current implementation note:
+
 - `src/lib/supabase/data.ts` now performs an explicit admin-session guard before admin reads and writes, re-checking the signed-in user against `profiles.role`, detecting session/actor mismatches, and normalizing permission-denied / RLS failures to a shared admin authorization message.
 - Mutation paths that carry an actor id now verify that the submitted actor matches the currently authenticated admin session before attempting the write.
 - `src/components/dashboard/support/support.tsx` and `src/components/dashboard/disputes/disputes.tsx` now clear seeded rows on authorization/session failures so access problems surface explicitly instead of quietly leaving mock content in place.
 - Focused hardening coverage was added in `src/lib/supabase/data.test.ts`, with additional access-failure UI coverage in `support.test.tsx` and `disputes.test.tsx`.
 - Verification completed with `corepack pnpm vitest run src/lib/supabase/data.test.ts src/components/dashboard/support/support.test.tsx src/components/dashboard/disputes/disputes.test.tsx` and `corepack pnpm typecheck`.
 
-#### Chunk J2 - Production readiness cleanup
+#### Chunk J2 - Production readiness cleanup (DONE)
 
 ```text
 Integration task: Perform final production-readiness cleanup for the integrated admin app. Focus on observability, retry/error UX, performance, remaining mock fallback removal, and consistency across live modules while preserving the current Figma-backed interface.
@@ -967,6 +973,225 @@ Scope:
 Requirements:
 - Keep the visual shell intact.
 - Avoid broad redesign; this is a hardening pass, not a new UI phase.
+```
+
+Current implementation note:
+
+- `src/components/dashboard/users/users.tsx` now treats user lifecycle actions as explicitly read-only in live mode, disabling activate/deactivate menu items and showing a clear backend-contract notice instead of mutating local React state.
+- `src/components/dashboard/user-details/user-details-page.tsx` now disables account status and profile-linked request intervention actions outside test mode, preserving the current shell while steering live operators to the Requests workspace for supported request actions.
+- `src/components/dashboard/user-details/user-details.types.ts` was aligned with the new action-gating props so the production hardening path typechecks cleanly.
+- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx` for the read-only account/request-action behavior.
+- Verification completed with `corepack pnpm vitest run src/components/dashboard/user-details/user-details.test.tsx` and `corepack pnpm typecheck`.
+
+### Phase K - Admin Auth Hardening And Security Settings
+
+#### Chunk K1 - Admin 2FA/MFA backend contract and auth flow design (DONE)
+
+```text
+Planning and integration task: Extend the admin auth foundation with a real second-factor strategy that fits Supabase and the current admin-only access model. Keep the login and route shell visually stable while defining the backend-safe MFA contract, recovery flow, and enforcement rules for admin accounts.
+
+Scope:
+- choose the MFA method for admins:
+  - authenticator app / TOTP
+  - email OTP fallback
+  - recovery-code handling
+- define enrollment, challenge, recovery, and reset rules
+- define where MFA-required state is enforced in the current auth flow
+- define any Supabase auth settings, policies, or supporting tables needed
+
+Requirements:
+- preserve the current login visual language
+- do not bolt on fake MFA UI without a real backend path
+- keep admin authorization and session-expiry behavior intact
+- document whether MFA is required for all admins or introduced in staged rollout
+```
+
+Current implementation note:
+
+- Chosen MFA strategy: use Supabase Auth TOTP as the only day-to-day second factor for admins. Do not treat email OTP as an equivalent interactive second factor in the normal login path; keep email as a recovery / reset approval channel only so the admin session still reaches a true MFA assurance level before protected routes open.
+- Rollout decision: staged rollout. Add a backend-managed admin MFA policy so existing admins can enroll without immediate lockout, then move to required MFA per admin account once enrollment is complete. This avoids breaking the current admin portal while still giving a clear path to mandatory MFA for all admins.
+- Supporting backend contract:
+- add `public.admin_security_settings` keyed by admin `profiles.id` to hold app-level policy and recovery metadata such as `mfa_policy`, `recovery_codes_generated_at`, `last_reauth_at`, `last_mfa_reset_requested_at`, and `last_mfa_reset_by`
+- add `public.admin_mfa_recovery_codes` storing hashed single-use recovery codes with `admin_user_id`, `code_hash`, `generated_at`, `consumed_at`, and `consumed_by_ip` / audit metadata
+- add `public.admin_security_events` for auditable actions such as `mfa_enrolled`, `mfa_challenged`, `mfa_verified`, `recovery_code_used`, `mfa_reset_requested`, `mfa_disabled`, and `password_changed`
+- keep factor truth in Supabase Auth; do not duplicate enrolled factor secrets or QR material in Postgres
+- Auth-flow enforcement points:
+- after `signInWithPassword`, keep the existing admin role check in `src/auth/auth.store.ts`, then inspect the admin's enrolled factors plus current authenticator assurance level before setting the store to fully authenticated
+- if the admin has no verified TOTP factor and policy is `required`, move into an `mfa_setup_required` state instead of `authenticated`
+- if the admin has a verified TOTP factor but the session is still first-factor only, move into an `mfa_challenge_required` state until the challenge is verified
+- only persist the final route-eligible session to local/session storage after MFA verification succeeds and the session reaches the required assurance level
+- on app boot / session restore, re-check both admin role and MFA assurance before allowing `RequireAuth` to render protected routes
+- Recovery and reset rules:
+- recovery codes are generated only after successful TOTP enrollment, shown once, stored hashed, and rotated whenever MFA is reset or recovery codes are regenerated
+- email OTP is reserved for recovery approval or reset confirmation, never as the final step that unlocks the admin portal on its own
+- self-service MFA disable/reset must require recent password re-auth plus either a current TOTP verification or a valid recovery code; otherwise the flow remains blocked and should hand off to a supervised reset path
+- every recovery-code use, reset request, factor removal, and password/security mutation must write an `admin_security_events` audit row
+- K2 implementation target:
+- preserve the current login card and settings shell, but add intermediate auth-store states for MFA setup / challenge / recovery instead of introducing a separate visual auth product
+- wire the Settings security panel to password change, factor enrollment/disable, recovery-code regeneration, and recent re-auth checks against the contract above
+- Verification source for this design: current auth flow in `src/auth/auth.store.ts`, route gating in `src/auth/require-auth.tsx`, current security placeholder flow in `src/components/dashboard/setting/settings.tsx`, and the latest schema snapshot `supabase/migrations/20260616104032_remote_schema.sql`
+
+#### Chunk K2 - Persist live security settings and MFA management
+
+```text
+Integration task: Connect the Settings security surface to real backend-backed security actions once the MFA contract is approved. Preserve the current settings route and visual shell while making password/security actions real and explicit.
+
+Scope:
+- connect password update flow where supported
+- add MFA enrollment / disable / reset actions for admins
+- add clear success, failure, recovery, and re-auth states
+- ensure security actions respect the current protected-session model
+
+Requirements:
+- keep the current security panel styling intact
+- prefer explicit unsupported states over silent no-op toasts
+- add focused tests for live security mutation paths only where behavior materially changes
+```
+
+### Phase L - Promos And Notification Campaigns Backend Expansion
+
+#### Chunk L1 - Promo and notification campaign schema/contracts
+
+```text
+Planning and backend-contract task: Add the missing backend shape for promo codes and notification campaigns so the current local-only settings sections can become real. Treat the current marketplace configuration UI as the workflow target and keep the shared mobile/admin domain model in mind.
+
+Scope:
+- define `promo_codes` and related rule / usage tables as needed
+- define notification template / campaign tables and delivery metadata
+- define admin-only read/write policies
+- define how these contracts map to existing settings UI states and filters
+
+Requirements:
+- do not overload generic notifications rows for campaign authoring if the workflow is distinct
+- keep naming explicit and backend-ready
+- provide planning-safe SQL under `supabase/manual_sql/` when schema changes are required
+```
+
+#### Chunk L2 - Replace local-only promos and campaign settings with live integration
+
+```text
+Integration task: Convert the local-only promos and notification campaign areas in the marketplace/settings workspace into live Supabase-backed flows while preserving the current page structure and section layout.
+
+Scope:
+- promo create/edit/enable/disable/delete
+- notification template/campaign create/edit/enable/disable where supported
+- live load, empty, error, and retry handling for the currently local-only sections
+- remove local-only success messaging once persistence is real
+
+Requirements:
+- preserve the current Settings and Marketplace visual language
+- do not imply persistence for any action until the backend contract is live
+- add focused tests only for the newly live mutation paths
+```
+
+### Phase M - Finance Writes And Admin Audit Contract
+
+#### Chunk M1 - Finance write contract, policies, and audit trail design
+
+```text
+Planning and backend-contract task: Define the supported admin finance write paths that can safely move beyond read-only behavior. Keep mobile/shared payment flows intact and prefer additive admin audit/event models over risky direct-table overload.
+
+Scope:
+- define which payment/withdrawal admin actions are truly supported first
+- add required admin update policies and audit/event tables
+- define actor, reason, and timestamp capture requirements
+- define which actions remain server-only or Stripe-mediated
+
+Requirements:
+- do not force reconciliation/reversal workflows into unsupported direct writes
+- prefer explicit finance admin events / audit records over hidden state changes
+- document the exact boundary between live-supported actions and deferred actions
+```
+
+#### Chunk M2 - Live finance status actions for supported admin workflows
+
+```text
+Integration task: Replace the current read-only finance action boundary with real supported writes once the finance contract and RLS policies are ready. Preserve the existing transactions workspace layout, filters, detail sidebar, and reason-capture UX.
+
+Scope:
+- wire supported payment/withdrawal status actions
+- persist reason-captured admin decisions
+- surface audit history where available
+- keep unsupported finance actions clearly blocked
+
+Requirements:
+- preserve current finance UX and badge naming
+- do not re-enable local-only toasts for unsupported live records
+- add focused interaction coverage for the supported live write paths
+```
+
+### Phase N - User Management Persistence Cleanup
+
+#### Chunk N1 - Persist user lifecycle/admin actions where backend support exists
+
+```text
+Planning and integration task: Review the Users and User Details surfaces and connect only the account lifecycle actions that have a real backend contract. Preserve the current users table, details page, and modal patterns.
+
+Scope:
+- define whether user activate/deactivate maps to auth, profile, or linked-method state
+- persist supported user account actions from both the users list and the user details page
+- keep authorization, actor identity, and auditability explicit
+- add any minimal backend contract needed for admin-triggered user lifecycle actions
+
+Requirements:
+- do not fake persistence for user actions that still lack backend support
+- keep the current UX but remove misleading success states
+- prefer one shared action path so users list and user details stay consistent
+```
+
+#### Chunk N2 - Remove or disable unsupported user-profile request actions
+
+```text
+Integration task: Clean up the user-details request-history workflow so unsupported request-side actions are either truly persisted or explicitly disabled. Keep the current page and request sidebar patterns visually intact.
+
+Scope:
+- review current request status actions launched from the user profile context
+- persist supported actions if a safe backend path already exists
+- disable or boundary unsupported user-context request actions that remain client-side only
+- remove leftover mock-only normal-path behavior in this feature area
+
+Requirements:
+- prefer clear disabled states over silent client-side-only status changes
+- preserve navigation from Users to User Details
+- add focused tests where user-profile actions change materially
+```
+
+### Phase O - Request Intervention Contract Decision
+
+#### Chunk O1 - Decide where intervention notes belong in the backend contract
+
+```text
+Planning task: Resolve the current product-contract ambiguity for delay, escalation, intervention, and dispute-adjacent notes on requests/jobs. Use the existing requests, disputes, and support workflows as the frontend target and decide where this operational metadata should persist.
+
+Scope:
+- compare these options:
+  - add fields directly to `jobs`
+  - add a separate job-operations / intervention log table
+  - move dispute/support-style notes fully into disputes/support records
+- define actor, reason, status, and timeline requirements
+- define which operational notes must be realtime-visible
+
+Requirements:
+- choose one primary contract direction before wider write expansion
+- avoid duplicating the same intervention data across jobs and disputes/support
+- keep the admin workflow operationally clear and audit-friendly
+```
+
+#### Chunk O2 - Align requests/support/disputes UI boundaries to the chosen contract
+
+```text
+Integration task: After the intervention contract is chosen, align the requests workflow and adjacent support/disputes surfaces so each admin note/action persists in the right place. Preserve the current tables, sidebars, overlays, and Figma-backed shell.
+
+Scope:
+- wire intervention notes to the chosen backend model
+- update requests live state messaging to remove temporary/local-only notes where possible
+- keep disputes/support linkage explicit when intervention becomes formalized
+- clean up any now-obsolete local operations annotations
+
+Requirements:
+- keep the current monitoring UI calm and stable
+- prefer explicit domain boundaries over mixed request/dispute semantics
+- add focused tests for any live intervention write/read paths that become supported
 ```
 
 ## Recommended Combined Prompt Packs
@@ -984,6 +1209,11 @@ If you want to save credits by combining prompts, these are the safest bundles:
 - **Pack 9:** H1 + H2
 - **Pack 10:** I1 + I2
 - **Pack 11:** J1 + J2
+- **Pack 12:** K1 + K2
+- **Pack 13:** L1 + L2
+- **Pack 14:** M1 + M2
+- **Pack 15:** N1 + N2
+- **Pack 16:** O1 + O2
 
 Best small-start sequence:
 
@@ -1007,7 +1237,5 @@ The admin app is considered truly backend-integrated when:
 - transactions are at least live-read integrated
 - disputes/support have either live backend tables or are intentionally held back pending schema work
 - RLS and admin authorization are enforced
-
-
 
 Proposed backend contract (planning-safe): prefer a new admin-only finance_admin_events table (Option A) to record decisions/audit without changing mobile flows; keep Stripe refunds/reversals server-side, with the admin UI recording intents/events first.

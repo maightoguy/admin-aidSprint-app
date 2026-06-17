@@ -395,6 +395,8 @@ export function RequestsCore({
   onClose,
   onOpenLiveTracker,
   onUpdateStatus,
+  actionsDisabled = false,
+  actionsDisabledReason,
 }: {
   request: UserRequestHistoryItem;
   customerName: string;
@@ -404,6 +406,8 @@ export function RequestsCore({
     action: RequestStatusAction,
     options?: { cancellationReason?: string },
   ) => Promise<void> | void;
+  actionsDisabled?: boolean;
+  actionsDisabledReason?: string;
 }) {
   const panelState = getRequestPanelState(request);
   const stateCopy = requestStateCopy[panelState];
@@ -618,6 +622,7 @@ export function RequestsCore({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
+                disabled={actionsDisabled}
                 onClick={() => {
                   setMonitoringState(
                     request.id,
@@ -636,6 +641,7 @@ export function RequestsCore({
                     ? "Resume tracking"
                     : "Pause tracking"
                 }
+                title={actionsDisabled ? actionsDisabledReason : undefined}
               >
                 {monitoringState === "paused" ? (
                   <PlayCircle className="h-4 w-4" aria-hidden="true" />
@@ -646,6 +652,7 @@ export function RequestsCore({
               </button>
               <button
                 type="button"
+                disabled={actionsDisabled}
                 onClick={() => {
                   setMonitoringState(request.id, "lostSignal");
                   toast.success("Signal updated", {
@@ -653,8 +660,9 @@ export function RequestsCore({
                       "Marked as lost signal for operational follow-up.",
                   });
                 }}
-                className="inline-flex items-center gap-2 rounded-[10px] border border-[#F04438]/25 bg-[#FEF3F2] px-3 py-2 text-[12px] font-semibold text-[#B42318] transition hover:bg-[#FEE4E2]"
+                className="inline-flex items-center gap-2 rounded-[10px] border border-[#F04438]/25 bg-[#FEF3F2] px-3 py-2 text-[12px] font-semibold text-[#B42318] transition hover:bg-[#FEE4E2] disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Report lost signal"
+                title={actionsDisabled ? actionsDisabledReason : undefined}
               >
                 <ShieldAlert className="h-4 w-4" aria-hidden="true" />
                 Lost signal
@@ -671,14 +679,16 @@ export function RequestsCore({
               {ops?.delayedReason ? (
                 <button
                   type="button"
+                  disabled={actionsDisabled}
                   onClick={() => {
                     clearDelayed(request.id);
                     toast.success("Delay cleared", {
                       description: "Removed the delayed flag for this request.",
                     });
                   }}
-                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Clear delayed flag"
+                  title={actionsDisabled ? actionsDisabledReason : undefined}
                 >
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   Clear delay
@@ -686,9 +696,11 @@ export function RequestsCore({
               ) : (
                 <button
                   type="button"
+                  disabled={actionsDisabled}
                   onClick={() => setDelayOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Flag request as delayed"
+                  title={actionsDisabled ? actionsDisabledReason : undefined}
                 >
                   <Clock3 className="h-4 w-4" aria-hidden="true" />
                   Flag delayed
@@ -697,14 +709,16 @@ export function RequestsCore({
               {ops?.disputeReason ? (
                 <button
                   type="button"
+                  disabled={actionsDisabled}
                   onClick={() => {
                     resolveDispute(request.id);
                     toast.success("Dispute resolved", {
                       description: "Marked this request as dispute cleared.",
                     });
                   }}
-                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Resolve dispute"
+                  title={actionsDisabled ? actionsDisabledReason : undefined}
                 >
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   Resolve dispute
@@ -712,9 +726,11 @@ export function RequestsCore({
               ) : (
                 <button
                   type="button"
+                  disabled={actionsDisabled}
                   onClick={() => setDisputeOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#175CD3]/20 bg-[#EFF8FF] px-3 py-2 text-[12px] font-semibold text-[#175CD3] transition hover:bg-[#DDEEFE]"
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#175CD3]/20 bg-[#EFF8FF] px-3 py-2 text-[12px] font-semibold text-[#175CD3] transition hover:bg-[#DDEEFE] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Open dispute review"
+                  title={actionsDisabled ? actionsDisabledReason : undefined}
                 >
                   <CircleAlert className="h-4 w-4" aria-hidden="true" />
                   Dispute
@@ -722,9 +738,11 @@ export function RequestsCore({
               )}
               <button
                 type="button"
+                disabled={actionsDisabled}
                 onClick={() => setSupportOpen(true)}
-                className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+                className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Escalate to support"
+                title={actionsDisabled ? actionsDisabledReason : undefined}
               >
                 <MapPinned className="h-4 w-4" aria-hidden="true" />
                 Escalate
@@ -755,6 +773,11 @@ export function RequestsCore({
               </p>
             ) : null}
           </div>
+          {actionsDisabledReason ? (
+            <p className="mt-3 text-[12px] leading-5 text-[#98A2B3]">
+              {actionsDisabledReason}
+            </p>
+          ) : null}
         </div>
         <div>
           <p className="text-[12px] font-medium text-[#6B7280]">
@@ -832,8 +855,14 @@ export function RequestsCore({
         </div>
         <RequestStatusMenu
           onUpdateStatus={handleStatusUpdate}
+          disabled={actionsDisabled}
           isSaving={isStatusSaving}
         />
+        {actionsDisabledReason ? (
+          <p className="mt-3 text-xs font-medium text-[#98A2B3]">
+            {actionsDisabledReason}
+          </p>
+        ) : null}
         {statusActionError ? (
           <p className="mt-3 text-xs font-medium text-[#B42318]">
             {statusActionError}
@@ -958,6 +987,8 @@ export function RequestsSidebar({
   onOpenChange,
   onOpenLiveTracker,
   onUpdateStatus,
+  actionsDisabled = false,
+  actionsDisabledReason,
 }: {
   open: boolean;
   request: UserRequestHistoryItem | null;
@@ -968,6 +999,8 @@ export function RequestsSidebar({
     action: RequestStatusAction,
     options?: { cancellationReason?: string },
   ) => Promise<void> | void;
+  actionsDisabled?: boolean;
+  actionsDisabledReason?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -983,6 +1016,8 @@ export function RequestsSidebar({
               customerName={customerName}
               onOpenLiveTracker={onOpenLiveTracker}
               onUpdateStatus={onUpdateStatus}
+              actionsDisabled={actionsDisabled}
+              actionsDisabledReason={actionsDisabledReason}
             />
           ) : (
             <div className="flex h-full items-center justify-center">

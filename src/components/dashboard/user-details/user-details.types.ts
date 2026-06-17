@@ -60,6 +60,8 @@ export type UserDetailsPageProps = {
   initialUserId?: string;
   isLoading?: boolean;
   errorMessage?: string | null;
+  accountActionsEnabled?: boolean;
+  requestActionsEnabled?: boolean;
   onStatusChange?: (
     user: UserDetailsRecord,
     status: UserStatus,

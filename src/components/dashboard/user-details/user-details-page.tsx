@@ -309,11 +309,19 @@ export default function UserDetailsPage({
   isLoading = false,
   errorMessage = null,
   onStatusChange,
+  accountActionsEnabled,
+  requestActionsEnabled,
 }: UserDetailsPageProps) {
   const { userId: routeUserId } = useParams();
   const [searchParams] = useSearchParams();
   const resolvedUserId = initialUserId ?? routeUserId;
   const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+  const areAccountActionsEnabled = accountActionsEnabled ?? isTestMode;
+  const areRequestActionsEnabled = requestActionsEnabled ?? isTestMode;
+  const accountActionsDisabledReason =
+    "Account updates are view-only here until user lifecycle writes are backed by the backend contract.";
+  const requestActionsDisabledReason =
+    "Profile-linked request actions are read-only here. Use the Requests workspace for live operational actions.";
   const fallbackUser = useMemo(
     () =>
       isTestMode
@@ -447,6 +455,11 @@ export default function UserDetailsPage({
       return;
     }
 
+    if (!areAccountActionsEnabled) {
+      setActionError(accountActionsDisabledReason);
+      return;
+    }
+
     const nextStatus = getStatusFromAccountAction(action);
 
     setBusyAction(action);
@@ -506,6 +519,13 @@ export default function UserDetailsPage({
   };
 
   const handleUpdateRequestStatus = (action: RequestStatusAction) => {
+    if (!areRequestActionsEnabled) {
+      toast.info("Request actions are read-only", {
+        description: requestActionsDisabledReason,
+      });
+      return;
+    }
+
     if (!selectedRequestId || !selectedRequest) {
       toast.error("Unable to update status", {
         description: "No request is currently selected.",
@@ -616,16 +636,29 @@ export default function UserDetailsPage({
                     </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsUpdateAccountOpen(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25"
-                  aria-haspopup="dialog"
-                  aria-expanded={isUpdateAccountOpen}
-                >
-                  Update account
-                  <ChevronDown className="h-4 w-4" />
-                </button>
+                <div className="flex flex-col items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUpdateAccountOpen(true)}
+                    disabled={!areAccountActionsEnabled}
+                    title={
+                      !areAccountActionsEnabled
+                        ? accountActionsDisabledReason
+                        : undefined
+                    }
+                    className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25 disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-haspopup="dialog"
+                    aria-expanded={isUpdateAccountOpen}
+                  >
+                    Update account
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                  {!areAccountActionsEnabled ? (
+                    <p className="max-w-[280px] text-xs text-[#98A2B3]">
+                      {accountActionsDisabledReason}
+                    </p>
+                  ) : null}
+                </div>
               </section>
               <TabsContent value="personal-details" className="mt-0">
                 <PersonalDetailsPanel user={currentUserWithRequestOverrides} />
@@ -651,6 +684,12 @@ export default function UserDetailsPage({
               onOpenChange={(open) => (open ? null : closeSidebar())}
               onOpenLiveTracker={handleOpenLiveTracker}
               onUpdateStatus={handleUpdateRequestStatus}
+              actionsDisabled={!areRequestActionsEnabled}
+              actionsDisabledReason={
+                !areRequestActionsEnabled
+                  ? requestActionsDisabledReason
+                  : undefined
+              }
             />
             <RequestsLiveTrackerOverlay
               requestId={selectedRequest?.id ?? null}
