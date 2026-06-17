@@ -208,7 +208,7 @@ export function ContractorKycProvider({
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const isMountedRef = useRef(true);
 
-  const reviewerLabel = session?.userEmail?.trim() || "Alison Eyo";
+  const reviewerLabel = session?.userEmail?.trim() || "Admin reviewer";
   const shouldPersistReviews =
     Boolean(contractorId?.trim()) &&
     import.meta.env.MODE !== "test" &&

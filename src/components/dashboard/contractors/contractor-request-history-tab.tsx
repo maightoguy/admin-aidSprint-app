@@ -71,14 +71,17 @@ export function ContractorRequestHistoryTab({
   initialRows,
 }: ContractorRequestHistoryTabProps) {
   const navigate = useNavigate();
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
 
   const linkedUserDetails = useMemo(
     () =>
-      userDetailsRecords.find((record) => record.id === contractor.id) ?? null,
-    [contractor.id],
+      isTestMode
+        ? userDetailsRecords.find((record) => record.id === contractor.id) ?? null
+        : null,
+    [contractor.id, isTestMode],
   );
 
   const requestRows = useMemo<ContractorRequestHistoryRow[]>(() => {

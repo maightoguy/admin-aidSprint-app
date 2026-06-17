@@ -107,7 +107,7 @@ describe("ContractorKycTab (read-only review)", () => {
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(await screen.findByText(/Accepted · Alison Eyo/i)).toBeTruthy();
+    expect(await screen.findByText(/Accepted · Admin reviewer/i)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /Download document/i }),
     ).toBeTruthy();
@@ -152,11 +152,11 @@ describe("ContractorKycTab (read-only review)", () => {
       policeDoc: createDocument("police-approved.pdf", "blob:police-approved"),
       policeStatus: "accepted",
       policeReviewedAt: "Apr 11, 2026, 11:00 AM",
-      policeReviewedBy: "Alison Eyo",
+      policeReviewedBy: "Admin reviewer",
     });
 
     expect(await screen.findByText("police-approved.pdf")).toBeTruthy();
-    expect(screen.getByText(/Accepted · Alison Eyo/i)).toBeTruthy();
+    expect(screen.getByText(/Accepted · Admin reviewer/i)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /Download document/i }),
     ).toBeTruthy();
@@ -183,7 +183,7 @@ describe("ContractorKycTab (read-only review)", () => {
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Accepted · Alison Eyo/i)).toBeTruthy();
+      expect(screen.getByText(/Accepted · Admin reviewer/i)).toBeTruthy();
     });
   });
 
@@ -194,7 +194,7 @@ describe("ContractorKycTab (read-only review)", () => {
       idStatus: "rejected",
       idReason: "Document has expired.",
       idReviewedAt: "Apr 11, 2026, 9:20 AM",
-      idReviewedBy: "Alison Eyo",
+      idReviewedBy: "Admin reviewer",
     });
 
     expect(await screen.findByText("Document has expired.")).toBeTruthy();

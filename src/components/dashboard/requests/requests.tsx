@@ -287,19 +287,22 @@ function RequestRowUser({
 
 export default function RequestsPage() {
   const adminUserId = useAuthStore((state) => state.session?.userId ?? "");
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
   const pendingRowsRef = useRef<RequestListRow[] | null>(null);
   const [baseRows, setBaseRows] = useState<RequestListRow[]>(() =>
-    userDetailsRecords.flatMap((user) =>
-      user.requestHistory.map((request) => ({
-        id: request.id,
-        userName: user.name,
-        userEmail: user.email,
-        request,
-      })),
-    ),
+    isTestMode
+      ? userDetailsRecords.flatMap((user) =>
+          user.requestHistory.map((request) => ({
+            id: request.id,
+            userName: user.name,
+            userEmail: user.email,
+            request,
+          })),
+        )
+      : [],
   );
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);

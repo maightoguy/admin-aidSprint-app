@@ -15,6 +15,7 @@ export type UserRecord = {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
   location: string;
   totalServicesRequested: number;
   dateJoined: string;

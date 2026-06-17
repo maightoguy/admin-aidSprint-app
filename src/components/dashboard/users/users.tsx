@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,6 +8,9 @@ import {
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "../shared/dashboard-layout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { TotalUsersIcon } from "@/ui/icons";
 import type {
   FilterField,
   FiltersState,
@@ -17,10 +20,10 @@ import { useUrlFilters } from "../shared/filters/use-url-filters";
 import { paginateItems } from "../shared/pagination-utils";
 import {
   userRecords,
-  usersSummaryCards,
   usersSummaryPattern,
 } from "./users.data";
 import { UsersActionsMenu } from "./users-actions-menu";
+import { getNameInitials, loadLiveUsers } from "./users.live";
 import { usersStyles } from "./users.styles";
 import { filterUsers, getStatusPillClasses } from "./users.utils";
 import type {
@@ -94,7 +97,9 @@ function LoadingSkeleton() {
 }
 
 export default function Users({
-  initialUsers = userRecords,
+  initialUsers = import.meta.env.MODE === "test" || import.meta.env.VITEST
+    ? userRecords
+    : [],
   isLoading = false,
   errorMessage = null,
 }: {
@@ -103,6 +108,8 @@ export default function Users({
   errorMessage?: string | null;
 }) {
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
@@ -112,6 +119,33 @@ export default function Users({
     schema: userFiltersSchema,
     defaults: userFilterDefaults,
   });
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+
+  const loadUsers = useCallback(async () => {
+    if (isTestMode || !isSupabaseConfigured()) {
+      return;
+    }
+
+    setIsLiveLoading(true);
+    setLiveErrorMessage(null);
+
+    try {
+      const liveUsers = await loadLiveUsers();
+      setUsers(liveUsers);
+    } catch (error) {
+      setLiveErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to load users right now.",
+      );
+    } finally {
+      setIsLiveLoading(false);
+    }
+  }, [isTestMode]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   const appliedFilters = useMemo<UserFilters>(() => {
     const status = urlFilters.status;
@@ -142,6 +176,33 @@ export default function Users({
   const filteredUsers = useMemo(
     () => filterUsers(users, appliedFilters),
     [users, appliedFilters],
+  );
+  const summaryCards = useMemo(
+    () => [
+      {
+        title: "Total users",
+        value: users.length.toLocaleString(),
+        trend: "Live profile count",
+        Icon: TotalUsersIcon,
+      },
+      {
+        title: "Active users",
+        value: users
+          .filter((user) => user.status === "Active")
+          .length.toLocaleString(),
+        trend: "Users with active access",
+        Icon: TotalUsersIcon,
+      },
+      {
+        title: "Deactivated users",
+        value: users
+          .filter((user) => user.status === "Deactivated")
+          .length.toLocaleString(),
+        trend: "Users without active methods",
+        Icon: TotalUsersIcon,
+      },
+    ],
+    [users],
   );
   const paginatedUsers = useMemo(
     () => paginateItems(filteredUsers, currentPage, pageSize),
@@ -181,20 +242,29 @@ export default function Users({
 
   return (
     <DashboardLayout title="User’s">
-      {errorMessage ? (
+      {errorMessage || liveErrorMessage ? (
         <div
           role="alert"
-          className="mb-5 rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B91C1C]"
+          className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B91C1C]"
         >
-          {errorMessage}
+          <span>{errorMessage ?? liveErrorMessage}</span>
+          {!isTestMode && !errorMessage ? (
+            <button
+              type="button"
+              onClick={() => void loadUsers()}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-[#FCA5A5] bg-white px-3 text-xs font-semibold text-[#B91C1C] transition hover:bg-[#FFF5F5]"
+            >
+              Retry
+            </button>
+          ) : null}
         </div>
       ) : null}
-      {isLoading ? (
+      {isLoading || (isLiveLoading && users.length === 0) ? (
         <LoadingSkeleton />
       ) : (
         <>
           <section className="grid gap-[14px] md:grid-cols-3">
-            {usersSummaryCards.map((card) => (
+            {summaryCards.map((card) => (
               <article
                 key={card.title}
                 className="relative overflow-hidden rounded-[10px] border border-[#F0F1F2] bg-[#FAFAFA] p-[13px]"
@@ -293,9 +363,15 @@ export default function Users({
                         <tr key={user.id}>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
-                                {user.name.charAt(0)}
-                              </div>
+                              <Avatar className="h-9 w-9 border border-[#EAECF0] bg-[#F8FAFC]">
+                                <AvatarImage
+                                  src={user.avatarUrl ?? undefined}
+                                  alt={user.name}
+                                />
+                                <AvatarFallback className="bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
+                                  {getNameInitials(user.name)}
+                                </AvatarFallback>
+                              </Avatar>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-[#101828]">
                                   {user.name}
@@ -344,9 +420,15 @@ export default function Users({
                         />
                       </div>
                       <div className="flex min-w-0 items-start gap-3 pr-16">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
-                          {user.name.charAt(0)}
-                        </div>
+                        <Avatar className="h-10 w-10 border border-[#EAECF0] bg-[#F8FAFC]">
+                          <AvatarImage
+                            src={user.avatarUrl ?? undefined}
+                            alt={user.name}
+                          />
+                          <AvatarFallback className="bg-[#F2F4F7] text-sm font-semibold text-[#344054]">
+                            {getNameInitials(user.name)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-[#101828]">
                             {user.name}

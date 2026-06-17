@@ -472,6 +472,7 @@ function OpsQueueCard({
 }
 
 export default function Overview() {
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isGranularityPending, startGranularityTransition] = useTransition();
@@ -700,6 +701,10 @@ export default function Overview() {
   }, [loadLiveOverview]);
 
   const mockOpsRequestRows = useMemo<OpsRequestRow[]>(() => {
+    if (!isTestMode) {
+      return [];
+    }
+
     return userDetailsRecords.flatMap((user) =>
       user.requestHistory.map((request) =>
         buildOpsRequestRow({
@@ -710,7 +715,7 @@ export default function Overview() {
         }),
       ),
     );
-  }, []);
+  }, [isTestMode]);
 
   const opsRequestRows = useMemo<OpsRequestRow[]>(() => {
     const baseRows = liveRequestRows ?? mockOpsRequestRows;

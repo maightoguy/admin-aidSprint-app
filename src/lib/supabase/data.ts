@@ -409,6 +409,29 @@ export type UrgencyTierRow = {
 };
 
 export const supabaseProfiles = {
+  async getById(userId: string): Promise<SupabaseResult<ProfileRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) {
+      return { ok: false, message: "Profile id is required." };
+    }
+
+    const { data, error } = await client
+      .from("profiles")
+      .select(
+        "id,email,phone,full_name,first_name,last_name,gender,avatar_url,role,fcm_token,created_at,updated_at,linked_auth_methods,stripe_customer_id",
+      )
+      .eq("id", normalizedUserId)
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Profile not found." };
+    return { ok: true, data: data as ProfileRow };
+  },
+
   async getRoleById(userId: string): Promise<SupabaseResult<string>> {
     const client = requireSupabaseClient();
     const adminCheck = await requireAdminAccess();
@@ -457,6 +480,39 @@ export const supabaseProfiles = {
     }
 
     return { ok: true, data: rows };
+  },
+
+  async listLatest(params?: {
+    limit?: number;
+    roles?: string[];
+  }): Promise<SupabaseResult<ProfileRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const limit = Math.max(1, Math.min(500, params?.limit ?? 100));
+    const normalizedRoles = Array.from(
+      new Set(
+        (params?.roles ?? [])
+          .map((role) => String(role).trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+
+    let query = client
+      .from("profiles")
+      .select(
+        "id,email,phone,full_name,first_name,last_name,gender,avatar_url,role,fcm_token,created_at,updated_at,linked_auth_methods,stripe_customer_id",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (normalizedRoles.length > 0) {
+      query = query.in("role", normalizedRoles);
+    }
+
+    const { data, error } = await query;
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as ProfileRow[] };
   },
 };
 
@@ -515,6 +571,33 @@ export const supabaseJobs = {
       .from("jobs")
       .select("*")
       .in("id", ids);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as JobRow[] };
+  },
+
+  async listByUserIds(
+    userIds: string[],
+    params?: { limit?: number },
+  ): Promise<SupabaseResult<JobRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(userIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const limit = Math.max(1, Math.min(500, params?.limit ?? 200));
+    const { data, error } = await client
+      .from("jobs")
+      .select("*")
+      .in("user_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as JobRow[] };

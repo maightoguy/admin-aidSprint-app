@@ -11,6 +11,8 @@ import {
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { RequestsLiveTrackerOverlay } from "../requests/requests-overlay";
 import { RequestsSidebar } from "../requests/requests-sidebar";
 import {
@@ -21,6 +23,7 @@ import {
 } from "../requests/requests.store";
 import { DashboardLayout } from "../shared/dashboard-layout";
 import { getStatusPillClasses } from "../users/users.utils";
+import { getNameInitials, loadLiveUserDetails } from "../users/users.live";
 import { usersStyles } from "../users/users.styles";
 import { userDetailsRecords } from "./user-details.data";
 import { UserDetailsTabs } from "./user-details-tabs";
@@ -310,9 +313,13 @@ export default function UserDetailsPage({
   const { userId: routeUserId } = useParams();
   const [searchParams] = useSearchParams();
   const resolvedUserId = initialUserId ?? routeUserId;
-  const matchedUser = useMemo(
-    () => getUserDetailsById(userDetailsRecords, resolvedUserId),
-    [resolvedUserId],
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+  const fallbackUser = useMemo(
+    () =>
+      isTestMode
+        ? getUserDetailsById(userDetailsRecords, resolvedUserId)
+        : null,
+    [isTestMode, resolvedUserId],
   );
   const [activeTab, setActiveTab] =
     useState<UserDetailsTabValue>("personal-details");
@@ -321,24 +328,74 @@ export default function UserDetailsPage({
     null,
   );
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isLiveLoading, setIsLiveLoading] = useState(false);
+  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<UserDetailsRecord | null>(
-    matchedUser,
+    fallbackUser,
   );
-  const selectedRequestId = useRequestsStore((state) => state.selectedRequestId);
+  const selectedRequestId = useRequestsStore(
+    (state) => state.selectedRequestId,
+  );
   const isRequestsOpen = useRequestsStore((state) => state.isSidebarOpen);
   const openRequest = useRequestsStore((state) => state.openRequest);
   const closeSidebar = useRequestsStore((state) => state.closeSidebar);
   const openMap = useRequestsStore((state) => state.openMap);
   const closeAll = useRequestsStore((state) => state.closeAll);
-  const updateRequestStatus = useRequestsStore((state) => state.updateRequestStatus);
-  const requestStatusById = useRequestsStore((state) => state.requestStatusById);
+  const updateRequestStatus = useRequestsStore(
+    (state) => state.updateRequestStatus,
+  );
+  const requestStatusById = useRequestsStore(
+    (state) => state.requestStatusById,
+  );
 
   useEffect(() => {
-    setCurrentUser(matchedUser);
+    setCurrentUser(fallbackUser);
     setActionError(null);
     setIsUpdateAccountOpen(false);
+    setLiveErrorMessage(null);
     closeAll();
-  }, [closeAll, matchedUser]);
+  }, [closeAll, fallbackUser]);
+
+  useEffect(() => {
+    if (!resolvedUserId || isTestMode || !isSupabaseConfigured()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    setIsLiveLoading(true);
+    setLiveErrorMessage(null);
+
+    void loadLiveUserDetails(resolvedUserId)
+      .then((user) => {
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentUser(user);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentUser(null);
+        setLiveErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to load the user profile right now.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLiveLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTestMode, resolvedUserId]);
 
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
@@ -346,7 +403,7 @@ export default function UserDetailsPage({
     if (requestedTab === "request-history") {
       setActiveTab("request-history");
     }
-  }, [matchedUser?.id, searchParams]);
+  }, [resolvedUserId, searchParams]);
 
   const currentUserWithRequestOverrides = useMemo(() => {
     if (!currentUser) {
@@ -474,16 +531,47 @@ export default function UserDetailsPage({
           <ArrowLeft className="h-4 w-4" />
           Back to users
         </Link>
-        {errorMessage ? (
+        {errorMessage || liveErrorMessage ? (
           <div
             role="alert"
-            className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]"
           >
-            {errorMessage}
+            <span>{errorMessage ?? liveErrorMessage}</span>
+            {!isTestMode && !errorMessage ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!resolvedUserId) {
+                    return;
+                  }
+
+                  setIsLiveLoading(true);
+                  setLiveErrorMessage(null);
+                  void loadLiveUserDetails(resolvedUserId)
+                    .then((user) => {
+                      setCurrentUser(user);
+                    })
+                    .catch((error) => {
+                      setCurrentUser(null);
+                      setLiveErrorMessage(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to load the user profile right now.",
+                      );
+                    })
+                    .finally(() => {
+                      setIsLiveLoading(false);
+                    });
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-[#FCA5A5] bg-white px-3 text-xs font-semibold text-[#B42318] transition hover:bg-[#FFF5F5]"
+              >
+                Retry
+              </button>
+            ) : null}
           </div>
         ) : null}
-        {isLoading ? <LoadingState /> : null}
-        {!isLoading && !currentUser ? (
+        {isLoading || (isLiveLoading && !currentUser) ? <LoadingState /> : null}
+        {!isLoading && !isLiveLoading && !currentUser ? (
           <div className="rounded-[16px] border border-[#FECACA] bg-white px-5 py-8 shadow-sm">
             <p className="text-base font-semibold text-[#101828]">
               User profile not found
@@ -505,16 +593,26 @@ export default function UserDetailsPage({
               <UserDetailsTabs value={activeTab} />
               <section className="flex flex-col gap-4 rounded-[20px] bg-transparent lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#FCE7D4_0%,#E59F75_100%)] text-lg font-bold text-[#7A2E14]">
-                    {currentUser.firstName.charAt(0)}
-                    {currentUser.lastName.charAt(0)}
-                  </div>
+                  <Avatar className="h-[64px] w-[64px] shrink-0 border border-[#EAECF0] bg-[linear-gradient(135deg,#FCE7D4_0%,#E59F75_100%)]">
+                    <AvatarImage
+                      src={currentUser.avatarUrl ?? undefined}
+                      alt={currentUserWithRequestOverrides.name}
+                    />
+                    <AvatarFallback className="bg-[linear-gradient(135deg,#FCE7D4_0%,#E59F75_100%)] text-lg font-bold text-[#7A2E14]">
+                      {getNameInitials(currentUserWithRequestOverrides.name)}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="min-w-0">
                     <p className="truncate text-[28px] font-bold tracking-[-0.03em] text-[#101828]">
                       {currentUserWithRequestOverrides.name}
                     </p>
+                    <p className="mt-1 truncate text-sm text-[#667085]">
+                      {currentUserWithRequestOverrides.email}
+                    </p>
                     <div className="mt-2">
-                      <UserStatusPill status={currentUserWithRequestOverrides.status} />
+                      <UserStatusPill
+                        status={currentUserWithRequestOverrides.status}
+                      />
                     </div>
                   </div>
                 </div>
@@ -554,7 +652,9 @@ export default function UserDetailsPage({
               onOpenLiveTracker={handleOpenLiveTracker}
               onUpdateStatus={handleUpdateRequestStatus}
             />
-            <RequestsLiveTrackerOverlay requestId={selectedRequest?.id ?? null} />
+            <RequestsLiveTrackerOverlay
+              requestId={selectedRequest?.id ?? null}
+            />
           </>
         ) : null}
       </div>

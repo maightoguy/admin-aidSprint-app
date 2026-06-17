@@ -1,8 +1,13 @@
+import { useEffect, useMemo, useState } from "react";
 import { LogOut, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { dashboardNavigationItems } from "./dashboard-navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/auth/auth.store";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabaseProfiles, type ProfileRow } from "@/lib/supabase/data";
+import { getNameInitials } from "../users/users.live";
 
 function AidSprintLogo() {
   return (
@@ -76,7 +81,58 @@ export function DashboardSidebar({
   onClose?: () => void;
 }) {
   const navigate = useNavigate();
+  const session = useAuthStore((state) => state.session);
   const signOut = useAuthStore((state) => state.signOut);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const isTestMode = import.meta.env.MODE === "test" || import.meta.env.VITEST;
+
+  useEffect(() => {
+    const userId = session?.userId?.trim() ?? "";
+
+    if (!userId || isTestMode || !isSupabaseConfigured()) {
+      setProfile(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void supabaseProfiles
+      .getById(userId)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (result.ok === false) {
+          throw new Error(result.message);
+        }
+
+        setProfile(result.data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfile(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTestMode, session?.userId]);
+
+  const profileName = useMemo(() => {
+    if (profile) {
+      return (
+        profile.full_name?.trim() ||
+        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+        profile.email?.trim() ||
+        "Admin user"
+      );
+    }
+
+    return session?.userEmail?.trim() || "Admin user";
+  }, [profile, session?.userEmail]);
+  const profileEmail = profile?.email?.trim() || session?.userEmail?.trim() || "—";
 
   return (
     <aside
@@ -152,14 +208,21 @@ export function DashboardSidebar({
         })}
       </nav>
       <div className="mt-8 flex items-center gap-3 px-4 pb-6 pt-4">
-        <div className="relative h-12 w-12 shrink-0 rounded-full bg-[linear-gradient(135deg,#F8D7BC_0%,#A85B39_100%)]">
+        <Avatar className="relative h-12 w-12 shrink-0 border border-white/10 bg-[linear-gradient(135deg,#F8D7BC_0%,#A85B39_100%)]">
+          <AvatarImage
+            src={profile?.avatar_url ?? undefined}
+            alt={profileName}
+          />
+          <AvatarFallback className="bg-[linear-gradient(135deg,#F8D7BC_0%,#A85B39_100%)] text-sm font-semibold text-[#7A2E14]">
+            {getNameInitials(profileName)}
+          </AvatarFallback>
           <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#051742] bg-[#22C55E]" />
-        </div>
+        </Avatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">
-            Alison Eyo
+            {profileName}
           </p>
-          <p className="truncate text-xs text-[#94A3B8]">alison.@rayna.ui</p>
+          <p className="truncate text-xs text-[#94A3B8]">{profileEmail}</p>
         </div>
         <button
           type="button"
