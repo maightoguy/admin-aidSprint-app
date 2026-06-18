@@ -1,6 +1,12 @@
 import { toast } from "sonner";
 import { Info, Search, LogOut } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { DashboardLayout } from "@/components/dashboard/shared/dashboard-layout";
@@ -10,6 +16,9 @@ import {
 } from "./integration-toggle";
 import { SecurityForm, type SecurityFormValues } from "./security-form";
 import { MarketplaceConfigTab } from "./marketplace-config";
+import { supabase, isSupabaseFeatureEnabled } from "@/lib/supabase/client";
+import { supabaseSettings } from "@/lib/supabase/data";
+import { useAuthStore } from "@/auth/auth.store";
 
 type SettingsTab = "marketplace" | "integrations" | "security";
 
@@ -348,18 +357,966 @@ function IntegrationsTab({
   );
 }
 
-function SecurityTab({
-  onSubmit,
-}: {
-  onSubmit: (values: SecurityFormValues) => void;
-}) {
+function SecurityTab() {
+  const { session, syncSessionFromSupabase } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [securitySettings, setSecuritySettings] = useState<{
+    admin_user_id: string;
+    mfa_policy: "optional" | "required";
+    recovery_codes_generated_at: string | null;
+    last_reauth_at: string | null;
+    last_mfa_reset_requested_at: string | null;
+    last_mfa_reset_by: string | null;
+    created_at: string;
+    updated_at: string;
+  } | null>(null);
+  const [securityEvents, setSecurityEvents] = useState<
+    Array<{
+      id: string;
+      action: string;
+      created_at: string;
+      reason: string;
+    }>
+  >([]);
+  const [mfaAssurance, setMfaAssurance] = useState<{
+    currentLevel: string;
+    nextLevel: string;
+  } | null>(null);
+  const [mfaFactors, setMfaFactors] = useState<
+    Array<{
+      id: string;
+      factor_type: string;
+      status: string;
+      created_at: string;
+      friendly_name?: string | null;
+    }>
+  >([]);
+  const [enrollment, setEnrollment] = useState<{
+    factorId: string;
+    qrCode: string;
+    secret?: string;
+  } | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [recoveryVerifyCode, setRecoveryVerifyCode] = useState("");
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+
+  const liveEnabled = isSupabaseFeatureEnabled();
+  const hasSupabase = Boolean(supabase) && liveEnabled;
+
+  const verifiedTotpFactor = useMemo(() => {
+    const totp = mfaFactors.filter((factor) => factor.factor_type === "totp");
+    return (
+      totp.find((factor) => factor.status === "verified") ??
+      totp.find((factor) => factor.status) ??
+      null
+    );
+  }, [mfaFactors]);
+
+  const hasVerifiedTotp = Boolean(
+    verifiedTotpFactor && verifiedTotpFactor.status === "verified",
+  );
+
+  const requiresAal2 = hasVerifiedTotp;
+
+  const isAal2 = mfaAssurance?.currentLevel?.toLowerCase?.() === "aal2";
+
+  const lastReauthFresh = useMemo(() => {
+    const raw = securitySettings?.last_reauth_at;
+    if (!raw) return false;
+    const at = Date.parse(raw);
+    if (Number.isNaN(at)) return false;
+    return Date.now() - at < 5 * 60 * 1000;
+  }, [securitySettings?.last_reauth_at]);
+
+  const refreshSecurityState = useCallback(async () => {
+    if (!hasSupabase) {
+      setPendingMessage(
+        liveEnabled
+          ? "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
+          : "Security actions are disabled in this environment.",
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    setPendingMessage(null);
+
+    const [settingsResult, eventsResult] = await Promise.all([
+      supabaseSettings.getOrCreateAdminSecuritySettings(),
+      supabaseSettings.listAdminSecurityEvents({ limit: 10 }),
+    ]);
+
+    if (settingsResult.ok) {
+      setSecuritySettings(settingsResult.data);
+    }
+    if (settingsResult.ok === false) {
+      setPendingMessage(settingsResult.message);
+    }
+
+    if (eventsResult.ok) {
+      setSecurityEvents(
+        eventsResult.data.map((event) => ({
+          id: event.id,
+          action: event.action,
+          created_at: event.created_at,
+          reason: event.reason,
+        })),
+      );
+    }
+
+    try {
+      const assuranceResult =
+        await supabase!.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceResult.data) {
+        setMfaAssurance({
+          currentLevel: assuranceResult.data.currentLevel,
+          nextLevel: assuranceResult.data.nextLevel,
+        });
+      }
+    } catch {
+      setMfaAssurance(null);
+    }
+
+    try {
+      const factorsResult = await supabase!.auth.mfa.listFactors();
+      const all =
+        (factorsResult.data as any)?.all ??
+        (factorsResult.data as any)?.totp ??
+        [];
+      setMfaFactors(
+        Array.isArray(all)
+          ? all.map((factor) => ({
+              id: String(factor.id),
+              factor_type: String(factor.factor_type),
+              status: String(factor.status),
+              created_at: String(factor.created_at),
+              friendly_name:
+                typeof factor.friendly_name === "string"
+                  ? factor.friendly_name
+                  : null,
+            }))
+          : [],
+      );
+    } catch {
+      setMfaFactors([]);
+    }
+
+    setIsLoading(false);
+  }, [hasSupabase, liveEnabled]);
+
+  useEffect(() => {
+    void refreshSecurityState();
+  }, [refreshSecurityState]);
+
+  async function markReauthed() {
+    const now = new Date().toISOString();
+    const updated = await supabaseSettings.updateAdminSecuritySettings({
+      lastReauthAt: now,
+    });
+    if (updated.ok) {
+      setSecuritySettings(updated.data);
+    }
+  }
+
+  async function reauthenticateWithPassword(password: string) {
+    if (!hasSupabase || !session?.userEmail) {
+      return {
+        ok: false as const,
+        message: "Please sign in again to continue.",
+      };
+    }
+
+    const result = await supabase!.auth.signInWithPassword({
+      email: session.userEmail,
+      password,
+    });
+
+    if (result.error || !result.data.session) {
+      return {
+        ok: false as const,
+        message: result.error?.message?.trim() || "Re-authentication failed.",
+      };
+    }
+
+    syncSessionFromSupabase(result.data.session);
+    await markReauthed();
+    return { ok: true as const };
+  }
+
+  const handleSubmitPassword = async (values: SecurityFormValues) => {
+    if (!hasSupabase) {
+      toast.error("Security update unavailable", {
+        description: pendingMessage ?? "Supabase is not configured.",
+      });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+
+    const reauthResult = await reauthenticateWithPassword(values.oldPassword);
+    if (!reauthResult.ok) {
+      setIsUpdatingPassword(false);
+      toast.error("Re-authentication required", {
+        description: reauthResult.message,
+      });
+      return;
+    }
+
+    const { error } = await supabase!.auth.updateUser({
+      password: values.newPassword,
+    });
+
+    if (error) {
+      setIsUpdatingPassword(false);
+      toast.error("Password update failed", { description: error.message });
+      return;
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({
+      action: "password_changed",
+    });
+
+    setIsUpdatingPassword(false);
+    toast.success("Password updated", {
+      description: "Your password has been changed successfully.",
+    });
+
+    void refreshSecurityState();
+  };
+
+  async function handleStartEnrollment() {
+    if (!hasSupabase) return;
+    setRecoveryCodes(null);
+    setEnrollment(null);
+    setVerifyCode("");
+
+    const result = await supabase!.auth.mfa.enroll({ factorType: "totp" });
+    if (result.error || !result.data) {
+      toast.error("MFA enrollment failed", {
+        description:
+          result.error?.message?.trim() || "Unable to start enrollment.",
+      });
+      return;
+    }
+
+    const qrCode =
+      (result.data as any)?.totp?.qr_code ??
+      (result.data as any)?.totp?.qr_code_svg ??
+      "";
+    const secret = (result.data as any)?.totp?.secret;
+    setEnrollment({
+      factorId: String((result.data as any).id),
+      qrCode: String(qrCode),
+      secret: typeof secret === "string" ? secret : undefined,
+    });
+  }
+
+  async function handleVerifyEnrollment() {
+    if (!hasSupabase || !enrollment) return;
+    const code = verifyCode.trim();
+    if (!code) {
+      toast.error("Verification code required", {
+        description: "Enter the 6-digit code from your authenticator app.",
+      });
+      return;
+    }
+
+    const challenge = await supabase!.auth.mfa.challenge({
+      factorId: enrollment.factorId,
+    });
+
+    if (challenge.error || !challenge.data) {
+      toast.error("MFA challenge failed", {
+        description:
+          challenge.error?.message?.trim() || "Unable to create a challenge.",
+      });
+      return;
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({
+      action: "mfa_challenged",
+    });
+
+    const verified = await supabase!.auth.mfa.verify({
+      factorId: enrollment.factorId,
+      challengeId: String((challenge.data as any).id),
+      code,
+    });
+
+    if (verified.error) {
+      toast.error("MFA verification failed", {
+        description: verified.error.message,
+      });
+      return;
+    }
+
+    const nextSession = (verified.data as any)?.session;
+    if (nextSession) {
+      syncSessionFromSupabase(nextSession);
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({ action: "mfa_enrolled" });
+    await supabaseSettings.insertAdminSecurityEvent({ action: "mfa_verified" });
+
+    toast.success("MFA enabled", {
+      description: "Authenticator app enrollment completed.",
+    });
+
+    setEnrollment(null);
+    setVerifyCode("");
+    void refreshSecurityState();
+  }
+
+  async function handleVerifySession() {
+    if (!hasSupabase || !verifiedTotpFactor) return;
+    const code = verifyCode.trim();
+    if (!code) {
+      toast.error("Verification code required", {
+        description: "Enter the 6-digit code from your authenticator app.",
+      });
+      return;
+    }
+
+    const challenge = await supabase!.auth.mfa.challenge({
+      factorId: verifiedTotpFactor.id,
+    });
+
+    if (challenge.error || !challenge.data) {
+      toast.error("MFA challenge failed", {
+        description:
+          challenge.error?.message?.trim() || "Unable to create a challenge.",
+      });
+      return;
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({
+      action: "mfa_challenged",
+    });
+
+    const verified = await supabase!.auth.mfa.verify({
+      factorId: verifiedTotpFactor.id,
+      challengeId: String((challenge.data as any).id),
+      code,
+    });
+
+    if (verified.error) {
+      toast.error("MFA verification failed", {
+        description: verified.error.message,
+      });
+      return;
+    }
+
+    const nextSession = (verified.data as any)?.session;
+    if (nextSession) {
+      syncSessionFromSupabase(nextSession);
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({ action: "mfa_verified" });
+
+    toast.success("MFA verified", {
+      description: "Your session is now verified for protected actions.",
+    });
+    setVerifyCode("");
+    void refreshSecurityState();
+  }
+
+  async function handleDisableMfa() {
+    if (!hasSupabase || !verifiedTotpFactor) return;
+    if (!lastReauthFresh) {
+      toast.error("Re-authentication required", {
+        description: "Re-enter your password to disable MFA.",
+      });
+      return;
+    }
+
+    if (!disableCode.trim()) {
+      toast.error("Verification code required", {
+        description: "Enter the 6-digit code from your authenticator app.",
+      });
+      return;
+    }
+
+    const challenge = await supabase!.auth.mfa.challenge({
+      factorId: verifiedTotpFactor.id,
+    });
+
+    if (challenge.error || !challenge.data) {
+      toast.error("MFA challenge failed", {
+        description:
+          challenge.error?.message?.trim() || "Unable to create a challenge.",
+      });
+      return;
+    }
+
+    const verified = await supabase!.auth.mfa.verify({
+      factorId: verifiedTotpFactor.id,
+      challengeId: String((challenge.data as any).id),
+      code: disableCode.trim(),
+    });
+
+    if (verified.error) {
+      toast.error("MFA verification failed", {
+        description: verified.error.message,
+      });
+      return;
+    }
+
+    const nextSession = (verified.data as any)?.session;
+    if (nextSession) {
+      syncSessionFromSupabase(nextSession);
+    }
+
+    const unenroll = await supabase!.auth.mfa.unenroll({
+      factorId: verifiedTotpFactor.id,
+    });
+
+    if (unenroll.error) {
+      toast.error("MFA disable failed", {
+        description: unenroll.error.message,
+      });
+      return;
+    }
+
+    await supabaseSettings.insertAdminSecurityEvent({ action: "mfa_disabled" });
+
+    toast.success("MFA disabled", {
+      description: "Authenticator MFA has been removed for your account.",
+    });
+    setDisableCode("");
+    void refreshSecurityState();
+  }
+
+  async function handleDisableMfaReauth() {
+    if (!disablePassword.trim()) {
+      toast.error("Password required", {
+        description: "Enter your password to continue.",
+      });
+      return;
+    }
+
+    const result = await reauthenticateWithPassword(disablePassword.trim());
+    if (!result.ok) {
+      toast.error("Re-authentication failed", { description: result.message });
+      return;
+    }
+
+    toast.success("Re-authentication complete", {
+      description: "You can now perform protected security actions.",
+    });
+    setDisablePassword("");
+    void refreshSecurityState();
+  }
+
+  async function handleRequestMfaReset() {
+    if (!hasSupabase) return;
+    if (!lastReauthFresh) {
+      toast.error("Re-authentication required", {
+        description: "Re-enter your password before requesting a reset.",
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const updated = await supabaseSettings.updateAdminSecuritySettings({
+      lastMfaResetRequestedAt: now,
+    });
+    if (updated.ok === false) {
+      toast.error("Request failed", { description: updated.message });
+      return;
+    }
+
+    setSecuritySettings(updated.data);
+    await supabaseSettings.insertAdminSecurityEvent({
+      action: "mfa_reset_requested",
+    });
+
+    toast.success("Reset requested", {
+      description: "Your request has been recorded for review.",
+    });
+    void refreshSecurityState();
+  }
+
+  async function handleGenerateRecoveryCodes() {
+    if (!hasSupabase) return;
+    if (requiresAal2 && !isAal2) {
+      toast.error("MFA verification required", {
+        description:
+          "Verify your session with MFA before generating recovery codes.",
+      });
+      return;
+    }
+
+    if (!lastReauthFresh) {
+      toast.error("Re-authentication required", {
+        description: "Re-enter your password before generating recovery codes.",
+      });
+      return;
+    }
+
+    if (!session?.accessToken) {
+      toast.error("Session required", {
+        description: "Please sign in again to continue.",
+      });
+      return;
+    }
+
+    const response = await fetch(
+      "/api/admin/security/recovery-codes/generate",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: JSON.stringify({ count: 10 }),
+      },
+    );
+
+    const payload = (await response.json().catch(() => null)) as
+      | { codes: string[] }
+      | { error: string }
+      | null;
+
+    if (!response.ok || !payload || !("codes" in payload)) {
+      const errorMessage =
+        payload && "error" in payload && typeof payload.error === "string"
+          ? payload.error
+          : "Unable to generate recovery codes.";
+      toast.error("Recovery codes failed", { description: errorMessage });
+      return;
+    }
+
+    setRecoveryCodes(payload.codes);
+    toast.success("Recovery codes generated", {
+      description: "Save these codes now. They will be shown only once.",
+    });
+    void refreshSecurityState();
+  }
+
+  async function handleVerifyRecoveryCode() {
+    if (!hasSupabase) return;
+    const code = recoveryVerifyCode.trim();
+    if (!code) {
+      toast.error("Recovery code required", {
+        description: "Enter a recovery code to verify it.",
+      });
+      return;
+    }
+
+    if (!session?.accessToken) {
+      toast.error("Session required", {
+        description: "Please sign in again to continue.",
+      });
+      return;
+    }
+
+    const response = await fetch("/api/admin/security/recovery-codes/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+      body: JSON.stringify({ code }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok: true }
+      | { ok: false; error: string }
+      | null;
+
+    if (!payload || payload.ok !== true) {
+      const message =
+        payload && typeof (payload as any).error === "string"
+          ? String((payload as any).error)
+          : "Recovery code could not be verified.";
+      toast.error("Recovery failed", { description: message });
+      return;
+    }
+
+    toast.success("Recovery code verified", {
+      description: "This code has now been consumed.",
+    });
+    setRecoveryVerifyCode("");
+    void refreshSecurityState();
+  }
+
   return (
     <section className="rounded-[14px] border border-[#EAECF0] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] sm:p-6">
       <h2 className="text-[20px] font-bold tracking-[-0.02em] text-[#101828]">
         Security
       </h2>
       <div className="mt-4 max-w-[560px]">
-        <SecurityForm onSubmit={onSubmit} />
+        {pendingMessage ? (
+          <div className="mb-4 rounded-[12px] border border-dashed border-[#D0D5DD] bg-[#F9FAFB] p-4 text-[12px] text-[#475467]">
+            {pendingMessage}
+          </div>
+        ) : null}
+
+        <SecurityForm
+          onSubmit={handleSubmitPassword}
+          isSubmitting={isUpdatingPassword}
+        />
+
+        <div className="mt-8 space-y-4">
+          <div className="rounded-[12px] border border-[#EAECF0] bg-[#F9FAFB] p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[14px] font-semibold text-[#101828]">
+                  Multi-factor authentication
+                </p>
+                <p className="mt-1 text-[12px] text-[#667085]">
+                  Current level:{" "}
+                  <span className="font-medium">
+                    {mfaAssurance?.currentLevel ?? "Unknown"}
+                  </span>{" "}
+                  (next:{" "}
+                  <span className="font-medium">
+                    {mfaAssurance?.nextLevel ?? "Unknown"}
+                  </span>
+                  )
+                </p>
+                <p className="mt-1 text-[12px] text-[#667085]">
+                  Policy:{" "}
+                  <span className="font-medium">
+                    {securitySettings?.mfa_policy ?? "optional"}
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void refreshSecurityState()}
+                disabled={isLoading}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-3 text-[12px] font-medium text-[#344054]",
+                  "transition hover:bg-[#F2F4F7] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {hasVerifiedTotp ? (
+                <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                  <p className="text-[12px] font-medium text-[#101828]">
+                    Authenticator is enabled
+                  </p>
+                  <p className="mt-1 text-[12px] text-[#667085]">
+                    {verifiedTotpFactor?.friendly_name
+                      ? `Factor: ${verifiedTotpFactor.friendly_name}`
+                      : "TOTP factor is enrolled for this account."}
+                  </p>
+
+                  {requiresAal2 && !isAal2 ? (
+                    <div className="mt-3 space-y-2">
+                      <label className="text-[12px] font-medium text-[#667085]">
+                        Verify code
+                      </label>
+                      <input
+                        value={verifyCode}
+                        onChange={(event) => setVerifyCode(event.target.value)}
+                        placeholder="Enter 6-digit code"
+                        className={cn(
+                          "h-10 w-full rounded-[10px] border border-[#EAECF0] bg-white px-3 text-[12px] text-[#101828]",
+                          "placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                        )}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleVerifySession()}
+                        className={cn(
+                          "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 text-[12px] font-medium text-white",
+                          "transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25",
+                        )}
+                      >
+                        Verify session
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : enrollment ? (
+                <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                  <p className="text-[12px] font-medium text-[#101828]">
+                    Set up authenticator
+                  </p>
+                  <p className="mt-1 text-[12px] text-[#667085]">
+                    Scan the QR code and enter the verification code to complete
+                    enrollment.
+                  </p>
+                  {enrollment.qrCode ? (
+                    <div className="mt-3 flex justify-center rounded-[10px] border border-dashed border-[#D0D5DD] bg-[#F9FAFB] p-4">
+                      <img
+                        src={enrollment.qrCode}
+                        alt="MFA QR code"
+                        className="h-40 w-40"
+                      />
+                    </div>
+                  ) : null}
+                  {enrollment.secret ? (
+                    <p className="mt-3 break-all text-[12px] text-[#667085]">
+                      Secret:{" "}
+                      <span className="font-medium text-[#101828]">
+                        {enrollment.secret}
+                      </span>
+                    </p>
+                  ) : null}
+                  <div className="mt-3 space-y-2">
+                    <label className="text-[12px] font-medium text-[#667085]">
+                      Verification code
+                    </label>
+                    <input
+                      value={verifyCode}
+                      onChange={(event) => setVerifyCode(event.target.value)}
+                      placeholder="Enter 6-digit code"
+                      className={cn(
+                        "h-10 w-full rounded-[10px] border border-[#EAECF0] bg-white px-3 text-[12px] text-[#101828]",
+                        "placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                      )}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleVerifyEnrollment()}
+                        className={cn(
+                          "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 text-[12px] font-medium text-white",
+                          "transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25",
+                        )}
+                      >
+                        Complete enrollment
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnrollment(null)}
+                        className={cn(
+                          "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-[12px] font-medium text-[#344054]",
+                          "transition hover:bg-[#F2F4F7] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                        )}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleStartEnrollment()}
+                  disabled={!hasSupabase}
+                  className={cn(
+                    "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 text-[12px] font-medium text-white",
+                    "transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  )}
+                >
+                  Enable authenticator MFA
+                </button>
+              )}
+
+              <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-[12px] font-medium text-[#101828]">
+                  Protected session
+                </p>
+                <p className="mt-1 text-[12px] text-[#667085]">
+                  {lastReauthFresh
+                    ? "Re-authentication is fresh. Protected actions are available."
+                    : "Re-authentication is required for protected actions."}
+                </p>
+                {!lastReauthFresh ? (
+                  <div className="mt-3 space-y-2">
+                    <label className="text-[12px] font-medium text-[#667085]">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={disablePassword}
+                      onChange={(event) =>
+                        setDisablePassword(event.target.value)
+                      }
+                      placeholder="Enter your password"
+                      className={cn(
+                        "h-10 w-full rounded-[10px] border border-[#EAECF0] bg-white px-3 text-[12px] text-[#101828]",
+                        "placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableMfaReauth()}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-[12px] font-medium text-[#344054]",
+                        "transition hover:bg-[#F2F4F7] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                      )}
+                    >
+                      Re-authenticate
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {hasVerifiedTotp ? (
+                <div className="rounded-[10px] border border-[#FEE4E2] bg-white p-3">
+                  <p className="text-[12px] font-medium text-[#B42318]">
+                    Disable MFA
+                  </p>
+                  <p className="mt-1 text-[12px] text-[#667085]">
+                    Disabling MFA requires recent re-authentication and a valid
+                    authenticator code.
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <label className="text-[12px] font-medium text-[#667085]">
+                      Authenticator code
+                    </label>
+                    <input
+                      value={disableCode}
+                      onChange={(event) => setDisableCode(event.target.value)}
+                      placeholder="Enter 6-digit code"
+                      className={cn(
+                        "h-10 w-full rounded-[10px] border border-[#EAECF0] bg-white px-3 text-[12px] text-[#101828]",
+                        "placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableMfa()}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#F04438] bg-[#F04438] px-4 text-[12px] font-medium text-white",
+                        "transition hover:bg-[#D92D20] focus:outline-none focus:ring-2 focus:ring-[#F04438]/25",
+                      )}
+                    >
+                      Disable MFA
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-[12px] font-medium text-[#101828]">
+                  Recovery codes
+                </p>
+                <p className="mt-1 text-[12px] text-[#667085]">
+                  Generate and store recovery codes for account access if you
+                  lose your authenticator device.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateRecoveryCodes()}
+                    disabled={!hasSupabase}
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-4 text-[12px] font-medium text-white",
+                      "transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25",
+                      "disabled:cursor-not-allowed disabled:opacity-60",
+                    )}
+                  >
+                    Generate recovery codes
+                  </button>
+                </div>
+                {recoveryCodes ? (
+                  <div className="mt-3 rounded-[10px] border border-dashed border-[#D0D5DD] bg-[#F9FAFB] p-3">
+                    <p className="text-[12px] font-medium text-[#101828]">
+                      Save these codes now
+                    </p>
+                    <ul className="mt-2 grid grid-cols-1 gap-1 text-[12px] text-[#344054] sm:grid-cols-2">
+                      {recoveryCodes.map((code) => (
+                        <li key={code} className="font-mono">
+                          {code}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className="mt-4 space-y-2">
+                  <label className="text-[12px] font-medium text-[#667085]">
+                    Verify a recovery code
+                  </label>
+                  <input
+                    value={recoveryVerifyCode}
+                    onChange={(event) =>
+                      setRecoveryVerifyCode(event.target.value)
+                    }
+                    placeholder="Enter a recovery code"
+                    className={cn(
+                      "h-10 w-full rounded-[10px] border border-[#EAECF0] bg-white px-3 text-[12px] text-[#101828]",
+                      "placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleVerifyRecoveryCode()}
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-[12px] font-medium text-[#344054]",
+                      "transition hover:bg-[#F2F4F7] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                    )}
+                  >
+                    Verify recovery code
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-[12px] font-medium text-[#101828]">
+                  MFA reset request
+                </p>
+                <p className="mt-1 text-[12px] text-[#667085]">
+                  If you cannot access your authenticator, record a reset
+                  request for review.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleRequestMfaReset()}
+                  disabled={!hasSupabase}
+                  className={cn(
+                    "mt-3 inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-[12px] font-medium text-[#344054]",
+                    "transition hover:bg-[#F2F4F7] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  )}
+                >
+                  Request MFA reset
+                </button>
+                {securitySettings?.last_mfa_reset_requested_at ? (
+                  <p className="mt-2 text-[12px] text-[#667085]">
+                    Last requested:{" "}
+                    <span className="font-medium">
+                      {new Date(
+                        securitySettings.last_mfa_reset_requested_at,
+                      ).toLocaleString()}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-[10px] border border-[#EAECF0] bg-white p-3">
+                <p className="text-[12px] font-medium text-[#101828]">
+                  Recent security activity
+                </p>
+                {securityEvents.length === 0 ? (
+                  <p className="mt-2 text-[12px] text-[#667085]">
+                    No recent security events recorded.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-[12px] text-[#344054]">
+                    {securityEvents.map((event) => (
+                      <li
+                        key={event.id}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span className="font-medium">{event.action}</span>
+                        <span className="text-[#667085]">
+                          {new Date(event.created_at).toLocaleString()}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -412,13 +1369,6 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSubmitSecurity = (_values: SecurityFormValues) => {
-    toast.info("Security update", {
-      description:
-        "This screen is not connected to password updates yet. No backend change was made.",
-    });
-  };
-
   return (
     <DashboardLayout title="Settings">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
@@ -439,10 +1389,10 @@ export default function SettingsPage() {
               </span>
               <span>
                 {activeTab === "marketplace"
-                  ? "Marketplace categories, service types, urgency tiers, and platform config can be live-backed. Promos and notifications remain local-only until the backend schema supports them."
+                  ? "Marketplace categories, service types, urgency tiers, platform config, promos, and notifications can be live-backed when Supabase is configured."
                   : activeTab === "integrations"
                     ? "Integration toggles are local-only (not yet connected to the backend)."
-                    : "Security updates are local-only (not yet connected to password updates)."}
+                    : "Security updates can be live-backed once Supabase is configured."}
               </span>
             </div>
           </div>
@@ -458,7 +1408,7 @@ export default function SettingsPage() {
                 onToggleIntegration={handleToggleIntegration}
               />
             ) : (
-              <SecurityTab onSubmit={handleSubmitSecurity} />
+              <SecurityTab />
             )}
           </div>
         </div>

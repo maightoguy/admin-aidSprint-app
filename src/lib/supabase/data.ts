@@ -367,6 +367,43 @@ export type NotificationRow = {
   created_at: string;
 };
 
+export type PromoCodeRow = {
+  id: string;
+  code: string;
+  description: string;
+  discount_type: string;
+  discount_value: number;
+  discount_currency: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NotificationTemplateRow = {
+  id: string;
+  name: string;
+  channel: string;
+  title_template: string | null;
+  body_template: string;
+  payload_template: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NotificationCampaignRow = {
+  id: string;
+  name: string;
+  description: string;
+  channel: string;
+  template_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlatformConfigRow = {
   key: string;
   value: string;
@@ -1403,6 +1440,168 @@ export const supabaseDisputes = {
 };
 
 export const supabaseSettings = {
+  async getOrCreateAdminSecuritySettings(): Promise<
+    SupabaseResult<{
+      admin_user_id: string;
+      mfa_policy: "optional" | "required";
+      recovery_codes_generated_at: string | null;
+      last_reauth_at: string | null;
+      last_mfa_reset_requested_at: string | null;
+      last_mfa_reset_by: string | null;
+      created_at: string;
+      updated_at: string;
+    }>
+  > {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const userId = adminCheck.data.userId;
+
+    const { data, error } = await client
+      .from("admin_security_settings")
+      .select("*")
+      .eq("admin_user_id", userId)
+      .maybeSingle();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (data) {
+      return { ok: true, data: data as any };
+    }
+
+    const { data: created, error: createError } = await client
+      .from("admin_security_settings")
+      .insert({ admin_user_id: userId })
+      .select("*")
+      .single();
+
+    if (createError) return { ok: false, message: formatPostgrestError(createError) };
+    if (!created) return { ok: false, message: "Security settings could not be created." };
+    return { ok: true, data: created as any };
+  },
+
+  async updateAdminSecuritySettings(params: {
+    lastReauthAt?: string | null;
+    recoveryCodesGeneratedAt?: string | null;
+    lastMfaResetRequestedAt?: string | null;
+    lastMfaResetBy?: string | null;
+    mfaPolicy?: "optional" | "required";
+  }): Promise<
+    SupabaseResult<{
+      admin_user_id: string;
+      mfa_policy: "optional" | "required";
+      recovery_codes_generated_at: string | null;
+      last_reauth_at: string | null;
+      last_mfa_reset_requested_at: string | null;
+      last_mfa_reset_by: string | null;
+      created_at: string;
+      updated_at: string;
+    }>
+  > {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const userId = adminCheck.data.userId;
+
+    const payload: Record<string, unknown> = {};
+    if ("lastReauthAt" in params) payload.last_reauth_at = params.lastReauthAt;
+    if ("recoveryCodesGeneratedAt" in params) {
+      payload.recovery_codes_generated_at = params.recoveryCodesGeneratedAt;
+    }
+    if ("lastMfaResetRequestedAt" in params) {
+      payload.last_mfa_reset_requested_at = params.lastMfaResetRequestedAt;
+    }
+    if ("lastMfaResetBy" in params) payload.last_mfa_reset_by = params.lastMfaResetBy;
+    if (params.mfaPolicy) payload.mfa_policy = params.mfaPolicy;
+
+    const { data, error } = await client
+      .from("admin_security_settings")
+      .update(payload)
+      .eq("admin_user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Security settings could not be updated." };
+    return { ok: true, data: data as any };
+  },
+
+  async insertAdminSecurityEvent(params: {
+    action:
+      | "mfa_enrolled"
+      | "mfa_challenged"
+      | "mfa_verified"
+      | "recovery_codes_generated"
+      | "recovery_code_used"
+      | "mfa_reset_requested"
+      | "mfa_disabled"
+      | "password_changed";
+    reason?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<
+    SupabaseResult<{
+      id: string;
+      admin_user_id: string;
+      actor_id: string;
+      action: string;
+      reason: string;
+      metadata: Record<string, unknown>;
+      created_at: string;
+    }>
+  > {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const userId = adminCheck.data.userId;
+
+    const { data, error } = await client
+      .from("admin_security_events")
+      .insert({
+        admin_user_id: userId,
+        actor_id: userId,
+        action: params.action,
+        reason: params.reason?.trim() ?? "",
+        metadata: params.metadata ?? {},
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Security event could not be recorded." };
+    return { ok: true, data: data as any };
+  },
+
+  async listAdminSecurityEvents(params?: {
+    limit?: number;
+  }): Promise<
+    SupabaseResult<
+      Array<{
+        id: string;
+        admin_user_id: string;
+        actor_id: string;
+        action: string;
+        reason: string;
+        metadata: Record<string, unknown>;
+        created_at: string;
+      }>
+    >
+  > {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const userId = adminCheck.data.userId;
+
+    const limit = Math.max(1, Math.min(params?.limit ?? 15, 50));
+    const { data, error } = await client
+      .from("admin_security_events")
+      .select("*")
+      .eq("admin_user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as any };
+  },
+
   async listPlatformConfig(): Promise<SupabaseResult<PlatformConfigRow[]>> {
     const client = requireSupabaseClient();
     const adminCheck = await requireAdminAccess();
@@ -1697,5 +1896,336 @@ export const supabaseSettings = {
     if (!data) return { ok: false, message: "Urgency tier could not be updated." };
     return { ok: true, data: data as UrgencyTierRow };
   },
-};
 
+  async listPromoCodes(): Promise<SupabaseResult<PromoCodeRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("promo_codes")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as PromoCodeRow[] };
+  },
+
+  async createPromoCode(params: {
+    code: string;
+    description: string;
+    discountType: "percent" | "amount";
+    discountValue: number;
+    discountCurrency?: string | null;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<PromoCodeRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const code = params.code.trim().toUpperCase();
+    if (!code) return { ok: false, message: "Promo code is required." };
+    if (!Number.isFinite(params.discountValue) || params.discountValue <= 0) {
+      return { ok: false, message: "Discount value must be greater than 0." };
+    }
+
+    const { data, error } = await client
+      .from("promo_codes")
+      .insert({
+        code,
+        description: params.description.trim(),
+        discount_type: params.discountType,
+        discount_value: params.discountValue,
+        discount_currency: params.discountCurrency ?? null,
+        starts_on: params.startsOn ?? null,
+        ends_on: params.endsOn ?? null,
+        is_active: params.isActive ?? true,
+        created_by_admin_id: adminCheck.data.userId,
+        updated_by_admin_id: adminCheck.data.userId,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Promo could not be created." };
+    return { ok: true, data: data as PromoCodeRow };
+  },
+
+  async updatePromoCode(params: {
+    id: string;
+    code?: string;
+    description?: string;
+    discountType?: "percent" | "amount";
+    discountValue?: number;
+    discountCurrency?: string | null;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<PromoCodeRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const id = params.id.trim();
+    if (!id) return { ok: false, message: "Promo id is required." };
+
+    const payload: Partial<PromoCodeRow> & {
+      discount_type?: string;
+      discount_value?: number;
+      discount_currency?: string | null;
+      starts_on?: string | null;
+      ends_on?: string | null;
+      is_active?: boolean;
+      updated_by_admin_id?: string;
+    } = {
+      updated_by_admin_id: adminCheck.data.userId,
+    };
+
+    if (typeof params.code === "string") payload.code = params.code.trim().toUpperCase();
+    if (typeof params.description === "string") payload.description = params.description.trim();
+    if (typeof params.discountType === "string") payload.discount_type = params.discountType;
+    if (typeof params.discountValue === "number") payload.discount_value = params.discountValue;
+    if ("discountCurrency" in params) payload.discount_currency = params.discountCurrency ?? null;
+    if ("startsOn" in params) payload.starts_on = params.startsOn ?? null;
+    if ("endsOn" in params) payload.ends_on = params.endsOn ?? null;
+    if (typeof params.isActive === "boolean") payload.is_active = params.isActive;
+
+    const { data, error } = await client
+      .from("promo_codes")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Promo could not be updated." };
+    return { ok: true, data: data as PromoCodeRow };
+  },
+
+  async deletePromoCode(id: string): Promise<SupabaseResult<{ id: string }>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalized = id.trim();
+    if (!normalized) return { ok: false, message: "Promo id is required." };
+
+    const { error } = await client.from("promo_codes").delete().eq("id", normalized);
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: { id: normalized } };
+  },
+
+  async listNotificationTemplates(): Promise<SupabaseResult<NotificationTemplateRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("notification_templates")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as NotificationTemplateRow[] };
+  },
+
+  async createNotificationTemplate(params: {
+    name: string;
+    channel: "push" | "email" | "sms";
+    titleTemplate?: string;
+    bodyTemplate: string;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<NotificationTemplateRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const name = params.name.trim();
+    if (!name) return { ok: false, message: "Template name is required." };
+    const bodyTemplate = params.bodyTemplate.trim();
+    if (!bodyTemplate) return { ok: false, message: "Template body is required." };
+
+    const { data, error } = await client
+      .from("notification_templates")
+      .insert({
+        name,
+        channel: params.channel,
+        title_template: params.titleTemplate?.trim() || null,
+        body_template: bodyTemplate,
+        payload_template: {},
+        is_active: params.isActive ?? true,
+        created_by_admin_id: adminCheck.data.userId,
+        updated_by_admin_id: adminCheck.data.userId,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Template could not be created." };
+    return { ok: true, data: data as NotificationTemplateRow };
+  },
+
+  async updateNotificationTemplate(params: {
+    id: string;
+    name?: string;
+    channel?: "push" | "email" | "sms";
+    titleTemplate?: string | null;
+    bodyTemplate?: string;
+    isActive?: boolean;
+  }): Promise<SupabaseResult<NotificationTemplateRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const id = params.id.trim();
+    if (!id) return { ok: false, message: "Template id is required." };
+
+    const payload: Partial<NotificationTemplateRow> & {
+      title_template?: string | null;
+      body_template?: string;
+      payload_template?: Record<string, unknown>;
+      is_active?: boolean;
+      updated_by_admin_id?: string;
+    } = {
+      updated_by_admin_id: adminCheck.data.userId,
+    };
+
+    if (typeof params.name === "string") payload.name = params.name.trim();
+    if (typeof params.channel === "string") payload.channel = params.channel;
+    if ("titleTemplate" in params) payload.title_template = params.titleTemplate ?? null;
+    if (typeof params.bodyTemplate === "string") payload.body_template = params.bodyTemplate.trim();
+    if (typeof params.isActive === "boolean") payload.is_active = params.isActive;
+
+    const { data, error } = await client
+      .from("notification_templates")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Template could not be updated." };
+    return { ok: true, data: data as NotificationTemplateRow };
+  },
+
+  async deleteNotificationTemplate(id: string): Promise<SupabaseResult<{ id: string }>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalized = id.trim();
+    if (!normalized) return { ok: false, message: "Template id is required." };
+    const { error } = await client
+      .from("notification_templates")
+      .delete()
+      .eq("id", normalized);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: { id: normalized } };
+  },
+
+  async listNotificationCampaigns(): Promise<SupabaseResult<NotificationCampaignRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("notification_campaigns")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as NotificationCampaignRow[] };
+  },
+
+  async createNotificationCampaign(params: {
+    name: string;
+    description: string;
+    channel: "push" | "email" | "sms";
+    templateId?: string | null;
+    status?: "draft" | "enabled" | "disabled" | "archived";
+  }): Promise<SupabaseResult<NotificationCampaignRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const name = params.name.trim();
+    if (!name) return { ok: false, message: "Campaign name is required." };
+
+    const { data, error } = await client
+      .from("notification_campaigns")
+      .insert({
+        name,
+        description: params.description.trim(),
+        channel: params.channel,
+        template_id: params.templateId ?? null,
+        status: params.status ?? "enabled",
+        created_by_admin_id: adminCheck.data.userId,
+        updated_by_admin_id: adminCheck.data.userId,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Campaign could not be created." };
+    return { ok: true, data: data as NotificationCampaignRow };
+  },
+
+  async updateNotificationCampaign(params: {
+    id: string;
+    name?: string;
+    description?: string;
+    channel?: "push" | "email" | "sms";
+    templateId?: string | null;
+    status?: "draft" | "enabled" | "disabled" | "archived";
+  }): Promise<SupabaseResult<NotificationCampaignRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const id = params.id.trim();
+    if (!id) return { ok: false, message: "Campaign id is required." };
+
+    const payload: Partial<NotificationCampaignRow> & {
+      template_id?: string | null;
+      updated_by_admin_id?: string;
+    } = {
+      updated_by_admin_id: adminCheck.data.userId,
+    };
+
+    if (typeof params.name === "string") payload.name = params.name.trim();
+    if (typeof params.description === "string") payload.description = params.description.trim();
+    if (typeof params.channel === "string") payload.channel = params.channel;
+    if ("templateId" in params) payload.template_id = params.templateId ?? null;
+    if (typeof params.status === "string") payload.status = params.status;
+
+    const { data, error } = await client
+      .from("notification_campaigns")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Campaign could not be updated." };
+    return { ok: true, data: data as NotificationCampaignRow };
+  },
+
+  async deleteNotificationCampaign(id: string): Promise<SupabaseResult<{ id: string }>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalized = id.trim();
+    if (!normalized) return { ok: false, message: "Campaign id is required." };
+    const { error } = await client
+      .from("notification_campaigns")
+      .delete()
+      .eq("id", normalized);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: { id: normalized } };
+  },
+};

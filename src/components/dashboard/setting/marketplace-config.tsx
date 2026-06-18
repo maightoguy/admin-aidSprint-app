@@ -20,7 +20,10 @@ import { cn } from "@/lib/utils";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseSettings } from "@/lib/supabase/data";
 import {
+  mapNotificationCampaignRowsToRecords,
+  mapNotificationTemplateRowsToRecords,
   mapPlatformConfigRowsToRecords,
+  mapPromoCodeRowsToRecords,
   mapServiceCategoryRowsToRecords,
   mapServiceTypeRowsToRecords,
   mapUrgencyTierRowsToRecords,
@@ -28,6 +31,7 @@ import {
 import { createLogger } from "@/lib/logger";
 import {
   initialNotificationCampaigns,
+  initialNotificationTemplates,
   initialPromos,
   initialServiceCategories,
   initialUrgencyTiers,
@@ -36,6 +40,7 @@ import type {
   MarketplaceEntityStatus,
   NotificationCampaignRecord,
   NotificationChannel,
+  NotificationTemplateRecord,
   PlatformConfigRecord,
   PromoDiscountType,
   PromoRecord,
@@ -46,11 +51,16 @@ import type {
 
 const logger = createLogger("MarketplaceConfig");
 
+function isLiveMarketplaceAvailable() {
+  return isSupabaseConfigured();
+}
+
 type MarketplaceActionTarget =
   | { type: "category"; record: ServiceCategoryRecord }
   | { type: "serviceType"; record: ServiceTypeRecord }
   | { type: "tier"; record: UrgencyTierRecord }
   | { type: "promo"; record: PromoRecord }
+  | { type: "notificationTemplate"; record: NotificationTemplateRecord }
   | { type: "notification"; record: NotificationCampaignRecord };
 
 type MarketplaceActionKind =
@@ -872,6 +882,328 @@ function PromoEditorDialog({
   );
 }
 
+function NotificationTemplateEditorDialog({
+  open,
+  mode,
+  initialTemplate,
+  onSubmit,
+  onOpenChange,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  initialTemplate: NotificationTemplateRecord;
+  onSubmit: (template: NotificationTemplateRecord) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState(initialTemplate.name);
+  const [channel, setChannel] = useState<NotificationChannel>(
+    initialTemplate.channel,
+  );
+  const [titleTemplate, setTitleTemplate] = useState(
+    initialTemplate.titleTemplate,
+  );
+  const [bodyTemplate, setBodyTemplate] = useState(
+    initialTemplate.bodyTemplate,
+  );
+  const [touched, setTouched] = useState(false);
+
+  const valid = Boolean(name.trim()) && Boolean(bodyTemplate.trim());
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) {
+          setName(initialTemplate.name);
+          setChannel(initialTemplate.channel);
+          setTitleTemplate(initialTemplate.titleTemplate);
+          setBodyTemplate(initialTemplate.bodyTemplate);
+          setTouched(false);
+        }
+      }}
+    >
+      <DialogContent className="w-[calc(100vw-32px)] max-w-[640px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+        <div className="px-6 py-6">
+          <DialogTitle className="text-xl font-bold text-[#101828]">
+            {mode === "create"
+              ? "Create notification template"
+              : "Edit notification template"}
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-[#667085]">
+            Notification templates are stored in Supabase when live integration
+            is available.
+          </DialogDescription>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Template name
+              </label>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onBlur={() => setTouched(true)}
+                className="mt-2"
+                aria-label="Notification template name"
+                placeholder="e.g. Dispatch alert"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Channel
+              </label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {(["Push", "Email", "SMS"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setChannel(value)}
+                    className={cn(
+                      "h-11 rounded-[10px] border px-3 text-sm font-semibold transition",
+                      channel === value
+                        ? "border-[#071B58] bg-white text-[#101828]"
+                        : "border-[#EAECF0] bg-[#FCFCFD] text-[#667085] hover:bg-[#F8FAFC]",
+                    )}
+                    aria-pressed={channel === value}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Title template
+              </label>
+              <Input
+                value={titleTemplate}
+                onChange={(event) => setTitleTemplate(event.target.value)}
+                className="mt-2"
+                aria-label="Notification template title"
+                placeholder="Optional notification title"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Body template
+              </label>
+              <Textarea
+                value={bodyTemplate}
+                onChange={(event) => setBodyTemplate(event.target.value)}
+                onBlur={() => setTouched(true)}
+                className="mt-2 min-h-[130px]"
+                aria-label="Notification template body"
+                placeholder="Write the message body"
+              />
+            </div>
+          </div>
+
+          {touched && !valid ? (
+            <p className="mt-3 text-xs font-medium text-[#B42318]">
+              Enter a template name and body.
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTouched(true);
+                if (!valid) return;
+                onSubmit({
+                  ...initialTemplate,
+                  name: name.trim(),
+                  channel,
+                  titleTemplate: titleTemplate.trim(),
+                  bodyTemplate: bodyTemplate.trim(),
+                  updatedAtLabel: "Just now",
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+            >
+              {mode === "create" ? "Create template" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NotificationCampaignEditorDialog({
+  open,
+  mode,
+  initialCampaign,
+  templates,
+  onSubmit,
+  onOpenChange,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  initialCampaign: NotificationCampaignRecord;
+  templates: NotificationTemplateRecord[];
+  onSubmit: (campaign: NotificationCampaignRecord) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState(initialCampaign.name);
+  const [channel, setChannel] = useState<NotificationChannel>(
+    initialCampaign.channel,
+  );
+  const [templateId, setTemplateId] = useState(
+    initialCampaign.templateId ?? "",
+  );
+  const [description, setDescription] = useState(initialCampaign.description);
+  const [touched, setTouched] = useState(false);
+
+  const valid = Boolean(name.trim()) && Boolean(description.trim());
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) {
+          setName(initialCampaign.name);
+          setChannel(initialCampaign.channel);
+          setTemplateId(initialCampaign.templateId ?? "");
+          setDescription(initialCampaign.description);
+          setTouched(false);
+        }
+      }}
+    >
+      <DialogContent className="w-[calc(100vw-32px)] max-w-[640px] rounded-[20px] border border-[#EAECF0] bg-white p-0">
+        <div className="px-6 py-6">
+          <DialogTitle className="text-xl font-bold text-[#101828]">
+            {mode === "create"
+              ? "Create notification campaign"
+              : "Edit notification campaign"}
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-[#667085]">
+            Campaigns can be linked to a stored notification template when one
+            is available.
+          </DialogDescription>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Campaign name
+              </label>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onBlur={() => setTouched(true)}
+                className="mt-2"
+                aria-label="Notification campaign name"
+                placeholder="e.g. New request notifications"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Channel
+              </label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {(["Push", "Email", "SMS"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setChannel(value)}
+                    className={cn(
+                      "h-11 rounded-[10px] border px-3 text-sm font-semibold transition",
+                      channel === value
+                        ? "border-[#071B58] bg-white text-[#101828]"
+                        : "border-[#EAECF0] bg-[#FCFCFD] text-[#667085] hover:bg-[#F8FAFC]",
+                    )}
+                    aria-pressed={channel === value}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Template
+              </label>
+              <select
+                value={templateId}
+                onChange={(event) => setTemplateId(event.target.value)}
+                aria-label="Notification campaign template"
+                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">No linked template</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-semibold text-[#344054]">
+                Description
+              </label>
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                onBlur={() => setTouched(true)}
+                className="mt-2 min-h-[130px]"
+                aria-label="Notification campaign description"
+                placeholder="What does this campaign do?"
+              />
+            </div>
+          </div>
+
+          {touched && !valid ? (
+            <p className="mt-3 text-xs font-medium text-[#B42318]">
+              Enter a campaign name and description.
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center justify-center rounded-[10px] border border-[#D0D5DD] px-4 py-3 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTouched(true);
+                if (!valid) return;
+                const templateName = templates.find(
+                  (template) => template.id === templateId,
+                )?.name;
+                onSubmit({
+                  ...initialCampaign,
+                  name: name.trim(),
+                  channel,
+                  templateId: templateId || null,
+                  templateName,
+                  description: description.trim(),
+                  updatedAtLabel: "Just now",
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-[10px] bg-[#071B58] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0C2877]"
+            >
+              {mode === "create" ? "Create campaign" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function MarketplaceConfigTab() {
   const [categories, setCategories] = useState<ServiceCategoryRecord[]>(
     initialServiceCategories,
@@ -880,6 +1212,9 @@ export function MarketplaceConfigTab() {
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeRecord[]>([]);
   const [platformConfig, setPlatformConfig] = useState<PlatformConfigRecord[]>(
     [],
+  );
+  const [templates, setTemplates] = useState<NotificationTemplateRecord[]>(
+    initialNotificationTemplates,
   );
   const [promos, setPromos] = useState<PromoRecord[]>(initialPromos);
   const [campaigns, setCampaigns] = useState<NotificationCampaignRecord[]>(
@@ -912,16 +1247,34 @@ export function MarketplaceConfigTab() {
   const [promoMode, setPromoMode] = useState<"create" | "edit">("create");
   const [editingPromo, setEditingPromo] = useState<PromoRecord | null>(null);
 
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [templateMode, setTemplateMode] = useState<"create" | "edit">("create");
+  const [editingTemplate, setEditingTemplate] =
+    useState<NotificationTemplateRecord | null>(null);
+
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [campaignMode, setCampaignMode] = useState<"create" | "edit">("create");
+  const [editingCampaign, setEditingCampaign] =
+    useState<NotificationCampaignRecord | null>(null);
+
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [isLiveLoading, setIsLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveDataMode, setLiveDataMode] = useState<"fallback" | "live">(
+    "fallback",
+  );
   const [platformConfigCount, setPlatformConfigCount] = useState<number | null>(
     null,
   );
   const [liveServiceTypeCount, setLiveServiceTypeCount] = useState<
     number | null
   >(null);
+  const [livePromoCount, setLivePromoCount] = useState<number | null>(null);
+  const [liveNotificationTemplateCount, setLiveNotificationTemplateCount] =
+    useState<number | null>(null);
+  const [liveNotificationCampaignCount, setLiveNotificationCampaignCount] =
+    useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     kind: MarketplaceActionKind;
     target: MarketplaceActionTarget;
@@ -931,11 +1284,7 @@ export function MarketplaceConfigTab() {
     let cancelled = false;
 
     async function loadLiveMarketplaceReadData() {
-      if (
-        import.meta.env.MODE === "test" ||
-        import.meta.env.VITEST ||
-        !isSupabaseConfigured()
-      ) {
+      if (!isLiveMarketplaceAvailable()) {
         return;
       }
 
@@ -948,11 +1297,17 @@ export function MarketplaceConfigTab() {
           categoriesResult,
           serviceTypesResult,
           tiersResult,
+          promosResult,
+          templatesResult,
+          campaignsResult,
         ] = await Promise.all([
           supabaseSettings.listPlatformConfig(),
           supabaseSettings.listServiceCategories(),
           supabaseSettings.listServiceTypes(),
           supabaseSettings.listUrgencyTiers(),
+          supabaseSettings.listPromoCodes(),
+          supabaseSettings.listNotificationTemplates(),
+          supabaseSettings.listNotificationCampaigns(),
         ]);
 
         if (configResult.ok === false) {
@@ -966,6 +1321,15 @@ export function MarketplaceConfigTab() {
         }
         if (tiersResult.ok === false) {
           throw new Error(tiersResult.message);
+        }
+        if (promosResult.ok === false) {
+          throw new Error(promosResult.message);
+        }
+        if (templatesResult.ok === false) {
+          throw new Error(templatesResult.message);
+        }
+        if (campaignsResult.ok === false) {
+          throw new Error(campaignsResult.message);
         }
 
         if (cancelled) {
@@ -986,8 +1350,22 @@ export function MarketplaceConfigTab() {
         );
         setTiers(mapUrgencyTierRowsToRecords(tiersResult.data));
         setPlatformConfig(mapPlatformConfigRowsToRecords(configResult.data));
+        setPromos(mapPromoCodeRowsToRecords(promosResult.data));
+        setTemplates(
+          mapNotificationTemplateRowsToRecords(templatesResult.data),
+        );
+        setCampaigns(
+          mapNotificationCampaignRowsToRecords({
+            campaigns: campaignsResult.data,
+            templates: templatesResult.data,
+          }),
+        );
+        setLiveDataMode("live");
         setPlatformConfigCount(configResult.data.length);
         setLiveServiceTypeCount(serviceTypesResult.data.length);
+        setLivePromoCount(promosResult.data.length);
+        setLiveNotificationTemplateCount(templatesResult.data.length);
+        setLiveNotificationCampaignCount(campaignsResult.data.length);
       } catch (error) {
         if (cancelled) {
           return;
@@ -1013,11 +1391,7 @@ export function MarketplaceConfigTab() {
   }, []);
 
   const reloadLiveMarketplaceData = async () => {
-    if (
-      import.meta.env.MODE === "test" ||
-      import.meta.env.VITEST ||
-      !isSupabaseConfigured()
-    ) {
+    if (!isLiveMarketplaceAvailable()) {
       return;
     }
 
@@ -1025,13 +1399,23 @@ export function MarketplaceConfigTab() {
     setLiveError(null);
 
     try {
-      const [configResult, categoriesResult, serviceTypesResult, tiersResult] =
-        await Promise.all([
-          supabaseSettings.listPlatformConfig(),
-          supabaseSettings.listServiceCategories(),
-          supabaseSettings.listServiceTypes(),
-          supabaseSettings.listUrgencyTiers(),
-        ]);
+      const [
+        configResult,
+        categoriesResult,
+        serviceTypesResult,
+        tiersResult,
+        promosResult,
+        templatesResult,
+        campaignsResult,
+      ] = await Promise.all([
+        supabaseSettings.listPlatformConfig(),
+        supabaseSettings.listServiceCategories(),
+        supabaseSettings.listServiceTypes(),
+        supabaseSettings.listUrgencyTiers(),
+        supabaseSettings.listPromoCodes(),
+        supabaseSettings.listNotificationTemplates(),
+        supabaseSettings.listNotificationCampaigns(),
+      ]);
 
       if (configResult.ok === false) throw new Error(configResult.message);
       if (categoriesResult.ok === false)
@@ -1039,6 +1423,11 @@ export function MarketplaceConfigTab() {
       if (serviceTypesResult.ok === false)
         throw new Error(serviceTypesResult.message);
       if (tiersResult.ok === false) throw new Error(tiersResult.message);
+      if (promosResult.ok === false) throw new Error(promosResult.message);
+      if (templatesResult.ok === false)
+        throw new Error(templatesResult.message);
+      if (campaignsResult.ok === false)
+        throw new Error(campaignsResult.message);
 
       setCategories(
         mapServiceCategoryRowsToRecords({
@@ -1054,8 +1443,20 @@ export function MarketplaceConfigTab() {
       );
       setTiers(mapUrgencyTierRowsToRecords(tiersResult.data));
       setPlatformConfig(mapPlatformConfigRowsToRecords(configResult.data));
+      setPromos(mapPromoCodeRowsToRecords(promosResult.data));
+      setTemplates(mapNotificationTemplateRowsToRecords(templatesResult.data));
+      setCampaigns(
+        mapNotificationCampaignRowsToRecords({
+          campaigns: campaignsResult.data,
+          templates: templatesResult.data,
+        }),
+      );
+      setLiveDataMode("live");
       setPlatformConfigCount(configResult.data.length);
       setLiveServiceTypeCount(serviceTypesResult.data.length);
+      setLivePromoCount(promosResult.data.length);
+      setLiveNotificationTemplateCount(templatesResult.data.length);
+      setLiveNotificationCampaignCount(campaignsResult.data.length);
     } catch (error) {
       logger.error("Failed to reload live marketplace settings.", error);
       setLiveError(
@@ -1137,9 +1538,8 @@ export function MarketplaceConfigTab() {
 
     const trimmedReason = reason.trim();
     const { kind, target } = pendingAction;
-    const hasLiveMarketplaceRead =
-      platformConfigCount !== null || liveServiceTypeCount !== null;
-    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
 
     if (target.type === "category") {
       if (kind === "disable" || kind === "enable") {
@@ -1254,52 +1654,133 @@ export function MarketplaceConfigTab() {
 
     if (target.type === "promo") {
       if (kind === "delete") {
-        setPromos((prev) =>
-          prev.filter((item) => item.id !== target.record.id),
-        );
-        toast.info("Promo deleted", {
-          description: `${trimmedReason} (local-only)`,
-        });
+        if (isLiveWriteFlow) {
+          const result = await supabaseSettings.deletePromoCode(
+            target.record.id,
+          );
+          if (result.ok === false) {
+            toast.error("Unable to delete promo", {
+              description: result.message,
+            });
+            return;
+          }
+          await reloadLiveMarketplaceData();
+          toast.success("Promo deleted", { description: trimmedReason });
+        } else {
+          setPromos((prev) =>
+            prev.filter((item) => item.id !== target.record.id),
+          );
+          toast.info("Promo deleted", {
+            description: `${trimmedReason} Saved locally in fallback mode.`,
+          });
+        }
       } else if (kind === "disable" || kind === "enable") {
-        setPromos((prev) =>
-          prev.map((item) =>
-            item.id === target.record.id
-              ? {
-                  ...item,
-                  status: applyToggle(
-                    item.status,
-                    kind === "enable" ? "enable" : "disable",
-                  ),
-                  updatedAtLabel: "Just now",
-                }
-              : item,
-          ),
-        );
-        toast.info("Promo updated", {
-          description: `${trimmedReason} (local-only)`,
-        });
+        if (isLiveWriteFlow) {
+          const result = await supabaseSettings.updatePromoCode({
+            id: target.record.id,
+            isActive: kind === "enable",
+          });
+          if (result.ok === false) {
+            toast.error("Unable to update promo", {
+              description: result.message,
+            });
+            return;
+          }
+          await reloadLiveMarketplaceData();
+          toast.success("Promo updated", { description: trimmedReason });
+        } else {
+          setPromos((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+          toast.info("Promo updated", {
+            description: `${trimmedReason} Saved locally in fallback mode.`,
+          });
+        }
+      }
+    }
+
+    if (target.type === "notificationTemplate") {
+      if (kind === "disable" || kind === "enable") {
+        if (isLiveWriteFlow) {
+          const result = await supabaseSettings.updateNotificationTemplate({
+            id: target.record.id,
+            isActive: kind === "enable",
+          });
+          if (result.ok === false) {
+            toast.error("Unable to update template", {
+              description: result.message,
+            });
+            return;
+          }
+          await reloadLiveMarketplaceData();
+          toast.success("Template updated", { description: trimmedReason });
+        } else {
+          setTemplates((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+          toast.info("Template updated", {
+            description: `${trimmedReason} Saved locally in fallback mode.`,
+          });
+        }
       }
     }
 
     if (target.type === "notification") {
       if (kind === "disable" || kind === "enable") {
-        setCampaigns((prev) =>
-          prev.map((item) =>
-            item.id === target.record.id
-              ? {
-                  ...item,
-                  status: applyToggle(
-                    item.status,
-                    kind === "enable" ? "enable" : "disable",
-                  ),
-                  updatedAtLabel: "Just now",
-                }
-              : item,
-          ),
-        );
-        toast.info("Notification updated", {
-          description: `${trimmedReason} (local-only)`,
-        });
+        if (isLiveWriteFlow) {
+          const result = await supabaseSettings.updateNotificationCampaign({
+            id: target.record.id,
+            status: kind === "enable" ? "enabled" : "disabled",
+          });
+          if (result.ok === false) {
+            toast.error("Unable to update campaign", {
+              description: result.message,
+            });
+            return;
+          }
+          await reloadLiveMarketplaceData();
+          toast.success("Campaign updated", { description: trimmedReason });
+        } else {
+          setCampaigns((prev) =>
+            prev.map((item) =>
+              item.id === target.record.id
+                ? {
+                    ...item,
+                    status: applyToggle(
+                      item.status,
+                      kind === "enable" ? "enable" : "disable",
+                    ),
+                    updatedAtLabel: "Just now",
+                  }
+                : item,
+            ),
+          );
+          toast.info("Campaign updated", {
+            description: `${trimmedReason} Saved locally in fallback mode.`,
+          });
+        }
       }
     }
 
@@ -1318,6 +1799,27 @@ export function MarketplaceConfigTab() {
     endDate: "2026-06-30",
     status: "Enabled",
     updatedAtLabel: "Just now",
+  });
+
+  const createEmptyTemplate = (): NotificationTemplateRecord => ({
+    id: `template-${Math.random().toString(16).slice(2, 10)}`,
+    name: "",
+    channel: "Push",
+    titleTemplate: "",
+    bodyTemplate: "",
+    status: "Enabled",
+    updatedAtLabel: "Just now",
+  });
+
+  const createEmptyCampaign = (): NotificationCampaignRecord => ({
+    id: `campaign-${Math.random().toString(16).slice(2, 10)}`,
+    name: "",
+    channel: "Push",
+    templateId: null,
+    templateName: undefined,
+    status: "Enabled",
+    updatedAtLabel: "Just now",
+    description: "",
   });
 
   const openCreateCategory = () => {
@@ -1373,24 +1875,233 @@ export function MarketplaceConfigTab() {
     setPromoDialogOpen(true);
   };
 
-  const handlePromoSubmit = (promo: PromoRecord) => {
-    setPromos((prev) => {
-      const exists = prev.some((item) => item.id === promo.id);
-      if (exists) {
-        return prev.map((item) => (item.id === promo.id ? promo : item));
+  const openCreateTemplate = () => {
+    setTemplateMode("create");
+    setEditingTemplate(createEmptyTemplate());
+    setTemplateDialogOpen(true);
+  };
+
+  const openEditTemplate = (template: NotificationTemplateRecord) => {
+    setTemplateMode("edit");
+    setEditingTemplate(template);
+    setTemplateDialogOpen(true);
+  };
+
+  const openCreateCampaign = () => {
+    setCampaignMode("create");
+    setEditingCampaign(createEmptyCampaign());
+    setCampaignDialogOpen(true);
+  };
+
+  const openEditCampaign = (campaign: NotificationCampaignRecord) => {
+    setCampaignMode("edit");
+    setEditingCampaign(campaign);
+    setCampaignDialogOpen(true);
+  };
+
+  const handlePromoSubmit = async (promo: PromoRecord) => {
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
+
+    if (isLiveWriteFlow) {
+      if (promoMode === "create") {
+        const result = await supabaseSettings.createPromoCode({
+          code: promo.code,
+          description: promo.description,
+          discountType: promo.discountType === "Amount" ? "amount" : "percent",
+          discountValue: promo.discountValue,
+          startsOn: promo.startDate,
+          endsOn: promo.endDate,
+          isActive: promo.status === "Enabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to create promo", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Promo created", {
+          description: `${promo.code} is now available.`,
+        });
+      } else if (editingPromo) {
+        const result = await supabaseSettings.updatePromoCode({
+          id: editingPromo.id,
+          code: promo.code,
+          description: promo.description,
+          discountType: promo.discountType === "Amount" ? "amount" : "percent",
+          discountValue: promo.discountValue,
+          startsOn: promo.startDate,
+          endsOn: promo.endDate,
+          isActive: promo.status === "Enabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to update promo", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Promo updated", {
+          description: `${promo.code} has been saved.`,
+        });
       }
-      return [promo, ...prev];
-    });
-    toast.info("Promo saved", {
-      description: `${promo.code} saved locally (not yet persisted).`,
-    });
+    } else {
+      setPromos((prev) => {
+        const exists = prev.some((item) => item.id === promo.id);
+        if (exists) {
+          return prev.map((item) => (item.id === promo.id ? promo : item));
+        }
+        return [promo, ...prev];
+      });
+      toast.info("Promo saved", {
+        description: `${promo.code} saved locally in fallback mode.`,
+      });
+    }
+
     setPromoDialogOpen(false);
+    setEditingPromo(null);
+  };
+
+  const handleTemplateSubmit = async (template: NotificationTemplateRecord) => {
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
+
+    if (isLiveWriteFlow) {
+      if (templateMode === "create") {
+        const result = await supabaseSettings.createNotificationTemplate({
+          name: template.name,
+          channel: template.channel.toLowerCase() as "push" | "email" | "sms",
+          titleTemplate: template.titleTemplate,
+          bodyTemplate: template.bodyTemplate,
+          isActive: template.status === "Enabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to create template", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Template created", {
+          description: `${template.name} is now available.`,
+        });
+      } else if (editingTemplate) {
+        const result = await supabaseSettings.updateNotificationTemplate({
+          id: editingTemplate.id,
+          name: template.name,
+          channel: template.channel.toLowerCase() as "push" | "email" | "sms",
+          titleTemplate: template.titleTemplate,
+          bodyTemplate: template.bodyTemplate,
+          isActive: template.status === "Enabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to update template", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Template updated", {
+          description: `${template.name} has been saved.`,
+        });
+      }
+    } else {
+      setTemplates((prev) => {
+        const exists = prev.some((item) => item.id === template.id);
+        if (exists) {
+          return prev.map((item) =>
+            item.id === template.id ? template : item,
+          );
+        }
+        return [template, ...prev];
+      });
+      toast.info("Template saved", {
+        description: `${template.name} saved locally in fallback mode.`,
+      });
+    }
+
+    setTemplateDialogOpen(false);
+    setEditingTemplate(null);
+  };
+
+  const handleCampaignSubmit = async (campaign: NotificationCampaignRecord) => {
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
+
+    if (isLiveWriteFlow) {
+      if (campaignMode === "create") {
+        const result = await supabaseSettings.createNotificationCampaign({
+          name: campaign.name,
+          description: campaign.description,
+          channel: campaign.channel.toLowerCase() as "push" | "email" | "sms",
+          templateId: campaign.templateId,
+          status: campaign.status === "Enabled" ? "enabled" : "disabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to create campaign", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Campaign created", {
+          description: `${campaign.name} is now available.`,
+        });
+      } else if (editingCampaign) {
+        const result = await supabaseSettings.updateNotificationCampaign({
+          id: editingCampaign.id,
+          name: campaign.name,
+          description: campaign.description,
+          channel: campaign.channel.toLowerCase() as "push" | "email" | "sms",
+          templateId: campaign.templateId,
+          status: campaign.status === "Enabled" ? "enabled" : "disabled",
+        });
+
+        if (result.ok === false) {
+          toast.error("Unable to update campaign", {
+            description: result.message,
+          });
+          return;
+        }
+
+        await reloadLiveMarketplaceData();
+        toast.success("Campaign updated", {
+          description: `${campaign.name} has been saved.`,
+        });
+      }
+    } else {
+      setCampaigns((prev) => {
+        const exists = prev.some((item) => item.id === campaign.id);
+        if (exists) {
+          return prev.map((item) =>
+            item.id === campaign.id ? campaign : item,
+          );
+        }
+        return [campaign, ...prev];
+      });
+      toast.info("Campaign saved", {
+        description: `${campaign.name} saved locally in fallback mode.`,
+      });
+    }
+
+    setCampaignDialogOpen(false);
+    setEditingCampaign(null);
   };
 
   const handleCategorySubmit = async (name: string) => {
-    const hasLiveMarketplaceRead =
-      platformConfigCount !== null || liveServiceTypeCount !== null;
-    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
 
     if (categoryMode === "create") {
       const duplicate = categories.some(
@@ -1471,9 +2182,8 @@ export function MarketplaceConfigTab() {
 
   const handleTierSubmit = async (nextMultiplier: number, reason: string) => {
     if (!editingTier) return;
-    const hasLiveMarketplaceRead =
-      platformConfigCount !== null || liveServiceTypeCount !== null;
-    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
 
     if (isLiveWriteFlow) {
       const extraFee = Math.max(0, (nextMultiplier - 1) * 100);
@@ -1516,9 +2226,8 @@ export function MarketplaceConfigTab() {
     basePrice: number;
     isAdditional: boolean;
   }) => {
-    const hasLiveMarketplaceRead =
-      platformConfigCount !== null || liveServiceTypeCount !== null;
-    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
 
     if (serviceTypeMode === "create") {
       if (isLiveWriteFlow) {
@@ -1617,9 +2326,8 @@ export function MarketplaceConfigTab() {
     value: string;
     description: string;
   }) => {
-    const hasLiveMarketplaceRead =
-      platformConfigCount !== null || liveServiceTypeCount !== null;
-    const isLiveWriteFlow = hasLiveMarketplaceRead && isSupabaseConfigured();
+    const isLiveWriteFlow =
+      liveDataMode === "live" && isLiveMarketplaceAvailable();
 
     if (isLiveWriteFlow) {
       const result = await supabaseSettings.upsertPlatformConfig(values);
@@ -1741,11 +2449,18 @@ export function MarketplaceConfigTab() {
         </div>
       ) : null}
       {liveError ? (
-        <div className="rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318]">
-          {liveError}
+        <div className="flex flex-col gap-3 rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-medium text-[#B42318] sm:flex-row sm:items-center sm:justify-between">
+          <span>{liveError}</span>
+          <button
+            type="button"
+            onClick={() => void reloadLiveMarketplaceData()}
+            className="inline-flex h-9 items-center justify-center rounded-[10px] border border-[#FCA5A5] bg-white px-3 text-xs font-semibold text-[#B42318] transition hover:bg-[#FFF1F1]"
+          >
+            Retry live load
+          </button>
         </div>
       ) : null}
-      {platformConfigCount !== null || liveServiceTypeCount !== null ? (
+      {liveDataMode === "live" ? (
         <div className="rounded-[14px] border border-[#D0D5DD] bg-[#FCFCFD] px-4 py-3 text-sm text-[#475467]">
           Live read source loaded from Supabase:
           {platformConfigCount !== null
@@ -1757,8 +2472,14 @@ export function MarketplaceConfigTab() {
           {liveServiceTypeCount !== null
             ? ` ${liveServiceTypeCount} service types`
             : ""}
-          . Promos and notification campaigns remain temporary until a matching
-          schema is added.
+          {livePromoCount !== null ? `, ${livePromoCount} promos` : ""}
+          {liveNotificationTemplateCount !== null
+            ? `, ${liveNotificationTemplateCount} notification templates`
+            : ""}
+          {liveNotificationCampaignCount !== null
+            ? `, ${liveNotificationCampaignCount} notification campaigns`
+            : ""}
+          .
         </div>
       ) : null}
 
@@ -2089,7 +2810,7 @@ export function MarketplaceConfigTab() {
 
       <MarketplaceSectionShell
         title="Promos"
-        description="Create and manage promos (local-only until backend support is added)."
+        description="Create and manage promo codes, discount windows, and availability."
         action={
           <button
             type="button"
@@ -2186,6 +2907,16 @@ export function MarketplaceConfigTab() {
                   </td>
                 </tr>
               ))}
+              {promos.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-5 py-6 text-sm font-medium text-[#98A2B3]"
+                  >
+                    No promos are configured yet.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -2193,76 +2924,226 @@ export function MarketplaceConfigTab() {
 
       <MarketplaceSectionShell
         title="Notifications"
-        description="Configure notification templates and campaign toggles (local-only until backend support is added)."
+        description="Manage reusable notification templates and the campaigns that send them."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={openCreateTemplate}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20"
+            >
+              <Plus className="h-4 w-4" />
+              Add template
+            </button>
+            <button
+              type="button"
+              onClick={openCreateCampaign}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#041133] px-4 text-sm font-semibold text-white transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20"
+            >
+              <Plus className="h-4 w-4" />
+              Add campaign
+            </button>
+          </div>
+        }
       >
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-[#F9FAFB]">
-              <tr className="text-left text-xs font-semibold text-[#667085]">
-                <th className="px-5 py-4">Campaign</th>
-                <th className="px-5 py-4">Channel</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Last updated</th>
-                <th className="px-5 py-4 text-right" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EAECF0]">
-              {campaigns.map((campaign) => (
-                <tr key={campaign.id}>
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-semibold text-[#101828]">
-                      {campaign.name}
-                    </p>
-                    <p className="mt-1 text-xs text-[#98A2B3]">
-                      {campaign.description}
-                    </p>
-                  </td>
-                  <td className="px-5 py-4">
-                    {channelBadge(campaign.channel)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                        getStatusClasses(campaign.status),
-                      )}
-                    >
-                      {campaign.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-[#667085]">
-                    {campaign.updatedAtLabel}
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    {renderActionsMenu(
-                      `Notification actions for ${campaign.name}`,
-                      [
-                        campaign.status === "Enabled"
-                          ? {
-                              label: "Disable campaign",
-                              tone: "danger",
-                              onClick: () =>
-                                openReasonDialog("disable", {
-                                  type: "notification",
-                                  record: campaign,
-                                }),
-                            }
-                          : {
-                              label: "Enable campaign",
-                              tone: "primary",
-                              onClick: () =>
-                                openReasonDialog("enable", {
-                                  type: "notification",
-                                  record: campaign,
-                                }),
+        <div className="space-y-6">
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Templates
+                </h3>
+                <p className="text-xs text-[#98A2B3]">
+                  Reusable message content for push, email, and SMS campaigns.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-[#F9FAFB]">
+                  <tr className="text-left text-xs font-semibold text-[#667085]">
+                    <th className="px-5 py-4">Template</th>
+                    <th className="px-5 py-4">Channel</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Last updated</th>
+                    <th className="px-5 py-4 text-right" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EAECF0]">
+                  {templates.map((template) => (
+                    <tr key={template.id}>
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-semibold text-[#101828]">
+                          {template.name}
+                        </p>
+                        <p className="mt-1 text-xs text-[#98A2B3]">
+                          {template.titleTemplate || template.bodyTemplate}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        {channelBadge(template.channel)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                            getStatusClasses(template.status),
+                          )}
+                        >
+                          {template.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-[#667085]">
+                        {template.updatedAtLabel}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {renderActionsMenu(
+                          `Template actions for ${template.name}`,
+                          [
+                            {
+                              label: "Edit template",
+                              onClick: () => openEditTemplate(template),
+                              separator: true,
                             },
-                      ],
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                            template.status === "Enabled"
+                              ? {
+                                  label: "Disable template",
+                                  tone: "danger",
+                                  onClick: () =>
+                                    openReasonDialog("disable", {
+                                      type: "notificationTemplate",
+                                      record: template,
+                                    }),
+                                }
+                              : {
+                                  label: "Enable template",
+                                  tone: "primary",
+                                  onClick: () =>
+                                    openReasonDialog("enable", {
+                                      type: "notificationTemplate",
+                                      record: template,
+                                    }),
+                                },
+                          ],
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {templates.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-5 py-6 text-sm font-medium text-[#98A2B3]"
+                      >
+                        No notification templates are configured yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Campaigns
+                </h3>
+                <p className="text-xs text-[#98A2B3]">
+                  Delivery toggles and audience-ready notification campaigns.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-[#F9FAFB]">
+                  <tr className="text-left text-xs font-semibold text-[#667085]">
+                    <th className="px-5 py-4">Campaign</th>
+                    <th className="px-5 py-4">Channel</th>
+                    <th className="px-5 py-4">Template</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Last updated</th>
+                    <th className="px-5 py-4 text-right" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EAECF0]">
+                  {campaigns.map((campaign) => (
+                    <tr key={campaign.id}>
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-semibold text-[#101828]">
+                          {campaign.name}
+                        </p>
+                        <p className="mt-1 text-xs text-[#98A2B3]">
+                          {campaign.description}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        {channelBadge(campaign.channel)}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-[#667085]">
+                        {campaign.templateName || "—"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                            getStatusClasses(campaign.status),
+                          )}
+                        >
+                          {campaign.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-[#667085]">
+                        {campaign.updatedAtLabel}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {renderActionsMenu(
+                          `Notification actions for ${campaign.name}`,
+                          [
+                            {
+                              label: "Edit campaign",
+                              onClick: () => openEditCampaign(campaign),
+                              separator: true,
+                            },
+                            campaign.status === "Enabled"
+                              ? {
+                                  label: "Disable campaign",
+                                  tone: "danger",
+                                  onClick: () =>
+                                    openReasonDialog("disable", {
+                                      type: "notification",
+                                      record: campaign,
+                                    }),
+                                }
+                              : {
+                                  label: "Enable campaign",
+                                  tone: "primary",
+                                  onClick: () =>
+                                    openReasonDialog("enable", {
+                                      type: "notification",
+                                      record: campaign,
+                                    }),
+                                },
+                          ],
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {campaigns.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-5 py-6 text-sm font-medium text-[#98A2B3]"
+                      >
+                        No notification campaigns are configured yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </MarketplaceSectionShell>
 
@@ -2321,7 +3202,43 @@ export function MarketplaceConfigTab() {
           mode={promoMode}
           initialPromo={editingPromo}
           onSubmit={handlePromoSubmit}
-          onOpenChange={setPromoDialogOpen}
+          onOpenChange={(open) => {
+            setPromoDialogOpen(open);
+            if (!open) {
+              setEditingPromo(null);
+            }
+          }}
+        />
+      ) : null}
+
+      {editingTemplate ? (
+        <NotificationTemplateEditorDialog
+          open={templateDialogOpen}
+          mode={templateMode}
+          initialTemplate={editingTemplate}
+          onSubmit={handleTemplateSubmit}
+          onOpenChange={(open) => {
+            setTemplateDialogOpen(open);
+            if (!open) {
+              setEditingTemplate(null);
+            }
+          }}
+        />
+      ) : null}
+
+      {editingCampaign ? (
+        <NotificationCampaignEditorDialog
+          open={campaignDialogOpen}
+          mode={campaignMode}
+          initialCampaign={editingCampaign}
+          templates={templates}
+          onSubmit={handleCampaignSubmit}
+          onOpenChange={(open) => {
+            setCampaignDialogOpen(open);
+            if (!open) {
+              setEditingCampaign(null);
+            }
+          }}
         />
       ) : null}
 

@@ -10,7 +10,8 @@ export interface SecurityFormValues {
 
 export interface SecurityFormProps {
   initialValues?: Partial<SecurityFormValues>;
-  onSubmit: (values: SecurityFormValues) => void;
+  onSubmit: (values: SecurityFormValues) => void | Promise<void>;
+  isSubmitting?: boolean;
   className?: string;
 }
 
@@ -66,6 +67,7 @@ function PasswordField({
 export function SecurityForm({
   initialValues,
   onSubmit,
+  isSubmitting = false,
   className = "",
 }: SecurityFormProps) {
   const [values, setValues] = useState<SecurityFormValues>({
@@ -87,7 +89,7 @@ export function SecurityForm({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
-    onSubmit(values);
+    void onSubmit(values);
   };
 
   return (
@@ -126,7 +128,7 @@ export function SecurityForm({
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
           className={cn(
             "inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#B1B5C0] bg-[#041133] px-6 py-[13px] text-[14px] font-medium text-white",
             "transition hover:bg-[#0A1C4E] focus:outline-none focus:ring-2 focus:ring-[#071B58]/25",
@@ -134,7 +136,7 @@ export function SecurityForm({
           )}
           aria-label="Update password"
         >
-          Update password
+          {isSubmitting ? "Updating..." : "Update password"}
         </button>
       </div>
     </form>

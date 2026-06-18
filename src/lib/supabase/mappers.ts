@@ -1,7 +1,11 @@
 import type { UserRequestHistoryItem, UserRequestStatus } from "@/components/dashboard/user-details/user-details.types";
 import type { ContractorKycDocumentRecord, ContractorKycState, ContractorRecord, ContractorCurrentStatus, ContractorLifecycleState, ContractorPayoutStatus, ContractorServiceCategory, ContractorTransactionRecord, ContractorVerificationState } from "@/components/dashboard/contractors/contractors.types";
 import type {
+  NotificationCampaignRecord,
+  NotificationTemplateRecord,
+  NotificationChannel,
   PlatformConfigRecord,
+  PromoRecord,
   ServiceCategoryRecord,
   ServiceTypeRecord,
   UrgencyTierRecord,
@@ -31,9 +35,12 @@ import type {
   DisputeEventRow,
   DisputeRow,
   JobRow,
+  NotificationCampaignRow,
   PaymentRow,
+  PromoCodeRow,
   PlatformConfigRow,
   ProfileRow,
+  NotificationTemplateRow,
   ReviewRow,
   ServiceCategoryRow,
   ServiceTypeRow,
@@ -502,6 +509,63 @@ export function mapPlatformConfigRowsToRecords(
     value: row.value,
     description: row.description,
     updatedAtLabel: formatDateLabel(row.updated_at),
+  }));
+}
+
+function mapNotificationChannel(value: string): NotificationChannel {
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "email") return "Email";
+  if (normalized === "sms") return "SMS";
+  return "Push";
+}
+
+export function mapPromoCodeRowsToRecords(rows: PromoCodeRow[]): PromoRecord[] {
+  return rows.map((row) => ({
+    id: row.id,
+    code: row.code,
+    description: row.description,
+    discountType: row.discount_type === "amount" ? "Amount" : "Percent",
+    discountValue: Number(row.discount_value) || 0,
+    startDate: row.starts_on ?? "",
+    endDate: row.ends_on ?? "",
+    status: row.is_active ? "Enabled" : "Disabled",
+    updatedAtLabel: formatDateLabel(row.updated_at),
+  }));
+}
+
+export function mapNotificationTemplateRowsToRecords(
+  rows: NotificationTemplateRow[],
+): NotificationTemplateRecord[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    channel: mapNotificationChannel(row.channel),
+    titleTemplate: row.title_template ?? "",
+    bodyTemplate: row.body_template,
+    status: row.is_active ? "Enabled" : "Disabled",
+    updatedAtLabel: formatDateLabel(row.updated_at),
+  }));
+}
+
+export function mapNotificationCampaignRowsToRecords(params: {
+  campaigns: NotificationCampaignRow[];
+  templates: NotificationTemplateRow[];
+}): NotificationCampaignRecord[] {
+  const templateNameById = new Map(
+    params.templates.map((template) => [template.id, template.name]),
+  );
+
+  return params.campaigns.map((row) => ({
+    id: row.id,
+    name: row.name,
+    channel: mapNotificationChannel(row.channel),
+    templateId: row.template_id,
+    templateName: row.template_id
+      ? (templateNameById.get(row.template_id) ?? undefined)
+      : undefined,
+    status: row.status === "enabled" ? "Enabled" : "Disabled",
+    updatedAtLabel: formatDateLabel(row.updated_at),
+    description: row.description,
   }));
 }
 

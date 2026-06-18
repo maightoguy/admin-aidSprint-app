@@ -54,7 +54,19 @@ export type NotificationCampaignRecord = {
   id: string;
   name: string;
   channel: NotificationChannel;
+  templateId: string | null;
+  templateName?: string;
   status: MarketplaceEntityStatus;
   updatedAtLabel: string;
   description: string;
+};
+
+export type NotificationTemplateRecord = {
+  id: string;
+  name: string;
+  channel: NotificationChannel;
+  titleTemplate: string;
+  bodyTemplate: string;
+  status: MarketplaceEntityStatus;
+  updatedAtLabel: string;
 };

@@ -1,5 +1,6 @@
 import type {
   NotificationCampaignRecord,
+  NotificationTemplateRecord,
   PromoRecord,
   ServiceCategoryRecord,
   UrgencyTierRecord,
@@ -83,6 +84,8 @@ export const initialNotificationCampaigns: NotificationCampaignRecord[] = [
     id: "campaign-new-request",
     name: "New request notifications",
     channel: "Push",
+    templateId: "template-admin-dispatch",
+    templateName: "Dispatch alert",
     status: "Enabled",
     updatedAtLabel: "Today, 08:00am",
     description: "Notify admins when new requests enter the dispatch queue.",
@@ -91,6 +94,8 @@ export const initialNotificationCampaigns: NotificationCampaignRecord[] = [
     id: "campaign-payout-failures",
     name: "Payout failure alerts",
     channel: "Email",
+    templateId: "template-payout-failure",
+    templateName: "Payout failure alert",
     status: "Enabled",
     updatedAtLabel: "Yesterday, 06:30pm",
     description: "Alert finance ops when payouts fail or are blocked.",
@@ -99,9 +104,30 @@ export const initialNotificationCampaigns: NotificationCampaignRecord[] = [
     id: "campaign-kyc-blockers",
     name: "KYC blocker reminders",
     channel: "Push",
+    templateId: null,
     status: "Disabled",
     updatedAtLabel: "Apr 12, 2026",
     description: "Remind operations to clear pending verification backlogs.",
   },
 ];
 
+export const initialNotificationTemplates: NotificationTemplateRecord[] = [
+  {
+    id: "template-admin-dispatch",
+    name: "Dispatch alert",
+    channel: "Push",
+    titleTemplate: "New request assigned",
+    bodyTemplate: "A new request is ready for dispatch review.",
+    status: "Enabled",
+    updatedAtLabel: "Today, 07:40am",
+  },
+  {
+    id: "template-payout-failure",
+    name: "Payout failure alert",
+    channel: "Email",
+    titleTemplate: "Payout failure detected",
+    bodyTemplate: "A contractor payout failed and requires operations review.",
+    status: "Enabled",
+    updatedAtLabel: "Yesterday, 05:10pm",
+  },
+];

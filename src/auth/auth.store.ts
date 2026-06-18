@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 
 export type AuthSession = {
   accessToken: string;
@@ -38,6 +39,7 @@ type AuthState = {
   signIn: (input: SignInInput) => Promise<SignInResult>;
   signOut: () => void;
   refreshFromStorage: () => void;
+  syncSessionFromSupabase: (supabaseSession: Session) => void;
 };
 
 const STORAGE_KEY = "admin-auth-session-v1";
@@ -106,6 +108,40 @@ function clearSession() {
 
   window.localStorage.removeItem(STORAGE_KEY);
   window.sessionStorage.removeItem(STORAGE_KEY);
+}
+
+function writeSessionToExistingStorage(session: AuthSession) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const raw = JSON.stringify(session);
+
+  if (window.localStorage.getItem(STORAGE_KEY) !== null) {
+    window.localStorage.setItem(STORAGE_KEY, raw);
+    return;
+  }
+
+  if (window.sessionStorage.getItem(STORAGE_KEY) !== null) {
+    window.sessionStorage.setItem(STORAGE_KEY, raw);
+    return;
+  }
+
+  window.sessionStorage.setItem(STORAGE_KEY, raw);
+}
+
+function toAuthSession(supabaseSession: Session): AuthSession {
+  const expiresAtMs = supabaseSession.expires_at
+    ? supabaseSession.expires_at * 1000
+    : safeNow() + 1000 * 60 * 60;
+
+  return {
+    accessToken: supabaseSession.access_token,
+    refreshToken: supabaseSession.refresh_token,
+    userEmail: supabaseSession.user.email ?? "",
+    userId: supabaseSession.user.id,
+    expiresAtMs,
+  };
 }
 
 const bootSession = readSession();
@@ -231,6 +267,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   session: bootSession,
   isSigningIn: false,
   lastMessage: null,
+  syncSessionFromSupabase: (supabaseSession: Session) => {
+    const session = toAuthSession(supabaseSession);
+    writeSessionToExistingStorage(session);
+    set({ status: "authenticated", session, lastMessage: null });
+  },
   refreshFromStorage: () => {
     const session = readSession();
     if (!session) {
