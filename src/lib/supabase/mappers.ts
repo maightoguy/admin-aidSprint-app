@@ -314,6 +314,36 @@ function mapDocumentStatus(value: string) {
   return "pending";
 }
 
+function hasApprovedRequiredKycDocuments(documents: ContractorDocumentRow[]) {
+  const normalizedTypes = new Map(
+    documents.map((document) => [
+      document.id,
+      {
+        type: String(document.document_type).trim().toLowerCase(),
+        status: String(document.status).trim().toLowerCase(),
+      },
+    ]),
+  );
+  const documentStates = Array.from(normalizedTypes.values());
+
+  const idApproved = documentStates.some(
+    (document) =>
+      ["government_id", "drivers_licence", "passport", "national_id"].includes(
+        document.type,
+      ) && document.status === "approved",
+  );
+  const policeApproved = documentStates.some(
+    (document) =>
+      document.type === "police_check" && document.status === "approved",
+  );
+  const serviceLicenceApproved = documentStates.some(
+    (document) =>
+      document.type === "service_licence" && document.status === "approved",
+  );
+
+  return idApproved && policeApproved && serviceLicenceApproved;
+}
+
 export function mapContractorDocumentsToKycInitialState(params: {
   documents: ContractorDocumentRow[];
   reviewerProfiles?: Map<string, Pick<ProfileRow, "full_name">>;
@@ -387,6 +417,13 @@ export function deriveContractorVerificationState(params: {
   if (documents.some((document) => String(document.status).toLowerCase() === "rejected")) {
     return "Rejected";
   }
+
+  if (documents.length > 0) {
+    return hasApprovedRequiredKycDocuments(documents) ? "Verified" : "Pending review";
+  }
+
+  // Fall back to the contractor flag only for older records that do not have
+  // document rows available in the admin dataset yet.
   if (contractor.is_verified) {
     return "Verified";
   }

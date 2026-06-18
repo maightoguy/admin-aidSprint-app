@@ -1072,6 +1072,7 @@ Requirements:
 ```text
 Integration task: Convert the local-only promos and notification campaign areas in the marketplace/settings workspace into live Supabase-backed flows while preserving the current page structure and section layout.
 
+Scope:
 - promo create/edit/enable/disable/delete
 - notification template/campaign create/edit/enable/disable where supported
 - live load, empty, error, and retry handling for the currently local-only sections

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ContractorRow, ProfileRow } from "./data";
+import type { ContractorDocumentRow, ContractorRow, ProfileRow } from "./data";
 import {
+  deriveContractorVerificationState,
   isContractorCurrentlySuspended,
   mapContractorRowToContractorRecord,
 } from "./mappers";
@@ -59,6 +60,25 @@ const profile: ProfileRow = {
   stripe_customer_id: null,
 };
 
+function buildContractorDocumentRow(
+  overrides: Partial<ContractorDocumentRow> = {},
+): ContractorDocumentRow {
+  return {
+    id: crypto.randomUUID(),
+    contractor_id: "contractor-1",
+    document_type: "government_id",
+    storage_path: "contractor-documents/contractor-1/id.pdf",
+    file_name: "id.pdf",
+    mime_type: "application/pdf",
+    status: "pending",
+    reviewed_at: null,
+    reviewed_by: null,
+    rejection_reason: null,
+    created_at: "2026-06-18T08:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("contractor lifecycle mapping", () => {
   it("treats a contractor as suspended when suspended_at is newer than restored_at", () => {
     const contractor = buildContractorRow({
@@ -99,5 +119,71 @@ describe("contractor lifecycle mapping", () => {
     expect(record.lifecycleState).toBe("Active");
     expect(record.suspensionReason).toBeUndefined();
     expect(record.restoreReason).toBe("Quality checks cleared.");
+  });
+});
+
+describe("contractor verification mapping", () => {
+  it("keeps verification pending when contractor flags are true but documents are still pending", () => {
+    const contractor = buildContractorRow({
+      is_verified: true,
+      id_verification_complete: true,
+      police_check_complete: true,
+      service_licences_complete: true,
+    });
+    const documents: ContractorDocumentRow[] = [
+      buildContractorDocumentRow({ document_type: "government_id", status: "pending" }),
+      buildContractorDocumentRow({ document_type: "police_check", status: "pending" }),
+      buildContractorDocumentRow({ document_type: "service_licence", status: "pending" }),
+    ];
+
+    expect(
+      deriveContractorVerificationState({
+        contractor,
+        documents,
+      }),
+    ).toBe("Pending review");
+  });
+
+  it("marks verification as verified once all required document categories are approved", () => {
+    const contractor = buildContractorRow({
+      is_verified: true,
+      id_verification_complete: true,
+      police_check_complete: true,
+      service_licences_complete: true,
+    });
+    const documents: ContractorDocumentRow[] = [
+      buildContractorDocumentRow({ document_type: "government_id", status: "approved" }),
+      buildContractorDocumentRow({ document_type: "police_check", status: "approved" }),
+      buildContractorDocumentRow({ document_type: "service_licence", status: "approved" }),
+    ];
+
+    expect(
+      deriveContractorVerificationState({
+        contractor,
+        documents,
+      }),
+    ).toBe("Verified");
+  });
+
+  it("marks verification as rejected when any required document is rejected", () => {
+    const contractor = buildContractorRow({
+      is_verified: true,
+    });
+    const documents: ContractorDocumentRow[] = [
+      buildContractorDocumentRow({ document_type: "government_id", status: "approved" }),
+      buildContractorDocumentRow({
+        document_type: "police_check",
+        status: "rejected",
+        rejection_reason: "Image is unreadable.",
+      }),
+      buildContractorDocumentRow({ document_type: "service_licence", status: "approved" }),
+    ];
+
+    expect(
+      deriveContractorVerificationState({
+        contractor,
+        documents,
+      }),
+    ).toBe("Rejected");
   });
 });
