@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import ContractorDetailsPage from "./contractor-details-page";
 import ContractorsPage from "./contractors";
+import type { ContractorRecord } from "./contractors.types";
 import UserDetailsPage from "../user-details/user-details-page";
 
 function renderContractors() {
@@ -34,6 +35,80 @@ afterEach(() => {
 });
 
 describe("ContractorsPage", () => {
+  it("keeps pending-approval contractors visible in the pending verification queue", async () => {
+    const user = userEvent.setup();
+    const pendingApprovalContractor: ContractorRecord = {
+      id: "pending-approval-contractor",
+      name: "Pending Approval Contractor",
+      email: "pending.approval@example.com",
+      phone: "+2348000000001",
+      location: "15 Allen Avenue",
+      currentStatus: "Offline",
+      totalServicesProvided: 0,
+      dateJoined: "Jun 18, 2026",
+      accountStatus: "Active",
+      lifecycleState: "Pending approval",
+      serviceCategory: "Plumbing",
+      bio: "Awaiting lifecycle activation.",
+      firstName: "Pending",
+      lastName: "Approval",
+      gender: "Female",
+      servicesProvided: ["Plumbing"],
+      locations: [
+        {
+          id: "pending-approval-location",
+          primaryLine: "15 Allen Avenue",
+          secondaryLine: "Nigeria",
+          isCurrent: true,
+        },
+      ],
+      verificationState: "Verified",
+      rating: 5,
+      totalRatings: 1,
+      acceptanceRate: 1,
+      completionRate: 1,
+      responseTimeLabel: "Fast response",
+      totalJobsOffered: 1,
+      totalJobsAccepted: 1,
+      totalJobsCompleted: 1,
+      repeatedComplaints: 0,
+      lastActiveLabel: "Today",
+      serviceZoneLabel: "Allen Avenue",
+      riskLevel: "Low",
+      riskFlags: ["Verified"],
+      payoutStatus: "Ready",
+      pendingPayoutAmount: "$0.00",
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/contractors"]}>
+        <Routes>
+          <Route
+            path="/contractors"
+            element={
+              <ContractorsPage
+                initialContractors={[pendingApprovalContractor]}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getAllByText("Pending Approval Contractor").length,
+    ).toBeGreaterThan(0);
+
+    await user.click(
+      screen.getByRole("button", { name: /Pending verification/i }),
+    );
+
+    expect(
+      screen.getAllByText("Pending Approval Contractor").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("1 contractors")).toBeTruthy();
+  }, 10000);
+
   it("renders the contractors list and filters via search", async () => {
     const user = userEvent.setup();
     renderContractors();

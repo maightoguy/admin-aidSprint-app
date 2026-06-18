@@ -177,7 +177,9 @@ function formatPercent(value: number) {
 function getQueueCounts(contractors: ContractorRecord[]) {
   return {
     pendingReview: contractors.filter(
-      (item) => item.verificationState === "Pending review",
+      (item) =>
+        item.verificationState === "Pending review" ||
+        item.lifecycleState === "Pending approval",
     ).length,
     watchlist: contractors.filter(
       (item) => item.riskLevel !== "Low" || Boolean(item.watchlistReason),
@@ -198,7 +200,10 @@ function matchesQueueFilter(
   }
 
   if (queueFilter === "pending-review") {
-    return contractor.verificationState === "Pending review";
+    return (
+      contractor.verificationState === "Pending review" ||
+      contractor.lifecycleState === "Pending approval"
+    );
   }
 
   if (queueFilter === "watchlist") {
