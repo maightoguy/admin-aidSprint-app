@@ -6,6 +6,7 @@ import {
   handleGenerateRecoveryCodes,
   handleVerifyRecoveryCode,
 } from "./routes/admin-security";
+import { handleGenerateEvidenceSignedUrl } from "./routes/disputes-evidence";
 
 export function createServer() {
   const app = express();
@@ -24,6 +25,7 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
   app.post("/api/admin/security/recovery-codes/generate", handleGenerateRecoveryCodes);
   app.post("/api/admin/security/recovery-codes/verify", handleVerifyRecoveryCode);
+  app.post("/api/disputes/evidence/signed-url", handleGenerateEvidenceSignedUrl);
 
   return app;
 }

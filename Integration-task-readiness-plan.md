@@ -74,6 +74,8 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 - Settings marketplace with live writes (F1-F2)
 - Finance read-only with live export (G1-G3)
 - Disputes/support with live reads + action writes (I1-I2)
+- **Evidence file handling for disputes (I3)** — Storage bucket + upload/download UI + tests
+- **Support ticket message threading (I4)** — Message table + read-state tracking + conversation UI
 - Notifications with realtime (H2)
 - Admin MFA/TOTP with recovery codes (K1-K2)
 - Promos and notification campaigns — live CRUD with local fallback (L1-L2)
@@ -87,7 +89,6 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ### Needs implementation
 
-- **I3** — Evidence file handling for disputes (Storage bucket + upload/download UI)
 - **I4** — Support ticket message threading (conversation model + read tracking)
 - **I5** — Dispute refund linkage to payments (payment table coordination)
 - **J3** — Admin audit logging for all mutations (beyond MFA events)
@@ -98,16 +99,15 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ## Recommended Integration Order (Remaining Work)
 
-1. **I3** — Evidence file handling (Storage + upload/download UI)
-2. **I4** — Support message threading (conversation model)
-3. **I5** — Dispute refund linkage (payment table coordination)
-4. **M1-M2** — Finance write contract design + live writes
-5. **O1-O2** — Intervention contract decision + UI alignment
-6. **J3** — Admin audit logging expansion
-7. **J4** — Error recovery with retry/circuit breaker
-8. **J5** — RLS comprehensive audit and permission matrix
-9. **P1-P4** — Testing suite
-10. **Q1-Q4** — Rate limiting and abuse prevention
+1. **I5** — Dispute refund linkage (payment table coordination)
+2. **M1-M2** — Finance write contract (settlement operations)
+3. **M1-M2** — Finance write contract design + live writes
+4. **O1-O2** — Intervention contract decision + UI alignment
+5. **J3** — Admin audit logging expansion
+6. **J4** — Error recovery with retry/circuit breaker
+7. **J5** — RLS comprehensive audit and permission matrix
+8. **P1-P4** — Testing suite
+9. **Q1-Q4** — Rate limiting and abuse prevention
 
 ---
 
@@ -512,62 +512,82 @@ Requirements:
 - Add focused tests for live mutation paths only where behavior materially changes.
 ```
 
-#### Chunk I3 - Evidence file handling for disputes (NOT DONE)
+#### Chunk I3 - Evidence file handling for disputes (DONE)
 
 ```text
 Integration task: Add safe file upload/download/viewing for dispute evidence using Supabase Storage while preserving the dispute detail panel UX. Wire the dispute evidence surface to persistent file storage with proper admin-only RLS protection.
 
 Scope:
-- add file upload form to the dispute detail panel
-- store uploaded files in Supabase Storage at `admin/disputes/<dispute_id>/` paths
-- persist file metadata (name, size, type, uploaded_at, uploaded_by) to `public.dispute_evidence` table
-- add file download/view actions in the evidence timeline
-- handle storage errors, file-size limits, and retry behavior
-- remove any local-only file handling from the current UI
+- add file upload form to the dispute detail panel ✅
+- store uploaded files in Supabase Storage at `admin/disputes/<dispute_id>/` paths ✅
+- persist file metadata (name, size, type, uploaded_at, uploaded_by) to `public.dispute_evidence` table ✅
+- add file download/view actions in the evidence timeline ✅
+- handle storage errors, file-size limits, and retry behavior ✅
+- remove any local-only file handling from the current UI ✅
 
 Requirements:
-- preserve the current dispute detail panel structure
-- keep file uploads and downloads behind admin authorization
-- use Supabase Storage buckets with RLS/security rules for admin-only access
-- add focused tests for file upload success, failure, and permission scenarios
-- validate file types and sizes server-side before acceptance
+- preserve the current dispute detail panel structure ✅
+- keep file uploads and downloads behind admin authorization ✅
+- use Supabase Storage buckets with RLS/security rules for admin-only access ✅
+- add focused tests for file upload success, failure, and permission scenarios ✅
+- validate file types and sizes server-side before acceptance ✅
 
-Current implementation note:
+Implementation complete:
 
-- `public.dispute_evidence` table exists with columns: `id`, `dispute_id`, `evidence_type`, `file_path`, `file_name`, `file_size`, `file_type`, `uploaded_by`, `uploaded_at`, `metadata`, `created_at`.
-- `src/components/dashboard/disputes/disputes.tsx` loads evidence from the table but has no upload UI or download handlers.
-- Supabase Storage bucket `admin/disputes/` with RLS policies does not yet exist; needs creation.
-- No file size/type validation or Supabase Storage integration functions in `src/lib/supabase/data.ts` yet.
-- Backend storage contract and error-handling patterns need definition.
+- Frontend upload form in `src/components/dashboard/disputes/disputes-sidebar.tsx` ✅
+- Backend helper `supabaseDisputes.uploadEvidenceFile()` in `src/lib/supabase/data.ts` ✅
+- File validation utilities in `src/lib/supabase/evidence.ts` with tests ✅
+- Server-side signed URL endpoint: `POST /api/disputes/evidence/signed-url` ✅
+- Private Supabase Storage bucket `admin-disputes` with admin-only RLS policies ✅
+- Full test coverage for file type/size validation, upload success/failure, permissions ✅
+- See I3-IMPLEMENTATION.md for detailed architecture and setup guide
 ```
 
-#### Chunk I4 - Support ticket message threading (NOT DONE)
+#### Chunk I4 - Support ticket message threading (DONE)
 
 ```text
 Integration task: Add message creation, retrieval, and read-state tracking for support tickets so the timeline flows as a proper conversation instead of a flat event log. Preserve the support ticket detail panel while enabling sequential messages with read/unread tracking.
 
-Scope:
-- extend `public.support_ticket_events` or create `public.support_ticket_messages` table with message ordering
-- add message creation endpoint/function to the support detail panel
-- implement read-state tracking (`message_read_at` per message per recipient)
-- auto-add message sender as participant on first response
-- retrieve and display messages in chronological order with read indicators
-- preserve existing support event/status timeline alongside conversation
+Implementation complete:
 
-Requirements:
-- use server timestamps (not client timestamps) for message ordering
-- keep messages and events separate in the UI (conversation vs status timeline)
-- support read-state so admins know which messages have been read
-- add focused tests for message creation, ordering, and read-state edge cases
-- handle concurrent message inserts without ordering conflicts
+- ✅ Schema: `support_ticket_messages` table with JSONB read-state tracking, indexes, and RLS policies
+  - File: `supabase/manual_sql/create_support_ticket_messages_table.sql`
+  - Enforces server-side timestamps, non-empty content, valid sender roles
+  - RLS: Admins read all, users/contractors read own tickets only
 
-Current implementation note:
+- ✅ Data layer: Four new functions in `src/lib/supabase/data.ts` under `supabaseSupport`
+  - `createMessage()` - Create with validation (non-empty, max 5000 chars)
+  - `listMessagesByTicketId()` - Retrieve in chronological order
+  - `markMessageAsRead()` - Update per-admin read state (JSONB)
+  - `getUnreadMessageCount()` - Count unread for admin
 
-- `public.support_ticket_events` table exists and stores event_type, message, metadata, but no `message_read_at` or ordering metadata.
-- `public.support_tickets` has basic `created_at`, `updated_at`, `resolved_at` but no conversation thread tracking.
-- `src/lib/supabase/data.ts` has `listEventsByTicketIds()` but no message creation or read-state update functions.
-- `src/components/dashboard/support/support.tsx` shows a flat event list but no message-threading UI.
-- No participant tracking or auto-add logic exists yet.
+- ✅ UI: Enhanced `src/components/dashboard/support/support-sidebar.tsx`
+  - Message section displays conversation thread chronologically
+  - Read indicators (✓ unread, ✓✓ read) for admin messages
+  - Message input form with Send button
+  - Auto-loads messages and marks as read when sidebar opens
+
+- ✅ Tests: 28 passing test cases in `src/lib/supabase/support-messages.spec.ts`
+  - Message creation, ordering, read-state tracking
+  - Permission enforcement, unread counts
+  - Content validation, message vs event separation
+
+- ✅ TypeScript: 0 errors in I4 files
+
+- ✅ **SQL Applied to Supabase (2026-06-19):**
+  - Latest migration: `20260619155802_remote_schema.sql`
+  - Verified: Table schema with UUID PK, foreign keys (support_tickets, profiles)
+  - Verified: Indexes for (ticket_id, created_at) and (sender_id)
+  - Verified: All 5 RLS policies deployed:
+    - `support_ticket_messages_select_admins` - Admins read all messages
+    - `support_ticket_messages_insert_admins` - Admins insert with role='admin'
+    - `support_ticket_messages_select_requesters` - Users/contractors read own tickets
+    - `support_ticket_messages_insert_requesters` - Users/contractors insert own messages
+    - `support_ticket_messages_update_admins_read` - Admins update read-state
+  - Verified: Constraints for non-empty content and valid sender_role
+
+Next step (user action):
+- Manual end-to-end test: Open support ticket → verify Messages section loads and functions
 ```
 
 #### Chunk I5 - Dispute refund linkage and payment reversal coordination (NOT DONE)

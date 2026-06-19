@@ -27,7 +27,6 @@
     "strictNullChecks": false,
 
     /* Path mapping */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"]

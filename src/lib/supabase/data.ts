@@ -1,5 +1,6 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "./client";
+import { validateEvidenceFile } from "./evidence";
 
 export type SupabaseResult<T> =
   | { ok: true; data: T }
@@ -1282,6 +1283,158 @@ export const supabaseSupport = {
     if (eventError) return { ok: false, message: formatPostgrestError(eventError) };
     return { ok: true, data: data as SupportTicketRow };
   },
+
+  async createMessage(params: {
+    ticketId: string;
+    senderUserId: string;
+    content: string;
+    isAdmin?: boolean;
+  }): Promise<SupabaseResult<{
+    id: string;
+    ticket_id: string;
+    sender_id: string;
+    sender_role: string;
+    content: string;
+    read_by_admins: Record<string, string>;
+    created_at: string;
+  }>> {
+    const client = requireSupabaseClient();
+    const ticketId = params.ticketId.trim();
+    const senderUserId = params.senderUserId.trim();
+    const content = params.content.trim();
+
+    if (!ticketId) return { ok: false, message: "Ticket ID is required." };
+    if (!senderUserId) return { ok: false, message: "Sender user ID is required." };
+    if (!content) return { ok: false, message: "Message content is required." };
+    if (content.length > 5000) return { ok: false, message: "Message exceeds maximum length of 5000 characters." };
+
+    const senderRole = params.isAdmin ? "admin" : "user";
+
+    // If admin, verify admin access
+    if (params.isAdmin) {
+      const adminCheck = await requireAdminAccess({ expectedUserId: senderUserId });
+      if (adminCheck.ok === false) return adminCheck;
+    }
+
+    try {
+      const { data, error } = await client
+        .from("support_ticket_messages")
+        .insert({
+          ticket_id: ticketId,
+          sender_id: senderUserId,
+          sender_role: senderRole,
+          content: content,
+        })
+        .select("*")
+        .single();
+
+      if (error) return { ok: false, message: formatPostgrestError(error) };
+      return { ok: true, data: data as any };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to create message." };
+    }
+  },
+
+  async listMessagesByTicketId(params: {
+    ticketId: string;
+  }): Promise<SupabaseResult<Array<{
+    id: string;
+    ticket_id: string;
+    sender_id: string;
+    sender_role: string;
+    content: string;
+    read_by_admins: Record<string, string>;
+    created_at: string;
+  }>>> {
+    const client = requireSupabaseClient();
+    const ticketId = params.ticketId.trim();
+
+    if (!ticketId) return { ok: false, message: "Ticket ID is required." };
+
+    try {
+      const { data, error } = await client
+        .from("support_ticket_messages")
+        .select("*")
+        .eq("ticket_id", ticketId)
+        .order("created_at", { ascending: true });
+
+      if (error) return { ok: false, message: formatPostgrestError(error) };
+      return { ok: true, data: (data || []) as any };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to list messages." };
+    }
+  },
+
+  async markMessageAsRead(params: {
+    messageId: string;
+    adminUserId: string;
+  }): Promise<SupabaseResult<void>> {
+    const client = requireSupabaseClient();
+    const messageId = params.messageId.trim();
+    const adminUserId = params.adminUserId.trim();
+
+    if (!messageId) return { ok: false, message: "Message ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: adminUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    try {
+      // Fetch the current message to get read_by_admins
+      const { data: messageData, error: fetchError } = await client
+        .from("support_ticket_messages")
+        .select("read_by_admins")
+        .eq("id", messageId)
+        .single();
+
+      if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+
+      // Update read_by_admins with current admin and timestamp
+      const readByAdmins = (messageData?.read_by_admins || {}) as Record<string, string>;
+      readByAdmins[adminUserId] = new Date().toISOString();
+
+      const { error: updateError } = await client
+        .from("support_ticket_messages")
+        .update({ read_by_admins: readByAdmins })
+        .eq("id", messageId);
+
+      if (updateError) return { ok: false, message: formatPostgrestError(updateError) };
+      return { ok: true, data: undefined };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to mark message as read." };
+    }
+  },
+
+  async getUnreadMessageCount(params: {
+    ticketId: string;
+    adminUserId: string;
+  }): Promise<SupabaseResult<number>> {
+    const client = requireSupabaseClient();
+    const ticketId = params.ticketId.trim();
+    const adminUserId = params.adminUserId.trim();
+
+    if (!ticketId) return { ok: false, message: "Ticket ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+
+    try {
+      const { data, error } = await client
+        .from("support_ticket_messages")
+        .select("id, read_by_admins")
+        .eq("ticket_id", ticketId);
+
+      if (error) return { ok: false, message: formatPostgrestError(error) };
+
+      // Count messages where adminUserId is NOT in read_by_admins
+      const unreadCount = (data || []).filter(msg => {
+        const readByAdmins = (msg.read_by_admins as Record<string, string>) || {};
+        return !readByAdmins[adminUserId];
+      }).length;
+
+      return { ok: true, data: unreadCount };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to count unread messages." };
+    }
+  },
 };
 
 export const supabaseDisputes = {
@@ -1436,6 +1589,94 @@ export const supabaseDisputes = {
 
     if (eventError) return { ok: false, message: formatPostgrestError(eventError) };
     return { ok: true, data: data as DisputeRow };
+  },
+
+  async uploadEvidenceFile(params: {
+    disputeId: string;
+    actorUserId: string;
+    file: File | Blob;
+    description?: string;
+    maxFileSizeBytes?: number;
+    bucketName?: string;
+  }): Promise<SupabaseResult<DisputeEvidenceRow>> {
+    const client = requireSupabaseClient();
+    const disputeId = params.disputeId.trim();
+    const actorUserId = params.actorUserId.trim();
+
+    if (!disputeId) return { ok: false, message: "Dispute id is required." };
+    if (!actorUserId) return { ok: false, message: "Admin user id is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: actorUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const maxBytes = params.maxFileSizeBytes ?? 10 * 1024 * 1024; // 10MB default
+    const file = params.file as File | Blob;
+    const fileSize = (file as any).size ?? null;
+    if (fileSize && fileSize > maxBytes) return { ok: false, message: `File exceeds maximum size of ${Math.round(maxBytes / 1024 / 1024)}MB.` };
+
+    // Validate file type and size (server-side validation on client for UX)
+    if (file instanceof File) {
+      const validationResult = validateEvidenceFile(file);
+      if (!validationResult.ok) {
+        return { 
+          ok: false, 
+          message: (validationResult as any).message || "File validation failed."
+        };
+      }
+    }
+
+    const bucket = (params.bucketName || process.env.VITE_SUPABASE_ADMIN_DISPUTES_BUCKET || 'admin-disputes').trim();
+    const timestamp = Date.now();
+    const originalName = (file as any).name || `evidence-${timestamp}`;
+    const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `admin/disputes/${disputeId}/${timestamp}-${safeName}`;
+
+    // Upload to Supabase Storage
+    try {
+      const { data: uploadData, error: uploadError } = await client.storage
+        .from(bucket)
+        .upload(path, file as any, { cacheControl: '3600', upsert: false });
+      if (uploadError) {
+        return { ok: false, message: uploadError.message || 'Upload failed.' };
+      }
+
+      // Create a short-lived signed URL for immediate viewing (3600s)
+      const expireSeconds = 60 * 60; // 1 hour
+      const { data: signedData, error: signedError } = await client.storage
+        .from(bucket)
+        .createSignedUrl(path, expireSeconds);
+      if (signedError) {
+        return { ok: false, message: signedError.message || 'Could not generate download URL.' };
+      }
+
+      const fileType = (file as any).type ?? null;
+      const fileSizeNum = fileSize ?? null;
+
+      // Persist evidence row to dispute_evidence table
+      const { data: rowData, error: insertError } = await client
+        .from('dispute_evidence')
+        .insert({
+          dispute_id: disputeId,
+          submitted_by_id: actorUserId,
+          submitted_by_role: 'admin',
+          evidence_type: fileType?.startsWith('image') ? 'image' : 'file',
+          url: signedData?.signedUrl ?? null,
+          description: params.description?.trim() ?? originalName,
+          metadata: {
+            storage_path: path,
+            file_name: originalName,
+            file_size: fileSizeNum,
+            file_type: fileType,
+          },
+        })
+        .select('*')
+        .single();
+
+      if (insertError) return { ok: false, message: formatPostgrestError(insertError) };
+      return { ok: true, data: rowData as DisputeEvidenceRow };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : 'Upload failed.' };
+    }
   },
 };
 

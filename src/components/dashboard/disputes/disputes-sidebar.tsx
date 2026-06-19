@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuthStore } from "@/auth/auth.store";
 import { cn } from "@/lib/utils";
+import { supabaseDisputes } from "@/lib/supabase/data";
 import {
   Dialog,
   DialogDescription,
@@ -264,6 +266,9 @@ export function DisputeDetailsSidebar({
   const [resolutionType, setResolutionType] =
     React.useState<DisputeResolutionType>("RefundCustomer");
   const [isApplyingAction, setIsApplyingAction] = React.useState(false);
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = React.useState(false);
+  const adminUserId = useAuthStore((s) => s.session?.userId ?? "");
 
   React.useEffect(() => {
     if (!open) {
@@ -560,6 +565,65 @@ export function DisputeDetailsSidebar({
                       No admin notes yet.
                     </p>
                   )}
+                </div>
+                <div className="rounded-[10px] border border-[#EAECF0] bg-white p-4">
+                  <p className="text-xs font-semibold text-[#101828]">Upload evidence</p>
+                  <p className="mt-2 text-sm text-[#98A2B3]">Attach images or documents (max 10MB).</p>
+                  <div className="mt-3 flex items-center gap-3">
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                      className="text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={!selectedFile || isUploadingFile}
+                      onClick={async () => {
+                        if (!selectedFile) return;
+                        if (!adminUserId) {
+                          toast.error('Admin session missing. Sign in again.');
+                          return;
+                        }
+                        setIsUploadingFile(true);
+                        const result = await supabaseDisputes.uploadEvidenceFile({
+                          disputeId: dispute.id,
+                          actorUserId: adminUserId,
+                          file: selectedFile,
+                          description: selectedFile.name,
+                        });
+                        setIsUploadingFile(false);
+                        if (result.ok === false) {
+                          toast.error('Upload failed', { description: result.message });
+                          return;
+                        }
+
+                        const row = result.data;
+                        const newAttachment = {
+                          id: row.id,
+                          type: row.evidence_type === 'image' ? 'Image' : 'Document',
+                          label: row.description || selectedFile.name,
+                          url: row.url || '',
+                        };
+
+                        applyUpdate(
+                          {
+                            attachments: [newAttachment, ...dispute.attachments],
+                          },
+                          'Uploaded evidence',
+                        );
+
+                        toast.success('Uploaded', { description: 'Evidence uploaded successfully.' });
+                        setSelectedFile(null);
+                      }}
+                      className={cn(
+                        'inline-flex items-center justify-center rounded-[10px] px-4 py-2 text-sm font-semibold text-white',
+                        !selectedFile || isUploadingFile ? 'bg-[#94A3B8] cursor-not-allowed' : 'bg-[#071B58] hover:bg-[#0C2877]'
+                      )}
+                    >
+                      {isUploadingFile ? 'Uploading...' : 'Upload'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
