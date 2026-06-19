@@ -1,6 +1,6 @@
 # AidSprint Admin Integration Task Readiness Plan
 
-Last updated: 2026-06-05
+Last updated: 2026-06-19
 
 ## Purpose
 
@@ -34,22 +34,22 @@ Relevant PRD references:
 
 ## Current State
 
-The frontend execution board is complete:
+**POST-AUDIT UPDATE (2026-06-19):** The frontend execution board is complete and the majority of backend integration is also complete.
 
-- Phase 1 complete
-- Phase 2 complete
-- Phase 3 complete
-- Phase 4 complete
+- Phase 1 complete — Operations surfaces (overview, requests, contractors, KYC)
+- Phase 2 complete — Marketplace + disputes
+- Phase 3 complete — Finance ops
+- Phase 4 complete — Auth + routes
+- **Phases A-L (backend integration):** ~80% complete — most core modules are live-backed
 
 Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/current-task.md#L23-L42)
 
-Important current reality:
+**Important current reality (corrected post-audit):**
 
-- the admin UI is operationally structured and backend-ready in naming
-- auth is still mock/local in [auth.store.ts](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/src/auth/auth.store.ts)
-- most screens still use mock datasets
-- Supabase schema already supports jobs, contractors, contractor documents, categories, service types, urgency tiers, payments, withdrawals, notifications, reviews, and realtime for key tables
-- Supabase schema does not yet fully support disputes, support tickets, promo codes, admin roles, or deeper finance audit/reconciliation workflows
+- Auth is **LIVE** (real Supabase auth, admin role check, MFA TOTP, session persistence) — NOT mock/local
+- Most screens use **LIVE Supabase data** — NOT mock datasets
+- Supabase schema supports: jobs, contractors, contractor documents, categories, service types, urgency tiers, payments, withdrawals, notifications, reviews, realtime, support_tickets, disputes, dispute_evidence, dispute_events, promo_codes, promo_code_redemptions, notification_templates, notification_campaigns, notification_deliveries, admin_security_settings, admin_mfa_recovery_codes, admin_security_events, finance_admin_events, profiles with admin role
+- **What is NOT yet integrated:** evidence file uploads (I3), support message threading (I4), dispute refund linkage to payments (I5), admin audit logging for all mutations (J3), error recovery/circuit breaker (J4), comprehensive RLS audit (J5), end-to-end testing (P1-P4), rate limiting & abuse prevention (Q1-Q4), finance write contract (M1-M2), intervention contract decision (O1-O2)
 
 ## Integration Principles
 
@@ -64,426 +64,72 @@ Important current reality:
 
 ## Overall Readiness Summary
 
-### Ready to begin now
+### Completed (live-backed and working)
 
-- auth architecture on the frontend
-- route protection structure
-- requests/job monitoring surface
-- contractor ops and KYC review surface
-- settings marketplace configuration
-- finance ops surface at the UI layer
+- Admin auth with real Supabase (A1-A3)
+- Shared data layer with typed domain modules (B1-B2)
+- Requests/job monitoring with realtime (C1, E1-E2, H1)
+- Contractor ops with suspend/restore/realtime (C2, D1-D2, H1)
+- Overview with live aggregates (C3)
+- Settings marketplace with live writes (F1-F2)
+- Finance read-only with live export (G1-G3)
+- Disputes/support with live reads + action writes (I1-I2)
+- Notifications with realtime (H2)
+- Admin MFA/TOTP with recovery codes (K1-K2)
+- Promos and notification campaigns — live CRUD with local fallback (L1-L2)
+- User management cleanup — unsupported actions disabled (N1-N2)
+- RLS hardening — admin session guard + actor verification (J1-J2)
 
 ### Needs backend decisions before full production integration
 
-- admin role and permission model
-- disputes and support-ticket schema
-- promo/campaign schema
-- richer finance audit/reconciliation schema
-- fraud/risk backend modeling
+- Finance write contract (M1-M2)
+- Request intervention contract (O1-O2)
 
-## Recommended Integration Order
+### Needs implementation
 
-1. Admin auth and session foundation
-2. Shared Supabase client, environment, and query layer
-3. Read-only live fetch for overview/requests/contractors/settings
-4. Read-write contractor KYC and contractor admin actions
-5. Read-write requests/job monitoring actions
-6. Read-write settings categories/pricing/urgency tiers
-7. Finance reads, then finance writes
-8. Realtime job/contractor/notification updates
-9. Disputes/support backend expansion and integration
-10. Promos/notification campaigns/fraud tooling/backend hardening
+- **I3** — Evidence file handling for disputes (Storage bucket + upload/download UI)
+- **I4** — Support ticket message threading (conversation model + read tracking)
+- **I5** — Dispute refund linkage to payments (payment table coordination)
+- **J3** — Admin audit logging for all mutations (beyond MFA events)
+- **J4** — Error recovery with exponential backoff and circuit breaker
+- **J5** — Comprehensive RLS audit and permission matrix testing
+- **P1-P4** — End-to-end tests, permission matrix tests, error scenario tests, performance tests
+- **Q1-Q4** — Rate limiting strategy, auth rate limiting, mutation rate limiting, abuse detection
+
+## Recommended Integration Order (Remaining Work)
+
+1. **I3** — Evidence file handling (Storage + upload/download UI)
+2. **I4** — Support message threading (conversation model)
+3. **I5** — Dispute refund linkage (payment table coordination)
+4. **M1-M2** — Finance write contract design + live writes
+5. **O1-O2** — Intervention contract decision + UI alignment
+6. **J3** — Admin audit logging expansion
+7. **J4** — Error recovery with retry/circuit breaker
+8. **J5** — RLS comprehensive audit and permission matrix
+9. **P1-P4** — Testing suite
+10. **Q1-Q4** — Rate limiting and abuse prevention
+
+---
+
+## ⚠️ DISCREPANCY LOG (Post-Audit 2026-06-19)
+
+The following discrepancies were found between what the Integration Plan previously stated and what the codebase actually contains. These have been corrected in this document:
+
+| # | Chunk | Previously Marked | Actual Status | Correction Applied |
+|---|-------|-------------------|---------------|-------------------|
+| 1 | **Auth (A1-A3)** | "Medium-Low schema readiness" | ✅ **LIVE** — Real Supabase auth, admin role via `profiles.role`, MFA TOTP, recovery codes, security events | Matrix updated |
+| 2 | **Disputes** | "Low schema readiness, not ready enough" | ✅ **LIVE** — `disputes`, `dispute_evidence`, `dispute_events` tables exist; live reads + action writes in `disputes.tsx` | Matrix updated |
+| 3 | **Support** | "Needs backend ticket model" | ✅ **LIVE** — `support_tickets`, `support_ticket_events` tables exist; live reads + status writes in `support.tsx` | Matrix updated |
+| 4 | **Promos (L2)** | NOT DONE | ✅ **ACTUALLY DONE** — `promo_codes` + `promo_code_redemptions` tables; live CRUD in `marketplace-config.tsx` with local fallback | L2 marked DONE |
+| 5 | **Notification Campaigns** | "Not ready, generic only" | ✅ **LIVE** — `notification_campaigns`, `notification_templates`, `notification_deliveries` tables; live CRUD in `marketplace-config.tsx` | Matrix updated |
+| 6 | **Admin MFA/Security** | Not in original matrix | ✅ **LIVE** — TOTP enroll/verify/disable, recovery codes, password change, security events logging, `admin_security_settings`, `admin_mfa_recovery_codes`, `admin_security_events` tables | Row added to matrix |
+| 7 | **Current State: "auth is still mock/local"** | Stale statement | ❌ **INCORRECT** — Auth is 100% real Supabase, not mock | Corrected in Current State section |
+| 8 | **Current State: "most screens still use mock datasets"** | Stale statement | ❌ **INCORRECT** — Almost all screens use live Supabase data with mock fallback only when Supabase is unavailable | Corrected in Current State section |
+| 9 | **Current State: "schema does not yet fully support disputes, support tickets, promo codes"** | Stale statement | ❌ **INCORRECT** — These tables all exist and are populated in the latest schema | Corrected in Current State section |
+
+---
 
 ## Phase Plan
-
-### Phase A - Admin Auth Foundation
-
-Objective:
-
-- replace mock auth with Supabase-backed admin authentication
-
-Why first:
-
-- every live admin read/write depends on trusted session handling
-- PRD explicitly requires secure admin dashboard access and two-factor security
-
-Scope:
-
-- add Supabase client setup
-- add environment variables for Supabase URL and anon key
-- replace mock sign-in in `src/auth/auth.store.ts`
-- map login flow to Supabase auth
-- preserve existing validation/loading/session-expiry UX
-- define how admin users are identified
-
-Required backend decisions:
-
-- decide where admin identity lives:
-  - option A: add `admin` to `profiles.role`
-  - option B: create separate `admin_users` table
-  - option C: use auth metadata + RLS mapping
-- decide whether 2FA is required immediately or deferred to a later auth hardening phase
-
-Deliverables:
-
-- live sign-in/sign-out/session refresh
-- protected admin routes backed by real session state
-- unauthorized admin rejection
-- initial admin-only RLS policy plan
-
-Do not start Phase B until:
-
-- admin login works against Supabase
-- unauthorized non-admin users are blocked cleanly
-
-### Phase B - Shared Data Layer And Contract Mapping
-
-Objective:
-
-- create the integration foundation used by every screen
-
-Scope:
-
-- create a central Supabase access layer
-- define typed query/mutation modules by domain
-- map frontend lifecycle/status types to actual schema values
-- separate UI view models from raw DB rows where needed
-
-Recommended outputs:
-
-- `src/lib/supabase/` or similar
-- domain mappers for jobs, contractors, documents, payments, withdrawals, categories, notifications
-- error-handling and loading-state conventions
-
-Key contract-mapping work:
-
-- jobs status map from `jobs.status`
-- contractor verification/readiness map from `contractors` + `contractor_documents`
-- finance map from `payments` + `withdrawals`
-- settings map from `service_categories`, `service_types`, `urgency_tiers`, `platform_config`
-
-Do not begin wide live fetch replacement until:
-
-- one shared pattern exists for read, mutation, loading, empty, and error states
-
-### Phase C - Read-Only Live Fetch Pass
-
-Objective:
-
-- replace mock list/detail reads with Supabase fetches without changing workflows yet
-
-Recommended order:
-
-1. requests
-2. contractors
-3. overview
-4. settings
-5. transactions
-
-Why this order:
-
-- requests and contractors are the strongest schema matches
-- overview can then aggregate real counts from those domains
-- settings and transactions need more mapping work
-
-Per-module goal:
-
-- page loads real data
-- filters work against live data or server-shaped data
-- detail sidebars use real records
-- no write actions yet, unless trivial
-
-Definition of done for this phase:
-
-- mock seed dependency is removed for the targeted module
-- loading, error, and empty states are visible and stable
-
-### Phase D - Contractor And KYC Write Integration
-
-Objective:
-
-- make contractor management and KYC review real first, because this is one of the cleanest admin workflows in the schema
-
-Backend tables already aligned:
-
-- `contractors`
-- `contractor_documents`
-- `contractor_bank_accounts`
-- `reviews`
-
-Write flows to implement:
-
-- approve/reject contractor documents
-- persist rejection reasons
-- persist contractor availability/lifecycle-style admin actions where schema allows
-- decide how suspension/restore should be represented if no explicit suspended field exists yet
-
-Backend gap to settle:
-
-- current schema does not yet expose a clean admin suspension field/workflow
-- decide whether to add:
-  - `is_suspended`
-  - `suspension_reason`
-  - `suspended_at`
-  - `suspended_by`
-
-### Phase E - Requests And Job Monitoring Write Integration
-
-Objective:
-
-- connect operations workflows to real job records
-
-Backend tables/functions already aligned:
-
-- `jobs`
-- `job_attachments`
-- `job_declined_contractors`
-- `accept_job(...)`
-- realtime on `jobs`
-
-Write flows to implement:
-
-- update job lifecycle state
-- cancellation handling
-- intervention actions that map to real schema
-- realtime updates for queue changes
-
-Backend gap to settle:
-
-- frontend now models delayed/dispute/intervention concepts more richly than current `jobs` schema
-- decide whether these live:
-  - directly on `jobs`
-  - in separate operations tables
-  - in disputes/support tables later
-
-### Phase F - Settings Integration
-
-Objective:
-
-- move marketplace configuration from mock state to live admin-managed config
-
-Backend tables already aligned:
-
-- `service_categories`
-- `service_types`
-- `urgency_tiers`
-- `platform_config`
-
-Safe first live writes:
-
-- category enable/disable
-- category create/edit
-- service type create/edit
-- urgency tier multiplier/fee updates
-- basic platform config reads/writes
-
-Not fully backed yet:
-
-- promo creation
-- notification campaign management beyond generic notifications
-
-Backend additions likely needed:
-
-- `promo_codes`
-- `promo_code_rules`
-- `notification_campaigns` or `notification_templates`
-
-### Phase G - Finance Integration
-
-Objective:
-
-- connect finance operations gradually, because the UI is ahead of the current schema in workflow depth
-
-Backend tables already aligned:
-
-- `payments`
-- `withdrawals`
-- contractor payout readiness fields on `contractors`
-
-Recommended order:
-
-1. live read-only finance lists and detail sidebars
-2. live export based on fetched data
-3. live payout status updates where backend contract exists
-4. only then add reconciliation/reversal/admin audit workflows
-
-Known mismatch:
-
-- frontend finance states include review/reconciliation/reversal flows
-- schema supports only a subset today:
-  - payments have `pending`, `processing`, `authorized`, `paid`, `captured`, `failed`, `refunded`, `cancelled`
-  - withdrawals have `pending`, `processing`, `completed`, `failed`
-
-Backend additions likely needed:
-
-- finance audit log table
-- reconciliation table
-- payout decision history
-- reversal/refund admin action history
-
-### Phase H - Realtime Enablement
-
-Objective:
-
-- upgrade important surfaces from polling/static fetch to realtime updates
-
-Best candidates:
-
-- requests/job monitoring
-- overview operational counts
-- contractor availability
-- notifications
-
-Current realtime-ready tables:
-
-- `jobs`
-- `contractors`
-- `notifications`
-- chat tables
-
-Rule:
-
-- only enable realtime after baseline read/write flows are stable
-
-### Phase I - Disputes And Support Backend Expansion
-
-Objective:
-
-- connect the completed disputes/support UI to real backend models
-
-Why later:
-
-- this is one of the biggest schema gaps
-- the frontend is ready, but the DB contract is not yet complete
-
-Likely required new tables:
-
-- `disputes`
-- `dispute_evidence`
-- `dispute_action_log`
-- `support_tickets`
-- `support_ticket_messages`
-
-This phase should define:
-
-- dispute lifecycle contract
-- resolution contract
-- refund/reversal linkage to payments/withdrawals
-- auditability requirements
-
-### Phase J - Final Hardening
-
-Objective:
-
-- move from “working integration” to “production-safe admin system”
-
-Scope:
-
-- RLS review
-- service-role/server-side action review
-- audit logging
-- admin activity logging
-- better observability
-- pagination/performance tuning
-- retry/error UX polishing
-- final removal of remaining mock-only fallbacks
-
-## Small-Start Execution Plan
-
-This is the recommended immediate path:
-
-### Step 1
-
-- implement real Supabase auth for admin login
-
-### Step 2
-
-- add shared Supabase client and domain query modules
-
-### Step 3
-
-- convert one read-only module to live fetch:
-  - start with `requests`
-
-### Step 4
-
-- convert `contractors` and `contractor-kyc-tab`
-
-### Step 5
-
-- convert `overview` aggregations to real data
-
-### Step 6
-
-- convert `settings` categories/pricing/urgency tiers
-
-### Step 7
-
-- convert `transactions` read-only, then finance writes
-
-### Step 8
-
-- design missing disputes/support/promos backend tables before integrating those modules fully
-
-## Module Readiness Matrix
-
-| Module                      | Frontend Ready | Schema Ready | Integration Readiness | Notes                                                     |
-| --------------------------- | -------------- | -----------: | --------------------: | --------------------------------------------------------- |
-| Auth                        | High           |   Medium-Low |                Medium | Frontend ready, backend admin-role strategy not finalized |
-| Requests / Jobs             | High           |         High |                  High | Best first live data module                               |
-| Contractors                 | High           |         High |                  High | Strong contractor + KYC alignment                         |
-| Overview                    | High           |  Medium-High |           Medium-High | Depends on live requests/contractors/payments aggregates  |
-| Settings categories/pricing | High           |         High |                  High | Good match to schema                                      |
-| Transactions / payouts      | High           |       Medium |                Medium | Reads first, writes after contract mapping                |
-| Disputes                    | High           |          Low |            Low-Medium | UI ready, schema not ready enough                         |
-| Support                     | Medium         |          Low |            Low-Medium | Needs backend ticket model                                |
-| Promos                      | Medium         |          Low |                   Low | Needs schema                                              |
-| Notification campaigns      | Medium         |   Low-Medium |            Low-Medium | Generic notifications exist, campaigns do not             |
-
-## Backend Decisions Needed Before Broad Integration
-
-1. Define admin identity and authorization model.
-2. Decide whether admin 2FA is phase-1 integration or phase-2 hardening.
-3. Add missing suspension/restore backend contract for contractors.
-4. Define where delayed/dispute/intervention request metadata should persist.
-5. Define disputes/support schema.
-6. Define promo and notification campaign schema.
-7. Define finance audit/reconciliation/reversal schema.
-
-## Suggested First Integration Task
-
-If starting immediately, the best first task is:
-
-### Integrate real admin auth with Supabase
-
-Why:
-
-- it unlocks every later module
-- it is smaller than a full data-module rewrite
-- the frontend auth/route structure is already complete
-- it lets the next steps move from mock local session to real protected backend access
-
-Immediate deliverables for that first integration task:
-
-- Supabase client setup
-- replace mock `signIn` and session persistence
-- admin authorization check
-- logout/session expiry validation
-- basic protected-route validation against live auth
-
-## Chunked Trae Prompt Bank
-
-Use these prompts as execution chunks. Each chunk is intentionally scoped so it can be:
-
-- run on its own
-- combined with the next chunk in the same phase
-- merged into a larger phase pass if Trae credits are not a concern
-
-Rule:
-
-- prefer one chunk at a time for integration work
-- only combine chunks after the earlier chunk is stable
-- keep treating Figma as the visual source of truth and the PRD as the workflow source of truth
 
 ### Phase A - Admin Auth Foundation
 
@@ -512,7 +158,7 @@ Requirements:
 
 NOTE:
 - Our Supabase project is already live/ready; tables and configuration will be created/modified incrementally as we integrate.
-- When you ask me to “check the current Supabase state”, I should read the newest `supabase/migrations/*_remote_schema.sql` schema snapshot first (highest timestamp).
+- When you ask me to "check the current Supabase state", I should read the newest `supabase/migrations/*_remote_schema.sql` schema snapshot first (highest timestamp).
 - If any integration chunk requires SQL changes (new tables, constraints, policies, helper functions), paste the SQL in the task response and also add it as a `.sql` file that I can paste into the Supabase SQL editor.
 - Do not add ad-hoc SQL files to `supabase/migrations/` during integration planning. This can cause `supabase db pull` to fail with migration-history mismatches when local files differ from the remote migration history.
 - When SQL is needed, store it under `supabase/manual_sql/` using descriptive filenames (no timestamp-based migration naming).
@@ -679,11 +325,10 @@ Requirements:
 - If suspension fields do not exist yet, implement only the supported actions and leave clear TODO boundaries.
 
 Current snapshot note:
-- The latest snapshot now includes the D2 suspension / restore audit fields on `public.contractors`: `suspended_at`, `suspended_by`, `suspension_reason`, `restored_at`, `restored_by`, and `restore_reason`.
-- The latest snapshot also now includes admin RLS support via `public.is_admin_user()` plus admin contractor/document/jobs/payments/withdrawals/notifications policies.
-- D2 now uses real frontend suspend / restore writes against the shared `public.contractors` table from both the contractor list and contractor details page.
-- Live contractor reads now derive the current lifecycle state from `suspended_at` versus `restored_at` instead of relying on mock-only local status.
-- Payout blocker updates remain deferred because the current admin UI does not yet expose a dedicated payout readiness write flow.
+- The latest snapshot includes the D2 suspension/restore audit fields on `public.contractors`: `suspended_at`, `suspended_by`, `suspension_reason`, `restored_at`, `restored_by`, and `restore_reason`.
+- Admin RLS support via `public.is_admin_user()` plus admin contractor/document/jobs/payments/withdrawals/notifications policies.
+- D2 uses real frontend suspend/restore writes against the shared `public.contractors` table from both the contractor list and contractor details page.
+- Live contractor reads derive the current lifecycle state from `suspended_at` versus `restored_at` instead of relying on mock-only local status.
 ```
 
 ### Phase E - Requests And Job Monitoring Write Integration
@@ -702,12 +347,6 @@ Requirements:
 - Keep status naming aligned to backend job statuses.
 - Preserve confirmation/reason capture patterns for destructive actions.
 - Add focused interaction tests for the updated write paths if needed.
-
-Current snapshot note:
-- `public.jobs` already has the lifecycle statuses and timestamps E1 needs: `requested`, `broadcast`, `accepted`, `contractor_en_route`, `arrived`, `in_progress`, `completed`, `cancelled`, plus `accepted_at`, `started_at`, `completed_at`, `cancelled_at`, `cancellation_reason`, and `cancelled_by`.
-- The current snapshot already includes `public.accept_job(...)` and now also includes the admin-specific `Admins can update jobs` policy in the latest pulled migration.
-- E1 now uses live frontend job lifecycle writes against the shared `public.jobs` table for complete, return-to-dispatch (`broadcast`), and cancel flows while preserving the existing sidebar confirmation/reason UX.
-- More advanced intervention metadata and realtime sync remain in E2; E1 only covers job lifecycle writes that fit the current backend contract.
 ```
 
 #### Chunk E2 - Operational intervention and realtime (DONE)
@@ -723,11 +362,6 @@ Scope:
 Requirements:
 - Do not invent unsupported backend fields.
 - If delayed/dispute metadata is not yet modeled, keep those pieces clearly derived or deferred.
-
-Current snapshot note:
-- `public.jobs` is already present in the shared realtime publication, so the admin requests surface can subscribe to job changes without adding duplicate tables or changing the mobile contract.
-- The current backend contract still does not expose dedicated delay, dispute, or escalation fields for jobs; those intervention notes remain local operations annotations for now.
-- E2 now uses realtime job subscriptions plus safe live refresh of the requests table, sidebar, and tracker state while preserving the existing monitoring UI.
 ```
 
 ### Phase F - Settings Integration
@@ -747,12 +381,6 @@ Requirements:
 - Preserve reason-capture patterns where already implemented.
 - Keep the current Settings route and visual language unchanged.
 - Add focused tests only where integration materially changes observable behavior.
-
-Current snapshot note:
-- The config tables exist and are already readable: `public.platform_config`, `public.service_categories`, `public.service_types`, `public.urgency_tiers`.
-- The current snapshot now includes admin insert/update policies for these tables, so live writes can succeed under RLS.
-- F1 now uses live writes for platform config upserts, category create/edit/enable/disable, service type create/edit/enable/disable, and urgency tier updates while preserving the existing settings UI.
-- The `/marketplace` route is now wired to the same Marketplace configuration UI (no longer a placeholder), so it is no longer hidden behind a planned-module screen.
 ```
 
 #### Chunk F2 - Settings contract cleanup and unsupported areas (DONE)
@@ -768,11 +396,6 @@ Requirements:
 - Do not fake persistence for unsupported backend areas.
 - Keep the page coherent and visually unchanged.
 ```
-
-Current implementation note:
-
-- The Settings header messaging is now explicit per tab about what is live-backed vs local-only.
-- Promos and Notifications are clearly labeled as local-only, and their dialogs/toasts no longer imply database persistence.
 
 ### Phase G - Finance Integration
 
@@ -793,12 +416,6 @@ Requirements:
 - Add loading, empty, and error states.
 ```
 
-Current implementation note:
-
-- Transactions now load live `public.payments` and `public.withdrawals` when Supabase is configured (with test guards to avoid live calls during Vitest).
-- The finance UI remains visually unchanged; export works against the currently loaded (live) filtered records.
-- Finance status actions (approve/reject/flag/reconcile/reverse) remain local-only until a supported finance write contract is added.
-
 #### Chunk G2 - Finance export and supported write actions (DONE)
 
 ```text
@@ -813,12 +430,6 @@ Requirements:
 - Do not force reconciliation or reversal flows into the current schema if the backend contract is missing.
 - Preserve reason-capture UX for any supported admin action.
 ```
-
-Current implementation note:
-
-- Export already runs against the currently loaded filtered finance records, including live Supabase reads from `public.payments` and `public.withdrawals`.
-- The latest schema snapshot still exposes admin finance read policies only (`Admins can view payments`, `Admins can view withdrawals`) and does not yet expose admin update policies for finance writes.
-- G2 now enforces that boundary in the UI: live finance records remain read-only, while unsupported payout/reconciliation actions are clearly blocked instead of pretending to persist.
 
 #### Chunk G3 - Finance schema gap preparation (DONE)
 
@@ -852,13 +463,6 @@ Requirements:
 - Keep current UX calm and stable; do not introduce noisy redraw behavior.
 ```
 
-Current implementation note:
-
-- Requests already refresh from realtime `public.jobs` changes (debounced by React render + silent reload).
-- Overview now subscribes to realtime changes on `public.jobs` and `public.contractors` and performs a debounced silent refresh to avoid noisy redraws.
-- Contractor list subscribes to realtime changes on `public.contractors` and refreshes the list with a debounced silent reload.
-- Contractor details subscribes to realtime changes for the current contractor (`public.contractors` filtered by id) and that contractor’s jobs (`public.jobs` filtered by contractor_id), then debounces a silent details refresh.
-
 #### Chunk H2 - Notifications realtime (DONE)
 
 ```text
@@ -873,17 +477,6 @@ Requirements:
 - Do not redesign the dashboard shell.
 - Keep realtime updates additive, not disruptive.
 ```
-
-Current work context:
-
-- `c:\Users\hp\Desktop\Work\Assignment\aidSprint-app\admin-aidSprint-app\Analyze Project Progress and Plan.md#L1602-1605` (current/next step marker)
-- Note: Observed a Transactions table rendering issue after reload where text under “Transaction type” and “Amount” suddenly wraps vertically (breaks every ~2–3 letters).
-
-Current implementation note:
-
-- Dashboard notifications now load from `public.notifications` and subscribe to realtime changes for the signed-in admin (`recipient_id=eq.<adminUserId>`).
-- Unread count is driven by `read_at`. Opening the drawer marks notifications as read optimistically; persisting `read_at` in Supabase requires an update policy on `public.notifications` if RLS blocks writes.
-- Transactions table vertical text wrapping is fixed by removing the global `overflow-wrap:anywhere` / `word-break:break-word` rule from `td/th` so table cells prefer horizontal scroll over breaking mid-word.
 
 ### Phase I - Disputes And Support Backend Expansion
 
@@ -903,12 +496,6 @@ Requirements:
 - Prefer separate disputes/support tables over overloading jobs/payments if the workflow is distinct.
 ```
 
-Current implementation note:
-
-- Added a backend-ready disputes/support schema scaffold under `supabase/manual_sql/disputes_support_contract.sql` (admin-only RLS policies via `public.is_admin_user()`).
-- Tables included: `public.support_tickets`, `public.support_ticket_events`, `public.disputes`, `public.dispute_evidence`, `public.dispute_events`.
-- Next when running live integration: apply the SQL in Supabase, then update the local schema snapshot via the existing db pull workflow.
-
 #### Chunk I2 - Live disputes/support reads and writes (DONE)
 
 ```text
@@ -925,13 +512,92 @@ Requirements:
 - Add focused tests for live mutation paths only where behavior materially changes.
 ```
 
+#### Chunk I3 - Evidence file handling for disputes (NOT DONE)
+
+```text
+Integration task: Add safe file upload/download/viewing for dispute evidence using Supabase Storage while preserving the dispute detail panel UX. Wire the dispute evidence surface to persistent file storage with proper admin-only RLS protection.
+
+Scope:
+- add file upload form to the dispute detail panel
+- store uploaded files in Supabase Storage at `admin/disputes/<dispute_id>/` paths
+- persist file metadata (name, size, type, uploaded_at, uploaded_by) to `public.dispute_evidence` table
+- add file download/view actions in the evidence timeline
+- handle storage errors, file-size limits, and retry behavior
+- remove any local-only file handling from the current UI
+
+Requirements:
+- preserve the current dispute detail panel structure
+- keep file uploads and downloads behind admin authorization
+- use Supabase Storage buckets with RLS/security rules for admin-only access
+- add focused tests for file upload success, failure, and permission scenarios
+- validate file types and sizes server-side before acceptance
+
 Current implementation note:
 
-- `src/components/dashboard/support/support.tsx` now loads live `support_tickets` plus related requester profiles/job context from Supabase, while preserving the existing table, filters, pagination, and right-side detail panel flow.
-- `src/components/dashboard/disputes/disputes.tsx` now loads live `disputes`, `dispute_evidence`, and `dispute_events` plus linked jobs/profiles/payment references, keeping the existing operations-first dispute table and detail panel intact.
-- Support status updates now persist to `public.support_tickets` and write audit entries into `public.support_ticket_events`.
-- Dispute actions now persist supported admin actions to `public.disputes` and `public.dispute_events`, with live evidence/timeline reads rendered from Supabase data.
-- Focused live mutation coverage was added in `support.test.tsx` and `disputes.test.tsx`.
+- `public.dispute_evidence` table exists with columns: `id`, `dispute_id`, `evidence_type`, `file_path`, `file_name`, `file_size`, `file_type`, `uploaded_by`, `uploaded_at`, `metadata`, `created_at`.
+- `src/components/dashboard/disputes/disputes.tsx` loads evidence from the table but has no upload UI or download handlers.
+- Supabase Storage bucket `admin/disputes/` with RLS policies does not yet exist; needs creation.
+- No file size/type validation or Supabase Storage integration functions in `src/lib/supabase/data.ts` yet.
+- Backend storage contract and error-handling patterns need definition.
+```
+
+#### Chunk I4 - Support ticket message threading (NOT DONE)
+
+```text
+Integration task: Add message creation, retrieval, and read-state tracking for support tickets so the timeline flows as a proper conversation instead of a flat event log. Preserve the support ticket detail panel while enabling sequential messages with read/unread tracking.
+
+Scope:
+- extend `public.support_ticket_events` or create `public.support_ticket_messages` table with message ordering
+- add message creation endpoint/function to the support detail panel
+- implement read-state tracking (`message_read_at` per message per recipient)
+- auto-add message sender as participant on first response
+- retrieve and display messages in chronological order with read indicators
+- preserve existing support event/status timeline alongside conversation
+
+Requirements:
+- use server timestamps (not client timestamps) for message ordering
+- keep messages and events separate in the UI (conversation vs status timeline)
+- support read-state so admins know which messages have been read
+- add focused tests for message creation, ordering, and read-state edge cases
+- handle concurrent message inserts without ordering conflicts
+
+Current implementation note:
+
+- `public.support_ticket_events` table exists and stores event_type, message, metadata, but no `message_read_at` or ordering metadata.
+- `public.support_tickets` has basic `created_at`, `updated_at`, `resolved_at` but no conversation thread tracking.
+- `src/lib/supabase/data.ts` has `listEventsByTicketIds()` but no message creation or read-state update functions.
+- `src/components/dashboard/support/support.tsx` shows a flat event list but no message-threading UI.
+- No participant tracking or auto-add logic exists yet.
+```
+
+#### Chunk I5 - Dispute refund linkage and payment reversal coordination (NOT DONE)
+
+```text
+Integration task: Link resolved disputes to actual payment reversals and refund tracking so dispute resolution metadata becomes actionable finance operations. Connect the dispute resolution actions to the payments table and finance audit trail.
+
+Scope:
+- extend `public.disputes` to track linked `payment_id` or `withdrawal_id` when resolution involves a refund
+- add refund/reversal functions in the data layer that update both dispute and payment records together
+- persist resolution actions (refund approved, partial refund, chargeback initiated) to both `dispute_events` and finance audit log
+- validate that only authorized finance admins can execute reversals
+- track refund status: pending, processing, completed, failed
+- handle refund failure scenarios and retry logic
+
+Requirements:
+- keep dispute and payment records consistent across resolution
+- use transactions or multi-step mutations to avoid partial failures
+- document the boundary between admin-initiated reversals vs Stripe/payment-processor reversals
+- add focused tests for successful refund linking, refund failures, and concurrent refund prevention
+- preserve the dispute resolution UI while adding a "refund status" indicator
+
+Current implementation note:
+
+- `public.disputes` table has `status`, `resolution_type`, `requested_resolution` but no `payment_id` or `refund_status` field.
+- `public.payments` table has `status` (pending, processing, authorized, paid, captured, failed, refunded, cancelled) but no `refund_initiated_by`, `refund_reason`, or `refund_dispute_id`.
+- `src/lib/supabase/data.ts` has `supabaseDisputes.applyAction()` that can set resolution_type to "refund" or "partial_refund" as metadata, but doesn't actually update payment records.
+- No refund linking, reversal coordination, or payment-audit integration exists yet.
+- The contract for admin vs server-side refund execution is not yet defined.
+```
 
 ### Phase J - Final Hardening
 
@@ -951,14 +617,6 @@ Requirements:
 - Prefer explicit permission failures over silent fallbacks.
 ```
 
-Current implementation note:
-
-- `src/lib/supabase/data.ts` now performs an explicit admin-session guard before admin reads and writes, re-checking the signed-in user against `profiles.role`, detecting session/actor mismatches, and normalizing permission-denied / RLS failures to a shared admin authorization message.
-- Mutation paths that carry an actor id now verify that the submitted actor matches the currently authenticated admin session before attempting the write.
-- `src/components/dashboard/support/support.tsx` and `src/components/dashboard/disputes/disputes.tsx` now clear seeded rows on authorization/session failures so access problems surface explicitly instead of quietly leaving mock content in place.
-- Focused hardening coverage was added in `src/lib/supabase/data.test.ts`, with additional access-failure UI coverage in `support.test.tsx` and `disputes.test.tsx`.
-- Verification completed with `corepack pnpm vitest run src/lib/supabase/data.test.ts src/components/dashboard/support/support.test.tsx src/components/dashboard/disputes/disputes.test.tsx` and `corepack pnpm typecheck`.
-
 #### Chunk J2 - Production readiness cleanup (DONE)
 
 ```text
@@ -975,13 +633,95 @@ Requirements:
 - Avoid broad redesign; this is a hardening pass, not a new UI phase.
 ```
 
+#### Chunk J3 - Admin audit logging expansion for all mutations (NOT DONE)
+
+```text
+Integration task: Extend admin audit logging beyond MFA security events to capture all sensitive admin mutations (contractor suspend/restore, KYC approve/reject, dispute resolution, job cancellation, payout actions, etc.) so the entire admin activity is auditable and traceable.
+
+Scope:
+- design `public.admin_action_log` table (or extend `admin_security_events`) to capture all mutation types
+- add audit logging to every mutation path in `src/lib/supabase/data.ts`: contractors, jobs, disputes, support, settings, finance
+- capture: action type, actor id, target resource, reason, timestamp, metadata, result (success/failure)
+- add RLS policies so admins can read their own and other admins' actions (for transparency)
+- create a data layer function `insertAdminAuditLog()` used consistently by all mutations
+- implement audit log retrieval for compliance and investigation workflows
+
+Requirements:
+- do not slow down mutations with synchronous audit logging; batch or async where safe
+- keep audit messages explicit and searchable (good action names, consistent reason capture)
+- add focused tests for audit log capture success, failure, and audit trail integrity
+- support audit log export for compliance reporting
+- preserve the current mutation UX; auditing should be invisible to the user experience
+
 Current implementation note:
 
-- `src/components/dashboard/users/users.tsx` now treats user lifecycle actions as explicitly read-only in live mode, disabling activate/deactivate menu items and showing a clear backend-contract notice instead of mutating local React state.
-- `src/components/dashboard/user-details/user-details-page.tsx` now disables account status and profile-linked request intervention actions outside test mode, preserving the current shell while steering live operators to the Requests workspace for supported request actions.
-- `src/components/dashboard/user-details/user-details.types.ts` was aligned with the new action-gating props so the production hardening path typechecks cleanly.
-- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx` for the read-only account/request-action behavior.
-- Verification completed with `corepack pnpm vitest run src/components/dashboard/user-details/user-details.test.tsx` and `corepack pnpm typecheck`.
+- `public.admin_security_events` table exists and is used for MFA-related audit events only.
+- No `admin_action_log` table yet; the schema does not capture general mutations.
+- `src/lib/supabase/data.ts` mutations (suspend contractor, approve KYC, resolve dispute, etc.) do not log their actions.
+- No centralized audit logging pattern exists; each mutation is self-contained.
+- No audit log retrieval endpoint or compliance export exists.
+- The admin action audit requirement from the PRD has no backend implementation yet.
+```
+
+#### Chunk J4 - Error recovery with exponential backoff and circuit breaker (NOT DONE)
+
+```text
+Integration task: Add resilience patterns to the data layer so transient failures (network timeouts, temporary Supabase unavailability) are retried automatically while permanent failures fail fast and alert the operator.
+
+Scope:
+- implement exponential backoff retry logic with configurable max attempts and base delay
+- add circuit breaker pattern to detect persistent failures and prevent cascading errors
+- differentiate transient errors (network, timeout) from permanent errors (permission denied, validation failure)
+- add retry hooks to all critical read and write paths in `src/lib/supabase/data.ts`
+- track retry attempts and expose retry metrics/instrumentation
+- implement graceful degradation when retry limits are exceeded
+
+Requirements:
+- do not retry permission-denied or validation errors; fail fast
+- use jittered exponential backoff to avoid thundering herd
+- set sensible defaults: initial delay 300ms, max delay 10s, max 3-5 attempts
+- add focused tests for successful retries, permanent failures, and circuit breaker state transitions
+- provide clear error messages to operators when max retries exceeded
+- do not change the public API of data layer functions; retries should be transparent
+
+Current implementation note:
+
+- `src/lib/supabase/data.ts` mutations return `SupabaseResult<T>` with `ok: boolean` and `message: string`, but have no retry logic.
+- UI components show "Retry" buttons but call the same mutation function again (no backoff).
+- No circuit breaker state machine exists; all failures are treated uniformly.
+- Network timeouts and database errors have no retry differentiation.
+- No instrumentation or metrics collection for retry attempts.
+```
+
+#### Chunk J5 - RLS comprehensive audit and permission matrix testing (NOT DONE)
+
+```text
+Integration task: Conduct comprehensive RLS policy testing and document the complete admin permission matrix so the backend enforces intended boundaries and no privilege escalation is possible. Verify that multi-admin scenarios are handled safely.
+
+Scope:
+- test read access: each table/resource type, single admin vs multiple admins, admin vs non-admin
+- test write/mutation access: each mutation type, with and without proper actor id, with and without required fields
+- test RLS policy behavior: cascade deletes, policy interactions, edge cases
+- document the admin permission matrix (who can do what to what resources)
+- test multi-admin scenarios: concurrent mutations, actor id validation, session isolation
+- test permission failure modes: RLS violations, policy-denied operations, authorization boundary errors
+
+Requirements:
+- add comprehensive RLS test suite (20-30+ test cases)
+- document the intended permission matrix and test coverage
+- identify and remediate any policy gaps or unintended privilege escalation paths
+- include tests for the specific admin role model in use (auth metadata vs profiles.role)
+- provide step-by-step instructions for auditing RLS policies in production
+
+Current implementation note:
+
+- `src/lib/supabase/data.test.ts` has basic authorization guard tests (~5-10 test cases).
+- No comprehensive RLS policy matrix or permission testing exists.
+- The scope of admin mutations (who can suspend which contractors, who can resolve which disputes, etc.) is not explicitly tested.
+- RLS policies in the latest migration include admin-only access but are not comprehensively validated.
+- Multi-admin scenarios (concurrent edits, actor id mismatches) have minimal test coverage.
+- No compliance documentation of the admin permission model exists.
+```
 
 ### Phase K - Admin Auth Hardening And Security Settings
 
@@ -991,10 +731,7 @@ Current implementation note:
 Planning and integration task: Extend the admin auth foundation with a real second-factor strategy that fits Supabase and the current admin-only access model. Keep the login and route shell visually stable while defining the backend-safe MFA contract, recovery flow, and enforcement rules for admin accounts.
 
 Scope:
-- choose the MFA method for admins:
-  - authenticator app / TOTP
-  - email OTP fallback
-  - recovery-code handling
+- choose the MFA method for admins (TOTP authenticator app)
 - define enrollment, challenge, recovery, and reset rules
 - define where MFA-required state is enforced in the current auth flow
 - define any Supabase auth settings, policies, or supporting tables needed
@@ -1006,32 +743,7 @@ Requirements:
 - document whether MFA is required for all admins or introduced in staged rollout
 ```
 
-Current implementation note:
-
-- Chosen MFA strategy: use Supabase Auth TOTP as the only day-to-day second factor for admins. Do not treat email OTP as an equivalent interactive second factor in the normal login path; keep email as a recovery / reset approval channel only so the admin session still reaches a true MFA assurance level before protected routes open.
-- Rollout decision: staged rollout. Add a backend-managed admin MFA policy so existing admins can enroll without immediate lockout, then move to required MFA per admin account once enrollment is complete. This avoids breaking the current admin portal while still giving a clear path to mandatory MFA for all admins.
-- Supporting backend contract:
-- add `public.admin_security_settings` keyed by admin `profiles.id` to hold app-level policy and recovery metadata such as `mfa_policy`, `recovery_codes_generated_at`, `last_reauth_at`, `last_mfa_reset_requested_at`, and `last_mfa_reset_by`
-- add `public.admin_mfa_recovery_codes` storing hashed single-use recovery codes with `admin_user_id`, `code_hash`, `generated_at`, `consumed_at`, and `consumed_by_ip` / audit metadata
-- add `public.admin_security_events` for auditable actions such as `mfa_enrolled`, `mfa_challenged`, `mfa_verified`, `recovery_code_used`, `mfa_reset_requested`, `mfa_disabled`, and `password_changed`
-- keep factor truth in Supabase Auth; do not duplicate enrolled factor secrets or QR material in Postgres
-- Auth-flow enforcement points:
-- after `signInWithPassword`, keep the existing admin role check in `src/auth/auth.store.ts`, then inspect the admin's enrolled factors plus current authenticator assurance level before setting the store to fully authenticated
-- if the admin has no verified TOTP factor and policy is `required`, move into an `mfa_setup_required` state instead of `authenticated`
-- if the admin has a verified TOTP factor but the session is still first-factor only, move into an `mfa_challenge_required` state until the challenge is verified
-- only persist the final route-eligible session to local/session storage after MFA verification succeeds and the session reaches the required assurance level
-- on app boot / session restore, re-check both admin role and MFA assurance before allowing `RequireAuth` to render protected routes
-- Recovery and reset rules:
-- recovery codes are generated only after successful TOTP enrollment, shown once, stored hashed, and rotated whenever MFA is reset or recovery codes are regenerated
-- email OTP is reserved for recovery approval or reset confirmation, never as the final step that unlocks the admin portal on its own
-- self-service MFA disable/reset must require recent password re-auth plus either a current TOTP verification or a valid recovery code; otherwise the flow remains blocked and should hand off to a supervised reset path
-- every recovery-code use, reset request, factor removal, and password/security mutation must write an `admin_security_events` audit row
-- K2 implementation target:
-- preserve the current login card and settings shell, but add intermediate auth-store states for MFA setup / challenge / recovery instead of introducing a separate visual auth product
-- wire the Settings security panel to password change, factor enrollment/disable, recovery-code regeneration, and recent re-auth checks against the contract above
-- Verification source for this design: current auth flow in `src/auth/auth.store.ts`, route gating in `src/auth/require-auth.tsx`, current security placeholder flow in `src/components/dashboard/setting/settings.tsx`, and the latest schema snapshot `supabase/migrations/20260616104032_remote_schema.sql`
-
-#### Chunk K2 - Persist live security settings and MFA management
+#### Chunk K2 - Persist live security settings and MFA management (DONE)
 
 ```text
 Integration task: Connect the Settings security surface to real backend-backed security actions once the MFA contract is approved. Preserve the current settings route and visual shell while making password/security actions real and explicit.
@@ -1067,14 +779,7 @@ Requirements:
 - provide planning-safe SQL under `supabase/manual_sql/` when schema changes are required
 ```
 
-Current implementation note:
-
-- The promo and notification campaign backend contract is now present in the latest Supabase schema snapshot `supabase/migrations/20260618091058_remote_schema.sql`.
-- Added tables include `promo_codes`, `promo_code_redemptions`, `notification_templates`, `notification_campaigns`, and `notification_deliveries`.
-- The snapshot also includes explicit constraints, indexes, and admin-facing RLS/policy coverage for these tables, so the schema and backend contract portion of this phase is complete.
-- L2 remains the follow-on integration task to replace the current local-only settings behavior with live reads and writes against those tables.
-
-#### Chunk L2 - Replace local-only promos and campaign settings with live integration
+#### Chunk L2 - Replace local-only promos and campaign settings with live integration (DONE)
 
 ```text
 Integration task: Convert the local-only promos and notification campaign areas in the marketplace/settings workspace into live Supabase-backed flows while preserving the current page structure and section layout.
@@ -1091,9 +796,11 @@ Requirements:
 - add focused tests only for the newly live mutation paths
 ```
 
+**⚠️ DISCREPANCY CORRECTION:** This chunk was previously marked as NOT DONE. After codebase audit, it is actually DONE. The `marketplace-config.tsx` and `marketplace-config.data.ts` implement live CRUD for both promos and notification campaigns with a local fallback when Supabase is unavailable. The `promo_codes`, `promo_code_redemptions`, `notification_templates`, `notification_campaigns`, and `notification_deliveries` tables exist in the schema with admin RLS policies.
+
 ### Phase M - Finance Writes And Admin Audit Contract
 
-#### Chunk M1 - Finance write contract, policies, and audit trail design
+#### Chunk M1 - Finance write contract, policies, and audit trail design (NOT DONE)
 
 ```text
 Planning and backend-contract task: Define the supported admin finance write paths that can safely move beyond read-only behavior. Keep mobile/shared payment flows intact and prefer additive admin audit/event models over risky direct-table overload.
@@ -1108,9 +815,18 @@ Requirements:
 - do not force reconciliation/reversal workflows into unsupported direct writes
 - prefer explicit finance admin events / audit records over hidden state changes
 - document the exact boundary between live-supported actions and deferred actions
+
+Current implementation note:
+
+- `public.payments` table has statuses: pending, processing, authorized, paid, captured, failed, refunded, cancelled.
+- `public.withdrawals` table has statuses: pending, processing, completed, failed.
+- `public.finance_admin_events` table exists with actor_id, payment_id, withdrawal_id, action, reason, metadata, created_at.
+- Schema has admin read policies (`Admins can view payments`, `Admins can view withdrawals`) but NO admin update policies for finance writes.
+- `src/lib/supabase/data.ts` finance reads are live; all status actions remain blocked/read-only in the UI.
+- No Stripe/payment-processor integration for admin-initiated reversals.
 ```
 
-#### Chunk M2 - Live finance status actions for supported admin workflows
+#### Chunk M2 - Live finance status actions for supported admin workflows (NOT DONE)
 
 ```text
 Integration task: Replace the current read-only finance action boundary with real supported writes once the finance contract and RLS policies are ready. Preserve the existing transactions workspace layout, filters, detail sidebar, and reason-capture UX.
@@ -1146,13 +862,6 @@ Requirements:
 - prefer one shared action path so users list and user details stay consistent
 ```
 
-Current implementation note:
-
-- Review completed: no safe shared backend contract was found for live user activate/deactivate actions in this repo without risking misleading persistence semantics.
-- `src/components/dashboard/users/users.tsx` now treats lifecycle actions as explicitly read-only in live mode and disables activate/deactivate actions rather than mutating local UI state.
-- `src/components/dashboard/user-details/user-details-page.tsx` now mirrors that boundary so the users list and user details page stay consistent.
-- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx`, and the production hardening path was validated with targeted Vitest coverage plus `corepack pnpm typecheck`.
-
 #### Chunk N2 - Remove or disable unsupported user-profile request actions (DONE)
 
 ```text
@@ -1170,15 +879,9 @@ Requirements:
 - add focused tests where user-profile actions change materially
 ```
 
-Current implementation note:
-
-- `src/components/dashboard/user-details/user-details-page.tsx` now disables unsupported account-status and profile-linked request intervention actions outside test mode instead of letting them behave like persisted updates.
-- The user-details surface now clearly preserves navigation and visibility while steering operators back to supported live workflows instead of mixed local-only request mutations.
-- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx` for the disabled live-mode behavior.
-
 ### Phase O - Request Intervention Contract Decision
 
-#### Chunk O1 - Decide where intervention notes belong in the backend contract
+#### Chunk O1 - Decide where intervention notes belong in the backend contract (NOT DONE)
 
 ```text
 Planning task: Resolve the current product-contract ambiguity for delay, escalation, intervention, and dispute-adjacent notes on requests/jobs. Use the existing requests, disputes, and support workflows as the frontend target and decide where this operational metadata should persist.
@@ -1195,9 +898,16 @@ Requirements:
 - choose one primary contract direction before wider write expansion
 - avoid duplicating the same intervention data across jobs and disputes/support
 - keep the admin workflow operationally clear and audit-friendly
+
+Current implementation note:
+
+- `public.jobs` has no dedicated delay, dispute, escalation, or intervention fields.
+- `public.disputes` and `public.support_tickets` exist but are separate workflow tables.
+- No decision has been made on where intervention metadata should persist.
+- Admin operators currently have no way to annotate jobs with intervention notes that persist to Supabase.
 ```
 
-#### Chunk O2 - Align requests/support/disputes UI boundaries to the chosen contract
+#### Chunk O2 - Align requests/support/disputes UI boundaries to the chosen contract (NOT DONE)
 
 ```text
 Integration task: After the intervention contract is chosen, align the requests workflow and adjacent support/disputes surfaces so each admin note/action persists in the right place. Preserve the current tables, sidebars, overlays, and Figma-backed shell.
@@ -1214,48 +924,745 @@ Requirements:
 - add focused tests for any live intervention write/read paths that become supported
 ```
 
+### Phase P - Comprehensive Integration Testing
+
+#### Chunk P1 - End-to-end admin workflow tests (NOT DONE)
+
+```text
+Integration task: Add comprehensive end-to-end test suites that exercise complete admin workflows from login through action completion, validating that major user journeys work reliably and consistently.
+
+Scope:
+- happy-path workflows: admin login → request dispatch → dispute resolution → payout approval
+- critical failure scenarios: session expiry, permission denied, network failure during mutation
+- cross-module workflows: contractor suspend → view in list → check details → restore
+- realtime workflows: job status change → sidebar update → live counter
+- test setup: seed realistic test data, tear down cleanly
+
+Requirements:
+- use Vitest + testing-library or Playwright for integration tests
+- each test should validate UI state, network calls, and final database state
+- tests should be deterministic and not depend on execution order
+- provide clear failure messages identifying which workflow step failed
+- keep tests focused on user-visible behavior, not implementation details
+
+Current implementation note:
+
+- Focused unit/component tests exist for specific features (contractors, KYC, support, disputes).
+- No end-to-end workflow tests exist that validate multiple steps together.
+- Test infrastructure supports unit tests but E2E test patterns are not yet established.
+- No test data seeding utilities exist for realistic multi-step scenarios.
+```
+
+#### Chunk P2 - Authorization and permission matrix testing (NOT DONE)
+
+```text
+Integration task: Validate the complete admin permission matrix through comprehensive testing. Ensure that authorization boundaries are enforced correctly and that no unintended privilege escalation is possible.
+
+Scope:
+- test matrix: each admin action × each role/permission × allowed/denied scenarios
+- test multi-admin: two admins, same action, different authorization states
+- test session: action with valid session, expired session, mismatched actor id
+- test RLS: permission denied on read, permission denied on write, cascading deletes
+- document findings: which actions are blocked as intended, which passed, which need remediation
+
+Requirements:
+- create a test matrix spreadsheet mapping actions to expected outcomes
+- add 30+ permission test cases covering role boundaries
+- clearly label tests as "passing boundary enforcement" or "gap found"
+- suggest RLS policy fixes for any gaps identified
+- test both positive (allowed) and negative (denied) scenarios
+
+Current implementation note:
+
+- Basic admin authorization tests exist in `src/lib/supabase/data.test.ts`.
+- No comprehensive permission matrix or multi-admin testing.
+- The RLS policies are in place but not systematically validated.
+- No permission gap analysis or compliance documentation exists.
+```
+
+#### Chunk P3 - Error scenario and failure mode testing (NOT DONE)
+
+```text
+Integration task: Add comprehensive test coverage for error scenarios and failure modes so the admin UI handles problems gracefully and operators understand what went wrong.
+
+Scope:
+- network failures: timeout, 500 error, connection refused
+- data integrity: RLS violations, constraint violations, concurrent conflict
+- state mismatch: actor id mismatch, expired session, stale data
+- partial failures: mutation succeeds but audit log fails, evidence upload succeeds but metadata fails
+- user input: invalid reason, missing required fields, malformed data
+
+Requirements:
+- each test should validate error message clarity and user actionability
+- test both API error responses and UI error rendering
+- verify that failed mutations don't corrupt application state
+- provide operators with clear next steps (retry, contact support, etc.)
+- add 20+ error scenario test cases
+
+Current implementation note:
+
+- Some error handling exists in components (loading, empty states, error messages).
+- No systematic error scenario testing suite.
+- No validation of error message quality or operator guidance.
+- Partial failure modes (e.g., mutation succeeds but audit log fails) are not tested.
+```
+
+#### Chunk P4 - Performance baseline and load testing (NOT DONE)
+
+```text
+Integration task: Establish performance baselines and validate that the admin system can handle realistic load without degradation.
+
+Scope:
+- baseline latency: measure query/mutation response times under normal load
+- pagination: validate that large lists (1000+ records) load efficiently
+- concurrent operations: test 2-5 admins performing mutations simultaneously
+- realtime updates: measure latency of job status changes appearing in UI
+- memory/resource usage: profile component re-renders and memory leaks
+
+Requirements:
+- establish baseline targets: queries <500ms, mutations <1s, realtime updates <2s
+- use performance profiling tools (Lighthouse, React Profiler, browser DevTools)
+- add load tests with realistic data volumes
+- document findings and identify optimization opportunities
+- test pagination and filtering performance on large lists
+
+Current implementation note:
+
+- No baseline performance tests or load testing exists.
+- No performance targets documented.
+- Pagination logic exists but is not tested under load.
+- Realtime update latency is not measured.
+- No performance profiling or optimization has been done.
+```
+
+### Phase Q - Rate Limiting And Abuse Prevention
+
+#### Chunk Q1 - Rate limiting strategy and backend contract (NOT DONE)
+
+```text
+Planning task: Define the rate-limiting strategy for admin operations to prevent abuse, brute-force attacks, and system overload. Document the limits, recovery rules, and monitoring approach.
+
+Scope:
+- define rate limits per endpoint: authentication (strict), mutations (moderate), reads (generous)
+- suggested limits: auth 5 attempts/15min, mutations 100/min per admin, reads 1000/min
+- define reset/recovery rules: what triggers unlock, how long lockout lasts
+- define monitoring and alerting: which patterns should trigger security team alerts
+- define the contract between frontend and backend for rate limit responses (429, Retry-After)
+
+Requirements:
+- rate limits should not interfere with normal admin workflows
+- clearly distinguish between admin-initiated rate limiting (per-action quota) and system-wide limits
+- document recovery procedures for locked admins
+- define abuse patterns that should trigger alerts (repeated failed attempts, bulk operations, etc.)
+- coordinate with security team on response procedures
+
+Current implementation note:
+
+- Supabase Auth has built-in rate limiting configured in `supabase/config.toml`.
+- No custom admin mutation rate limiting or abuse detection exists.
+- No monitoring or alerting infrastructure for rate limit events.
+- The contract for admin-specific rate limits is not yet defined.
+```
+
+#### Chunk Q2 - Auth rate limiting and brute-force protection (NOT DONE)
+
+```text
+Integration task: Implement strict rate limiting on authentication endpoints to prevent brute-force login attacks and enforce progressive delays on failed attempts.
+
+Scope:
+- rate limit login attempts: 5 per 15 minutes per IP + email combination
+- progressive delays: immediate on first failure, 1s delay after 3rd, 5s after 5th
+- account lockout: temporary lock after 10 failed attempts, unlock after 30 minutes or manual reset
+- track failed attempts: store in `admin_login_attempts` table for audit
+- Retry-After header: indicate when next attempt is allowed
+- security event logging: log all lockout and unlock events to `admin_security_events`
+
+Requirements:
+- implement at the server layer (not just frontend validation)
+- support lockout reset via recovery code or support team intervention
+- measure and log all rate-limit violations
+- test that legitimate admins are not locked out by attackers abusing their email
+- coordinate with security team on lockout notification procedures
+
+Current implementation note:
+
+- Supabase Auth has default rate limiting but lacks progressive delay and admin-specific lockout.
+- `admin_login_attempts` table exists in schema but is not populated.
+- No server-side login attempt tracking in `server/routes/`.
+- No Retry-After header or progressive delay logic.
+- No account lockout/unlock mechanism.
+```
+
+#### Chunk Q3 - Mutation rate limiting and operation-specific throttling (NOT DONE)
+
+```text
+Integration task: Add rate limiting to admin mutations (contractor suspend, KYC approval, dispute resolution, payout actions) to prevent spam and bulk abuse while allowing normal operations.
+
+Scope:
+- global mutation limit: 100 mutations per minute per admin
+- per-operation limits: suspend 5/min, approve_kyc 10/min, resolve_dispute 5/min
+- per-resource limits: prevent bulk operations on same resource (5 edits/min on same contractor)
+- sliding window tracking: use time-based buckets to track rate
+- enforce via middleware: check limits before executing mutations
+- response codes: 429 Too Many Requests with Retry-After header
+
+Requirements:
+- limits should not block normal admin work (single actions per few seconds)
+- track limits in Redis or Postgres for persistence
+- provide admins with clear feedback on rate-limit status
+- log all rate-limit violations to `admin_action_log`
+- allow security team to adjust limits per admin if needed
+
+Current implementation note:
+
+- No mutation rate limiting exists in the data layer or server routes.
+- No per-operation or per-resource throttling logic.
+- No tracking of mutation frequency or abuse patterns.
+- Server middleware does not validate rate limits before mutations.
+```
+
+#### Chunk Q4 - Abuse detection and alerting (NOT DONE)
+
+```text
+Integration task: Implement abuse detection that identifies suspicious patterns and alerts the security team for investigation and response.
+
+Scope:
+- pattern detection: volume spikes, unusual access times, geographic anomalies, failed operation chains
+- alert types: high volume in short period, new IP address, many failures in a row, bulk operations on sensitive resources
+- alert routing: direct to security team inbox/channel with contextual details
+- compliance dashboard: daily/weekly report of abuse attempts and responses
+- lockdown procedures: manual admin disable if compromise suspected, with audit trail
+
+Requirements:
+- alerts should be actionable and not false-positive prone
+- include context in alerts: which admin, which operations, which resources, timestamps
+- preserve all abuse-related events in audit log for post-incident analysis
+- coordinate with incident response team on alert response procedures
+- document the abuse detection rules and how to tune sensitivity
+
+Current implementation note:
+
+- No abuse detection logic exists in the codebase.
+- No alerting infrastructure for security events.
+- `admin_security_events` and `admin_action_log` tables capture data but have no anomaly detection.
+- No compliance reporting or abuse analysis tools.
+- Security team has no way to investigate suspicious admin activity patterns.
+```
+
+---
+
+## Module Readiness Matrix (Corrected Post-Audit)
+
+| Module | Frontend Ready | Schema Ready | Integration Readiness | **Actual Status** | Notes |
+|--------|---------------|-------------|---------------------|-------------------|-------|
+| Auth | High | High | High | ✅ **LIVE** | Real Supabase auth, admin role check, route protection, MFA TOTP enrollment working |
+| Requests / Jobs | High | High | High | ✅ **LIVE** | Live reads + lifecycle writes (complete/cancel/broadcast) + realtime subscriptions |
+| Contractors | High | High | High | ✅ **LIVE** | Live reads + lifecycle writes (suspend/restore with audit fields) + realtime |
+| Overview | High | High | High | ✅ **LIVE** | Aggregates from live jobs, contractors, payments data |
+| Settings categories/pricing | High | High | High | ✅ **LIVE** | Categories, service types, urgency tiers, platform config all live CRUD |
+| Transactions / payouts | High | Medium | Medium | ✅ **LIVE (read-only)** | Payments + withdrawals live reads; export works; writes blocked pending finance contract |
+| Disputes | High | High | High | ✅ **LIVE** | Live reads + action mutation writes; evidence timeline from DB |
+| Support | High | High | High | ✅ **LIVE** | Live reads + status update writes; audit events persisted |
+| Promos | High | High | High | ✅ **LIVE** | `promo_codes` + `promo_code_redemptions` tables; live CRUD with local fallback |
+| Notification campaigns | High | High | High | ✅ **LIVE** | `notification_campaigns`, `notification_templates`, `notification_deliveries`; live CRUD with local fallback |
+| Admin MFA / Security | High | High | High | ✅ **LIVE** | TOTP enroll/verify/disable, recovery codes, password change; `admin_security_settings`, `admin_mfa_recovery_codes`, `admin_security_events` tables |
+| Users | High | High | High | ✅ **LIVE (read-only)** | Profile reads live; activate/deactivate disabled in live mode |
+| Evidence file handling | Low | Medium | Low-Medium | ❌ **NOT DONE (I3)** | `dispute_evidence` table exists but no Storage bucket, upload UI, or download handlers |
+| Support message threading | Low | Low | Low | ❌ **NOT DONE (I4)** | `support_ticket_events` is a flat event log; no threading, read tracking, or message creation |
+| Dispute refund linkage | Low | Low | Low | ❌ **NOT DONE (I5)** | Resolution metadata can say "refund" but doesn't update `payments` table or coordinate with processor |
+| Finance writes | Medium | Low | Low-Medium | ❌ **NOT DONE (M1-M2)** | No approved finance write contract; all finance status actions remain blocked/read-only |
+| Intervention contract | Low | Low | Low | ❌ **NOT DONE (O1-O2)** | No decision on where delay/escalation/dispute metadata should persist |
+| Admin audit logging | Low | Low | Low | ❌ **NOT DONE (J3)** | Only MFA events logged; no `admin_action_log` table for general mutations |
+| Error recovery / retry | Low | Low | Low | ❌ **NOT DONE (J4)** | No exponential backoff, no circuit breaker, no transient/permanent failure differentiation |
+| RLS comprehensive testing | Low | Low | Low | ❌ **NOT DONE (J5)** | ~5-10 basic auth guard tests; no permission matrix or multi-admin testing |
+| E2E testing | Low | Low | Low | ❌ **NOT DONE (P1-P4)** | No end-to-end workflow tests, no performance baselines, no error scenario suite |
+| Rate limiting / abuse | Low | Low | Low | ❌ **NOT DONE (Q1-Q4)** | No strategy defined; auth rate limiting, mutation limiting, abuse detection all unimplemented |
+
+---
+
+## Backend Decisions Still Needed
+
+1. ✅ ~~Define admin identity and authorization model~~ — **DONE**: `profiles.role = admin` + `public.is_admin_user()` RLS helper
+2. ✅ ~~Decide whether admin 2FA is phase-1 or phase-2~~ — **DONE**: Phase K1-K2 implemented; TOTP MFA live
+3. ✅ ~~Add suspension/restore backend contract for contractors~~ — **DONE**: Fields added to `public.contractors`: `suspended_at`, `suspended_by`, `suspension_reason`, `restored_at`, `restored_by`, `restore_reason`
+4. ✅ ~~Define disputes/support schema~~ — **DONE**: Tables: `disputes`, `dispute_evidence`, `dispute_events`, `support_tickets`, `support_ticket_events`
+5. ✅ ~~Define promo and notification campaign schema~~ — **DONE**: Tables: `promo_codes`, `promo_code_redemptions`, `notification_templates`, `notification_campaigns`, `notification_deliveries`
+6. ❌ **Define where delayed/dispute/intervention request metadata should persist** — **NOT DONE (O1)**
+7. ❌ **Define finance audit/reconciliation/reversal schema** — **NOT DONE (M1)**
+
+---
+
 ## Recommended Combined Prompt Packs
 
-If you want to save credits by combining prompts, these are the safest bundles:
+### Completed Phases (A-O — can be referenced as context):
 
-- **Pack 1:** A1 + A2
-- **Pack 2:** A3 + B1
-- **Pack 3:** B2 + C1
-- **Pack 4:** C2 + C3
-- **Pack 5:** D1 + D2
-- **Pack 6:** E1 + E2
-- **Pack 7:** F1 + F2
-- **Pack 8:** G1 + G2
-- **Pack 9:** H1 + H2
-- **Pack 10:** I1 + I2
-- **Pack 11:** J1 + J2
-- **Pack 12:** K1 + K2
-- **Pack 13:** L1 + L2
-- **Pack 14:** M1 + M2
-- **Pack 15:** N1 + N2
-- **Pack 16:** O1 + O2
+- **Pack 1:** A1 + A2 (Auth plumbing + sign-in)
+- **Pack 2:** A3 + B1 (Admin auth hardening + data layer)
+- **Pack 3:** B2 + C1 (Contract mapping + requests reads)
+- **Pack 4:** C2 + C3 (Contractor reads + overview reads)
+- **Pack 5:** D1 + D2 (KYC writes + contractor writes)
+- **Pack 6:** E1 + E2 (Job lifecycle + realtime)
+- **Pack 7:** F1 + F2 (Settings writes)
+- **Pack 8:** G1 + G2 + G3 (Finance reads + export)
+- **Pack 9:** H1 + H2 (Realtime jobs/contractors + notifications)
+- **Pack 10:** I1 + I2 (Disputes/support schema + live integration)
+- **Pack 11:** J1 + J2 (RLS review + production cleanup)
+- **Pack 12:** K1 + K2 (MFA contract + live security settings)
+- **Pack 13:** L1 + L2 (Promo/campaign schema + live integration)
+- **Pack 14:** N1 + N2 (User management persistence cleanup)
 
-Best small-start sequence:
+### Remaining Work — Execution Prompts
 
-1. A1
-2. A2
-3. A3
-4. B1
-5. B2
-6. C1
-7. C2
-8. C3
+Use these prompts as standalone or combinable chunks. Each is scoped for a single agent session.
+
+#### Pack 15 — Evidence file handling for disputes (I3)
+
+```text
+Integration task: Add safe file upload/download/viewing for dispute evidence using Supabase Storage while preserving the dispute detail panel UX. Wire the dispute evidence surface to persistent file storage with proper admin-only RLS protection.
+
+Scope:
+- add file upload form to the dispute detail panel
+- store uploaded files in Supabase Storage at `admin/disputes/<dispute_id>/` paths
+- persist file metadata (name, size, type, uploaded_at, uploaded_by) to `public.dispute_evidence` table
+- add file download/view actions in the evidence timeline
+- handle storage errors, file-size limits, and retry behavior
+- remove any local-only file handling from the current UI
+
+Requirements:
+- preserve the current dispute detail panel structure
+- keep file uploads and downloads behind admin authorization
+- use Supabase Storage buckets with RLS/security rules for admin-only access
+- add focused tests for file upload success, failure, and permission scenarios
+- validate file types and sizes server-side before acceptance
+
+Current implementation note:
+- `public.dispute_evidence` table exists with columns: id, dispute_id, evidence_type, file_path, file_name, file_size, file_type, uploaded_by, uploaded_at, metadata, created_at.
+- `src/components/dashboard/disputes/disputes.tsx` loads evidence from the table but has no upload UI or download handlers.
+- Supabase Storage bucket `admin/disputes/` with RLS policies does not yet exist; needs creation.
+- No file size/type validation or Supabase Storage integration functions in `src/lib/supabase/data.ts` yet.
+
+Files to focus on:
+- `src/components/dashboard/disputes/disputes.tsx`
+- `src/components/dashboard/disputes/disputes.data.ts`
+- `src/lib/supabase/data.ts`
+- New storage bucket setup needed
+- SQL for Storage bucket RLS policies under `supabase/manual_sql/`
+```
+
+#### Pack 16 — Support ticket message threading (I4)
+
+```text
+Integration task: Add message creation, retrieval, and read-state tracking for support tickets so the timeline flows as a proper conversation instead of a flat event log. Preserve the support ticket detail panel while enabling sequential messages with read/unread tracking.
+
+Scope:
+- extend `public.support_ticket_events` or create `public.support_ticket_messages` table with message ordering
+- add message creation endpoint/function to the support detail panel
+- implement read-state tracking (message_read_at per message per recipient)
+- auto-add message sender as participant on first response
+- retrieve and display messages in chronological order with read indicators
+- preserve existing support event/status timeline alongside conversation
+
+Requirements:
+- use server timestamps (not client timestamps) for message ordering
+- keep messages and events separate in the UI (conversation vs status timeline)
+- support read-state so admins know which messages have been read
+- add focused tests for message creation, ordering, and read-state edge cases
+- handle concurrent message inserts without ordering conflicts
+
+Current implementation note:
+- `public.support_ticket_events` table exists and stores event_type, message, metadata, but no `message_read_at` or ordering metadata.
+- `src/lib/supabase/data.ts` has `listEventsByTicketIds()` but no message creation or read-state update functions.
+- `src/components/dashboard/support/support.tsx` shows a flat event list but no message-threading UI.
+- No participant tracking or auto-add logic exists yet.
+
+Files to focus on:
+- `src/components/dashboard/support/support.tsx`
+- `src/components/dashboard/support/support.data.ts`
+- `src/lib/supabase/data.ts`
+- New SQL for `support_ticket_messages` table under `supabase/manual_sql/`
+```
+
+#### Pack 17 — Dispute refund linkage and payment reversal coordination (I5)
+
+```text
+Integration task: Link resolved disputes to actual payment reversals and refund tracking so dispute resolution metadata becomes actionable finance operations. Connect the dispute resolution actions to the payments table and finance audit trail.
+
+Scope:
+- extend `public.disputes` to track linked `payment_id` or `withdrawal_id` when resolution involves a refund
+- add refund/reversal functions in the data layer that update both dispute and payment records together
+- persist resolution actions (refund approved, partial refund, chargeback initiated) to both `dispute_events` and finance audit log
+- validate that only authorized finance admins can execute reversals
+- track refund status: pending, processing, completed, failed
+- handle refund failure scenarios and retry logic
+
+Requirements:
+- keep dispute and payment records consistent across resolution
+- use transactions or multi-step mutations to avoid partial failures
+- document the boundary between admin-initiated reversals vs Stripe/payment-processor reversals
+- add focused tests for successful refund linking, refund failures, and concurrent refund prevention
+- preserve the dispute resolution UI while adding a "refund status" indicator
+
+Current implementation note:
+- `public.disputes` table has status, resolution_type, requested_resolution but no `payment_id` or `refund_status` field.
+- `public.payments` table has status (pending, processing, authorized, paid, captured, failed, refunded, cancelled) but no `refund_initiated_by`, `refund_reason`, or `refund_dispute_id`.
+- `src/lib/supabase/data.ts` has `supabaseDisputes.applyAction()` that can set resolution_type to "refund" or "partial_refund" as metadata, but doesn't actually update payment records.
+- No refund linking, reversal coordination, or payment-audit integration exists yet.
+
+Files to focus on:
+- `src/components/dashboard/disputes/disputes.tsx`
+- `src/lib/supabase/data.ts`
+- New SQL for disputes/payment linkage fields under `supabase/manual_sql/`
+```
+
+#### Pack 18 — Finance write contract, policies, and audit trail design (M1) + Live finance status actions (M2)
+
+```text
+Planning + Implementation task: Define and implement the supported admin finance write paths that can safely move beyond read-only behavior. Keep mobile/shared payment flows intact and prefer additive admin audit/event models over risky direct-table overload.
+
+Scope:
+- define which payment/withdrawal admin actions are truly supported first
+- add required admin update policies and audit/event tables
+- define actor, reason, and timestamp capture requirements
+- define which actions remain server-only or Stripe-mediated
+- wire supported payment/withdrawal status actions
+- persist reason-captured admin decisions
+- surface audit history where available
+- keep unsupported finance actions clearly blocked
+
+Requirements:
+- preserve current finance UX and badge naming
+- do not force reconciliation/reversal workflows into unsupported direct writes
+- prefer explicit finance admin events / audit records over hidden state changes
+- add focused interaction coverage for the supported live write paths
+
+Current implementation note:
+- `public.payments` table has statuses: pending, processing, authorized, paid, captured, failed, refunded, cancelled.
+- `public.withdrawals` table has statuses: pending, processing, completed, failed.
+- `public.finance_admin_events` table exists with actor_id, payment_id, withdrawal_id, action, reason, metadata, created_at.
+- Schema has admin read policies but NO admin update policies for finance writes.
+- `src/lib/supabase/data.ts` finance reads are live; all status actions remain blocked/read-only in the UI.
+
+Files to focus on:
+- `src/components/dashboard/transactions/transactions.tsx`
+- `src/lib/supabase/data.ts` (finance mutation functions)
+- New SQL for admin finance update policies under `supabase/manual_sql/`
+```
+
+#### Pack 19 — Intervention contract decision (O1) + UI alignment (O2)
+
+```text
+Planning + Implementation task: Resolve the current product-contract ambiguity for delay, escalation, intervention, and dispute-adjacent notes on requests/jobs. Use the existing requests, disputes, and support workflows as the frontend target and decide where this operational metadata should persist. Then align the UI to the chosen contract.
+
+Scope:
+- compare these options:
+  - add fields directly to `jobs`
+  - add a separate job-operations / intervention log table
+  - move dispute/support-style notes fully into disputes/support records
+- define actor, reason, status, and timeline requirements
+- define which operational notes must be realtime-visible
+- wire intervention notes to the chosen backend model
+- update requests live state messaging to remove temporary/local-only notes
+- keep disputes/support linkage explicit when intervention becomes formalized
+
+Requirements:
+- choose one primary contract direction before wider write expansion
+- avoid duplicating the same intervention data across jobs and disputes/support
+- keep the admin workflow operationally clear and audit-friendly
+
+Current implementation note:
+- `public.jobs` has no dedicated delay, dispute, escalation, or intervention fields.
+- `public.disputes` and `public.support_tickets` exist but are separate workflow tables.
+- No decision has been made on where intervention metadata should persist.
+- Admin operators currently have no way to annotate jobs with intervention notes that persist to Supabase.
+
+Files to focus on:
+- `src/components/dashboard/requests/requests.tsx`
+- `src/components/dashboard/requests/requests-sidebar.tsx`
+- `src/lib/supabase/data.ts`
+- New SQL under `supabase/manual_sql/`
+```
+
+#### Pack 20 — Admin audit logging expansion (J3) + Error recovery with retry/circuit breaker (J4)
+
+```text
+Integration task: Extend admin audit logging beyond MFA security events to capture all sensitive admin mutations AND add resilience patterns to the data layer for transient failure handling.
+
+Scope:
+- design `public.admin_action_log` table (or extend `admin_security_events`) to capture all mutation types
+- add audit logging to every mutation path in `src/lib/supabase/data.ts`: contractors, jobs, disputes, support, settings, finance
+- capture: action type, actor id, target resource, reason, timestamp, metadata, result (success/failure)
+- add RLS policies so admins can read their own and other admins' actions (for transparency)
+- create a data layer function `insertAdminAuditLog()` used consistently by all mutations
+- implement exponential backoff retry logic with configurable max attempts and base delay
+- add circuit breaker pattern to detect persistent failures and prevent cascading errors
+- differentiate transient errors (network, timeout) from permanent errors (permission denied, validation failure)
+- add retry hooks to all critical read and write paths
+- implement graceful degradation when retry limits are exceeded
+
+Requirements:
+- do not slow down mutations with synchronous audit logging; batch or async where safe
+- keep audit messages explicit and searchable (good action names, consistent reason capture)
+- do not retry permission-denied or validation errors; fail fast
+- use jittered exponential backoff to avoid thundering herd
+- set sensible defaults: initial delay 300ms, max delay 10s, max 3-5 attempts
+- add focused tests for both audit log capture and retry/circuit breaker behavior
+
+Current implementation note:
+- `public.admin_security_events` table exists and is used for MFA-related audit events only.
+- No centralized audit logging pattern exists; each mutation is self-contained.
+- `src/lib/supabase/data.ts` mutations return `SupabaseResult<T>` with `ok`/`message` but have no retry logic.
+- UI components show "Retry" buttons but call the same mutation function again (no backoff).
+
+Files to focus on:
+- `src/lib/supabase/data.ts`
+- `src/lib/supabase/data.test.ts`
+- New SQL for `admin_action_log` table under `supabase/manual_sql/`
+```
+
+#### Pack 21 — RLS comprehensive audit and permission matrix testing (J5)
+
+```text
+Integration task: Conduct comprehensive RLS policy testing and document the complete admin permission matrix so the backend enforces intended boundaries and no privilege escalation is possible.
+
+Scope:
+- test read access: each table/resource type, single admin vs multiple admins, admin vs non-admin
+- test write/mutation access: each mutation type, with and without proper actor id, with and without required fields
+- test RLS policy behavior: cascade deletes, policy interactions, edge cases
+- document the admin permission matrix (who can do what to what resources)
+- test multi-admin scenarios: concurrent mutations, actor id validation, session isolation
+- test permission failure modes: RLS violations, policy-denied operations, authorization boundary errors
+
+Requirements:
+- add comprehensive RLS test suite (20-30+ test cases)
+- document the intended permission matrix and test coverage
+- identify and remediate any policy gaps or unintended privilege escalation paths
+- include tests for the specific admin role model in use (`profiles.role = admin`)
+- provide step-by-step instructions for auditing RLS policies in production
+
+Current implementation note:
+- `src/lib/supabase/data.test.ts` has basic authorization guard tests (~5-10 test cases).
+- No comprehensive RLS policy matrix or permission testing exists.
+- RLS policies in the latest migration include admin-only access but are not comprehensively validated.
+- Multi-admin scenarios (concurrent edits, actor id mismatches) have minimal test coverage.
+- No compliance documentation of the admin permission model exists.
+
+Files to focus on:
+- `src/lib/supabase/data.test.ts`
+- All migration files for RLS policy reference
+- New test file for permission matrix: `src/lib/supabase/permission-matrix.test.ts` (suggested)
+```
+
+#### Pack 22 — End-to-end admin workflow tests (P1) + Authorization permission matrix testing (P2)
+
+```text
+Integration task: Add comprehensive end-to-end test suites that exercise complete admin workflows AND validate the complete admin permission matrix.
+
+Scope:
+- happy-path workflows: admin login → request dispatch → dispute resolution → payout approval
+- critical failure scenarios: session expiry, permission denied, network failure during mutation
+- cross-module workflows: contractor suspend → view in list → check details → restore
+- realtime workflows: job status change → sidebar update → live counter
+- test setup: seed realistic test data, tear down cleanly
+- test matrix: each admin action × each role/permission × allowed/denied scenarios
+- test multi-admin: two admins, same action, different authorization states
+- test session: action with valid session, expired session, mismatched actor id
+
+Requirements:
+- use Vitest + testing-library or Playwright for integration tests
+- each test should validate UI state, network calls, and final database state
+- tests should be deterministic and not depend on execution order
+- create a test matrix spreadsheet mapping actions to expected outcomes
+- add 50+ test cases total covering both workflows and permissions
+
+Current implementation note:
+- Focused unit/component tests exist for specific features.
+- No end-to-end workflow tests exist that validate multiple steps together.
+- Basic admin authorization tests exist in `src/lib/supabase/data.test.ts`.
+- No comprehensive permission matrix or multi-admin testing.
+
+Files to focus on:
+- `src/lib/supabase/data.test.ts`
+- New E2E test files for each workflow domain
+```
+
+#### Pack 23 — Error scenario and failure mode testing (P3) + Performance baseline and load testing (P4)
+
+```text
+Integration task: Add comprehensive test coverage for error scenarios AND establish performance baselines for the admin system.
+
+Scope:
+- network failures: timeout, 500 error, connection refused
+- data integrity: RLS violations, constraint violations, concurrent conflict
+- state mismatch: actor id mismatch, expired session, stale data
+- partial failures: mutation succeeds but audit log fails, evidence upload succeeds but metadata fails
+- user input: invalid reason, missing required fields, malformed data
+- baseline latency: measure query/mutation response times under normal load
+- pagination: validate that large lists (1000+ records) load efficiently
+- concurrent operations: test 2-5 admins performing mutations simultaneously
+- realtime updates: measure latency of job status changes appearing in UI
+
+Requirements:
+- each error test should validate error message clarity and user actionability
+- verify that failed mutations don't corrupt application state
+- establish baseline targets: queries <500ms, mutations <1s, realtime updates <2s
+- use performance profiling tools (React Profiler, browser DevTools)
+- add 20+ error scenario test cases
+- add 5+ performance baseline test cases
+
+Current implementation note:
+- Some error handling exists in components (loading, empty states, error messages).
+- No systematic error scenario testing suite.
+- No baseline performance tests or load testing exists.
+- Pagination logic exists but is not tested under load.
+
+Files to focus on:
+- Existing test files for error scenario coverage
+- New performance test file: `src/lib/supabase/performance.test.ts` (suggested)
+```
+
+#### Pack 24 — Rate limiting strategy (Q1) + Auth rate limiting and brute-force protection (Q2)
+
+```text
+Planning + Implementation task: Define the rate-limiting strategy for admin operations and implement strict rate limiting on authentication endpoints.
+
+Scope:
+- define rate limits per endpoint: auth (5 attempts/15min), mutations (100/min), reads (1000/min)
+- define reset/recovery rules and monitoring/alerting approach
+- implement rate limiting on login: 5 per 15 minutes per IP + email combination
+- progressive delays: immediate on first failure, 1s delay after 3rd, 5s after 5th
+- account lockout: temporary lock after 10 failed attempts, unlock after 30 minutes or manual reset
+- track failed attempts: store in `admin_login_attempts` table for audit
+- security event logging: log all lockout and unlock events to `admin_security_events`
+- Retry-After header: indicate when next attempt is allowed
+
+Requirements:
+- implement at the server layer (not just frontend validation)
+- support lockout reset via recovery code or support team intervention
+- measure and log all rate-limit violations
+- test that legitimate admins are not locked out by attackers abusing their email
+- coordinate with security team on lockout notification procedures
+
+Current implementation note:
+- Supabase Auth has default rate limiting but lacks progressive delay and admin-specific lockout.
+- `admin_login_attempts` table exists in schema but is not populated.
+- No server-side login attempt tracking in `server/routes/`.
+- No Retry-After header or progressive delay logic.
+
+Files to focus on:
+- `server/routes/admin-security.ts`
+- `server/index.ts`
+- New SQL under `supabase/manual_sql/`
+- `src/auth/auth.store.ts` (frontend rate limit awareness)
+```
+
+#### Pack 25 — Mutation rate limiting (Q3) + Abuse detection and alerting (Q4)
+
+```text
+Implementation task: Add rate limiting to admin mutations and implement abuse detection that identifies suspicious patterns.
+
+Scope:
+- global mutation limit: 100 mutations per minute per admin
+- per-operation limits: suspend 5/min, approve_kyc 10/min, resolve_dispute 5/min
+- per-resource limits: prevent bulk operations on same resource
+- sliding window tracking using time-based buckets
+- enforce via middleware: check limits before executing mutations
+- response codes: 429 Too Many Requests with Retry-After header
+- pattern detection: volume spikes, unusual access times, geographic anomalies, failed operation chains
+- alert types: high volume in short period, new IP address, many failures in a row, bulk operations
+- alert routing: direct to security team inbox with contextual details
+- lockdown procedures: manual admin disable if compromise suspected, with audit trail
+
+Requirements:
+- limits should not block normal admin work (single actions per few seconds)
+- track limits in Postgres for persistence
+- provide admins with clear feedback on rate-limit status
+- log all rate-limit violations to `admin_action_log`
+- alerts should be actionable and not false-positive prone
+- include context in alerts: which admin, which operations, which resources, timestamps
+
+Current implementation note:
+- No mutation rate limiting exists in the data layer or server routes.
+- No per-operation or per-resource throttling logic.
+- No abuse detection logic exists in the codebase.
+- No alerting infrastructure for security events.
+
+Files to focus on:
+- `src/lib/supabase/data.ts` (mutation rate limit hooks)
+- `server/index.ts` (rate limit middleware)
+- New server route: `server/routes/admin-rate-limit.ts`
+- New SQL under `supabase/manual_sql/`
+```
+
+---
 
 ## Definition Of Integration Success
 
 The admin app is considered truly backend-integrated when:
 
-- admin auth is real
-- core modules no longer rely on mock seeds for normal behavior
-- writes persist to Supabase for at least auth, requests, contractors/KYC, and settings
-- overview aggregates come from live data
-- transactions are at least live-read integrated
-- disputes/support have either live backend tables or are intentionally held back pending schema work
-- RLS and admin authorization are enforced
+- admin auth is real ✅
+- core modules no longer rely on mock seeds for normal behavior ✅
+- writes persist to Supabase for at least auth, requests, contractors/KYC, and settings ✅
+- overview aggregates come from live data ✅
+- transactions are at least live-read integrated ✅
+- disputes/support have either live backend tables or are intentionally held back pending schema work ✅
+- RLS and admin authorization are enforced ✅
 
-Proposed backend contract (planning-safe): prefer a new admin-only finance_admin_events table (Option A) to record decisions/audit without changing mobile flows; keep Stripe refunds/reversals server-side, with the admin UI recording intents/events first.
+**All core integration criteria are met.** Remaining work is production hardening and feature completion for disputes/support edge cases.
+
+---
+
+## Extended Success Criteria For Production Readiness
+
+Beyond core integration, the admin app is production-ready when:
+
+**Phase I (Disputes/Support Completion):**
+- [ ] Evidence file uploads work reliably with proper RLS protection (I3)
+- [ ] Support ticket conversations persist and display in chronological order (I4)
+- [ ] Dispute resolution actions (refunds, denials) link properly to payments table (I5)
+
+**Phase J (Hardening & Observability):**
+- [ ] Admin audit logging captures all sensitive actions (J3)
+- [ ] Error recovery and retry logic handles transient failures gracefully (J4)
+- [ ] RLS policies have been comprehensively audited and tested (J5)
+
+**Phase K (Security):**
+- [x] Admin MFA (TOTP) is fully implemented with recovery codes (K1-K2)
+- [x] Sessions are re-authenticated for destructive changes
+- [x] Security event logging is comprehensive for MFA events
+
+**Phase M (Finance Writes):**
+- [ ] Finance write contract is defined and approved (M1)
+- [ ] Live finance status actions for supported admin workflows (M2)
+
+**Phase O (Intervention Contract):**
+- [ ] Decision made on where intervention notes belong (O1)
+- [ ] UI aligned to chosen intervention contract (O2)
+
+**Phase P (Comprehensive Testing):**
+- [ ] End-to-end workflow tests pass for all major admin scenarios (P1)
+- [ ] Authorization matrix is tested and documented; no privilege escalation exists (P2)
+- [ ] Error scenarios have comprehensive test coverage (P3)
+- [ ] Performance baselines established and load tests pass (P4)
+- [ ] Test coverage >80% for `src/lib/supabase/data.ts` and critical components
+
+**Phase Q (Rate Limiting & Abuse Prevention):**
+- [ ] Auth rate limiting prevents brute-force attacks (Q2)
+- [ ] Mutation rate limiting prevents spam/abuse (Q3)
+- [ ] Abuse detection and alerting logs suspicious patterns (Q4)
+- [ ] Security team can investigate and respond to abuse patterns
+
+**Final Readiness Checklist:**
+- [ ] All remaining chunks (I3-I5, M1-M2, O1-O2, J3-J5, P1-P4, Q1-Q4) completed and tested
+- [ ] Comprehensive integration test suite passing (P1-P4)
+- [ ] RLS audit completed and all gaps remediated (J5)
+- [ ] Admin audit logging includes all sensitive operations (J3)
+- [ ] Rate limiting and MFA deployed to production (Q1-Q4)
+- [ ] Performance baselines met: queries <500ms, mutations <1s
+- [ ] Evidence file handling works end-to-end (I3)
+- [ ] Support message threading and read states functional (I4)
+- [ ] Dispute refund linkage properly coordinates with payments (I5)
+- [ ] Error recovery with retry logic handles transient failures (J4)
+- [ ] No mock-only behavior in production code paths
+- [ ] Security team trained on audit logs and abuse alerts
+- [ ] Disaster recovery procedure documented (admin account recovery, data restoration, etc.)
+- [ ] Go/no-go decision made by product + security teams
