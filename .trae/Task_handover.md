@@ -3,125 +3,63 @@
 ## Status: In-Progress
 
 ## Latest Changes:
-- Confirmed Supabase schema includes `public.finance_admin_events` (table + RLS + policies) in the latest snapshot: [20260615063620_remote_schema.sql](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/supabase/migrations/20260615063620_remote_schema.sql#L4-L27).
-- Completed integration Phase H Chunk H1 (Jobs + Contractors realtime) and marked it DONE in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L837-L867).
-- Completed integration Phase H Chunk H2 (Notifications realtime) and marked it DONE in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L860-L885).
-- Completed integration Phase I Chunk I1 (Disputes/Support contract shaping) by adding a manual SQL scaffold for disputes/support tables + admin-only RLS: [disputes_support_contract.sql](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/supabase/manual_sql/disputes_support_contract.sql).
-- Fixed the Transactions table vertical text wrapping regression by removing the global `overflow-wrap:anywhere` / `word-break:break-word` rule from `td/th` so table cells prefer horizontal scroll over breaking mid-word.
-- Completed integration Phase D Chunk D1 (KYC approval/rejection writes).
-  - Added live contractor document review mutations in `src/lib/supabase/data.ts` so admin review decisions now persist `status`, `reviewed_at`, `reviewed_by`, and `rejection_reason` to `contractor_documents`.
-  - Extended `ContractorKycProvider` in `src/components/dashboard/contractors/contractor-kyc-context.tsx` with async approve/reject actions, mutation loading state, inline error handling, and local-only fallback behavior for tests or non-live flows.
-  - Updated `contractor-kyc-tab.tsx` to await review saves, disable duplicate submissions, and surface save errors inside the existing accept/reject dialogs without redesigning the KYC UX.
-  - Passed `contractorId` from `contractor-details-page.tsx` into the KYC provider so live contractor-detail reviews write against the correct Supabase document rows.
-  - Added `documentId` to the KYC document record contract and populated it from Supabase mappers so grouped service-licence reviews can update all relevant `service_licence` rows together.
-  - Marked D1 as done in `Integration-task-readiness-plan.md`.
-- Verified D1 with `npm run test -- contractor-kyc-tab.test.tsx` and `npm run typecheck`.
-- Replaced the outdated root `Task_handover.md` with a PRD-based frontend assessment instead of speculative backend/auth documentation.
-- Documented what the admin frontend currently supports across `Overview`, `Users`, `Contractors`, `Requests`, `Transactions`, `Support`, `Settings`, and shared dashboard utilities.
-- Compared the current frontend against the PRD and identified missing areas: operations dashboard, real-time monitoring, disputes, pricing, service categories, promo codes, push notifications, fraud/risk tooling, payout workflows, and auth-ready UX.
-- Added a concrete component-level plan for which existing files should change and which new admin modules should be added before backend work starts.
-- Added a Figma-safe planning note that estimates UI impact by phase and recommends preserving the current dashboard design language while deepening workflows and domain modeling.
-- Added a phase-based Trae prompt bank for implementation chunking across Phase 1 through Phase 4.
-- Confirmed the roadmap remains low redesign / high workflow if the team keeps reusing current cards, tables, sidebars, filters, modals, badges, and responsive breakpoints.
-- Completed Phase 1 Prompt 2 (Requests dispatch workflow) upgrades across `requests.tsx`, `requests-sidebar.tsx`, and `requests-overlay.tsx` while preserving the existing Figma-backed UI patterns.
-  - Added operational queues (urgent/awaiting-dispatch/needs-review/delayed) and operational badges.
-  - Added interventions with confirmation + reason capture (cancel, delay, dispute, escalation) and session-persisted operational state.
-  - Added live-monitoring controls (pause/resume/lost-signal) in both sidebar and overlay.
-  - Updated tests in `requests.test.tsx` for the new workflows.
-- Completed Phase 4 Prompt 8 (Auth-ready login + protected states) without changing the dashboard visual language.
-  - Added a lightweight auth session store (`src/auth/auth.store.ts`) with mock sign-in, session expiry, and device persistence (localStorage vs sessionStorage).
-  - Added protected-route gating via `src/auth/require-auth.tsx` and updated `src/App.tsx` so all dashboard routes require auth.
-  - Upgraded `src/login/login.tsx` to support validation, loading, and session-expired messaging + redirect-to-intended-route behavior.
-  - Wired the existing sidebar logout button to clear auth state and navigate back to login.
-  - Added focused tests for route protection in `src/auth/require-auth.test.tsx`.
-- Added `current-task.md` at the repo root as a user-facing, sorted phase/prompt index with completion markers and a reusable summary of the planning rules.
-- Updated KYC and shared test coverage so the full suite is stable again after the earlier Prompt 4 refactor:
-  - Replaced upload-oriented KYC tests with read-only review workflow assertions in `contractor-kyc-tab.test.tsx`.
-  - Increased per-test timeouts in `transactions.test.tsx` and `filter-modal.test.tsx` to avoid slow-environment flakes.
-- Completed Phase 4 Prompt 9 (Admin route architecture cleanup) with minimal UI change.
-  - Centralized route paths in `dashboard-navigation.ts` via a `ROUTES` constant and reused it in `App.tsx`.
-  - Normalized navigation labels (Transactions) and added planned module entries for Disputes + Marketplace.
-  - Added dashboard-shell placeholders for `/disputes` and `/marketplace` so planned modules have stable routes without introducing new design language.
-- Fixed a TypeScript narrowing issue in `login.tsx` by explicitly guarding the `SignInResult` failure branch before reading `result.message`.
-- Strengthened the `SignInResult` type narrowing in `login.tsx` using an explicit `result.ok === false` check to satisfy stricter type analyzers.
-- Completed Phase 1 Prompt 3 (Contractor operations surface) across the contractor module without changing the dashboard shell.
-  - Expanded `contractors.types.ts` and `contractors.data.ts` with backend-ready lifecycle, verification, payout, performance, and trust/risk fields.
-  - Refactored `contractors.tsx` into an operations-first list with queue cards, richer performance/risk columns, and guarded suspend/restore actions that require a reason.
-  - Upgraded `contractor-details-page.tsx` with operations snapshot cards, trust/risk review, payout readiness visibility, and the same lifecycle management flow.
-  - Extended `contractor-request-history-tab.tsx` and `contractor-transaction-history-tab.tsx` with operational context and payout blocker visibility.
-  - Updated `contractors.test.tsx` and `contractors.utils.test.ts`, then verified with `npm test -- contractors.test.tsx` and `npm run typecheck`.
-- Completed Phase 1 Prompt 1 (Overview operations control center) while preserving the existing dashboard shell and visual language.
-  - Refactored `overview.tsx` to put urgent operational queues first: delayed jobs, disputed jobs, failed payouts/blocked payouts, KYC blockers, and high-risk contractors.
-  - Replaced generic top KPI cards with live operational KPIs (jobs in queue, active contractors, avg response time, completion rate) using existing summary card styling.
-  - Switched the “Recent requests” surface to use backend-ready request models from `userDetailsRecords` plus Requests store overrides (`delayedReason`, `disputeReason`, etc.) to keep ops status consistent across modules.
-  - Verified with `npm run typecheck`.
-- Completed Phase 2 Prompt 5 (Settings marketplace configuration) while preserving the Settings route and dashboard visual language.
-  - Added a new Marketplace tab in `settings.tsx` and kept existing Integrations + Security tabs intact.
-  - Implemented marketplace configuration sections for service categories, urgency tier multipliers, promos, and notification campaigns in `marketplace-config.tsx`.
-  - Added backend-ready types and mock-data seeds in `marketplace-config.types.ts` and `marketplace-config.data.ts`.
-  - Added confirmation + reason capture for disabling/enabling categories, tiers, promos, and notification campaigns; added reason capture for deleting promos.
-  - Verified with `npm test -- src/components/dashboard/setting/settings.test.tsx` and `npm run typecheck`.
-- Completed Phase 2 Prompt 6 (Dedicated disputes surface) while preserving the dashboard shell and reusing Support/Requests table + sidebar patterns.
-  - Replaced the `/disputes` placeholder route with a real Disputes page in `src/components/dashboard/disputes/disputes.tsx` and wired it in `src/App.tsx`.
-  - Added backend-ready disputes modeling and mock seeds in `disputes.types.ts` and `disputes.data.ts` (explicit lifecycle states, reasons, resolution types, payout impact).
-  - Implemented a disputes details sidebar with evidence review, linked request context, audit timeline, and reason-captured admin actions (request evidence, propose resolution, resolve, reject) in `disputes-sidebar.tsx`.
-  - Added focused interaction tests in `disputes.test.tsx`, then verified with `npm test -- src/components/dashboard/disputes/disputes.test.tsx` and `npm run typecheck`.
-- Fixed desktop table rendering issues across the affected dashboard tables without changing mobile/tablet layouts.
-  - Increased desktop table minimum widths and assigned safer column widths in `disputes.tsx`, `contractors.tsx`, `requests.tsx`, `support.tsx`, `transactions.tsx`, `contractor-request-history-tab.tsx`, `contractor-transaction-history-tab.tsx`, and `overview.tsx`.
-  - Added single-line protection to status chips and operational badges using `whitespace-nowrap`/`shrink-0` so labels like `Suspended`, lifecycle states, and payout badges no longer break mid-word.
-  - Cleaned up contractor desktop cell flow by giving multi-line content blocks stable widths and line-height so performance, payout, trust/risk, and lifecycle data stack cleanly instead of collapsing.
-  - Verified with `npm test -- src/components/dashboard/disputes/disputes.test.tsx src/components/dashboard/contractors/contractors.test.tsx src/components/dashboard/transactions/transactions.test.tsx src/components/dashboard/support/support.test.tsx` and `npm run typecheck`.
-- Completed Phase 3 Prompt 7 (Transactions finance operations) while preserving the existing dashboard shell, table styling, and right-side detail panel pattern.
-  - Rebuilt `transactions.tsx` into a finance-operations workspace with explicit payout/service-payment lifecycle states, urgent queue cards, queue presets, and summary cards for total payouts, pending payouts, failed payouts, and blocked/review work.
-  - Added frontend-only CSV export for the filtered finance queue and backend-ready transaction modeling for payout readiness, reconciliation state, blocker reasons, and audit trail entries.
-  - Expanded the transaction details sidebar with payout metadata, readiness/reconciliation visibility, audit trail cards, and reason-captured finance actions for approve, reject, reconcile, flag for review, and reverse payout.
-  - Updated `transactions.utils.ts` / `transactions.utils.test.ts` for the new `createdAtLabel` filter contract and added focused interaction tests in `transactions.test.tsx`.
-  - Verified with `npm test -- src/components/dashboard/transactions/transactions.test.tsx src/components/dashboard/transactions/transactions.utils.test.ts` and `npm run typecheck`.
-- Added `Integration-task-readiness-plan.md` at the repo root as the post-roadmap backend integration plan.
-  - Mapped integration goals directly from the PRD and tied them to the current Supabase schema and completed frontend execution board.
-  - Defined a phased integration sequence that starts small with real admin auth, then shared Supabase plumbing, then module-by-module live fetch/write replacement.
-  - Documented which areas are ready now (requests, contractors, settings) versus which need backend contract decisions first (admin roles, disputes, promos, finance audit/reconciliation).
-- Expanded `Integration-task-readiness-plan.md` with a chunked Trae prompt bank for every integration phase.
-  - Split each phase into smaller paste-ready execution prompts that can run individually or be combined into safer bundled packs.
-  - Added a recommended small-start order and combined-pack suggestions to help reduce large one-shot prompt runs and save credits.
-- Started integration Phase A Chunk A1 (Supabase auth plumbing).
-  - Added `@supabase/supabase-js` and created a minimal shared Supabase client/env layer in `src/lib/supabase/` (`env.ts`, `client.ts`) without changing the login UI or protected route behavior.
-  - Added `.env.example` with the required `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` placeholders and typed the variables in `src/vite-env.d.ts`.
-  - Added an optional SQL script `supabase/manual_sql/profiles_allow_admin_role.sql` to extend `profiles.role` to allow `admin` when Phase A authorization hardening begins.
-  - Updated the integration plan with a note to paste/provide SQL for any schema/policy changes and store them under `supabase/manual_sql/` with descriptive filenames to avoid Supabase CLI migration-history mismatch issues.
-- Completed integration Phase A Chunk A2 (Supabase auth sign-in/session) without changing the login UI.
-  - Replaced mock token generation in `src/auth/auth.store.ts` with real `supabase.auth.signInWithPassword` while preserving the same validation, loading, and error/locked states exposed to the login screen.
-  - Kept the existing “remember device” behavior by continuing to persist sessions in localStorage vs sessionStorage, while restoring Supabase session state from the stored refresh token on boot.
-  - Set the shared Supabase client to `persistSession: false` so session persistence is controlled by the app’s existing storage behavior.
-  - Verified with `npm test -- src/auth/require-auth.test.tsx` and `npm run typecheck`.
+
+- The canonical handover file is now `.trae/Task_handover.md`. This path must be kept because the Trae handover skill is explicitly wired to update `.trae/Task_handover.md`; deleting it would break future automatic handover updates.
+- The former root handover file content was merged into this canonical handover so there is one authoritative continuation source.
+- The current resume point is `L2` in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L1077-L1092): replace the local-only promos and notification campaign settings flows with live Supabase integration.
+- The readiness plan now correctly marks `L1`, `N1`, and `N2` as done in addition to the earlier completed chunks through `K1`.
+- `L1` is complete because the backend contract already exists in `supabase/migrations/20260618091058_remote_schema.sql` with `promo_codes`, `promo_code_redemptions`, `notification_templates`, `notification_campaigns`, and `notification_deliveries`, plus constraints, indexes, and admin-facing policies.
+- `N1` and `N2` are complete because the users list and user-details surfaces now explicitly disable unsupported live lifecycle/request actions instead of pretending they persist.
+- Fixed the contractor onboarding queue visibility bug in `src/components/dashboard/contractors/contractors.tsx` so the "Pending verification" queue includes both `verificationState === "Pending review"` and `lifecycleState === "Pending approval"`.
+- Added a focused regression test in `src/components/dashboard/contractors/contractors.test.tsx` proving a contractor can remain visible in the pending queue while still blocked on lifecycle approval.
+- Fixed the premature admin `Verified` badge in `src/lib/supabase/mappers.ts` by deriving contractor verification from document review state first:
+  - `Rejected` if any KYC document is rejected
+  - `Verified` only when required document categories are approved
+  - `Pending review` while uploaded documents are still pending
+- Added regression coverage in `src/lib/supabase/mappers.test.ts` for the pending, approved, and rejected KYC document scenarios.
+- Added manual SQL in `supabase/manual_sql/contractor_verification_promotes_pending_approval.sql` to promote fully verified contractors from `pending_approval` to `offline` where needed in manual integration workflows.
+- Documented and pinned an unresolved platform-level KYC blocker in [Test plan of contractor kyc.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Test%20plan%20of%20contractor%20kyc.md):
+  - before upload: contractor row has `is_verified = false` and all three `*_complete` flags are `false`
+  - after KYC upload but before admin review: contractor row flips to `is_verified = true` and all three `*_complete` flags become `true`
+  - at the same moment, `contractor_documents.status` is still `pending` and `reviewed_at` / `reviewed_by` remain `null`
+  - conclusion: the admin UI bug was real and has been mitigated locally, but the upstream mobile/backend flow is still promoting contractor verification too early during upload
+- Fixed favicon path in `index.html` from `public/Icon.png` to `/Icon.png` for proper Vite public asset resolution.
+- Confirmed earlier integration progress that remains relevant:
+  - `D1` contractor KYC approval/rejection writes are implemented
+  - `H1` jobs/contractors realtime is done
+  - `H2` notifications realtime is done
+  - `I1` disputes/support contract shaping is done
+  - `I2` live disputes/support reads and writes are done
+  - `J1` admin authorization hardening is done
 
 ## Current Context:
-- The app is still frontend-only and mock-data-driven; `server/index.ts` currently exposes only `/api/ping` and `/api/demo`.
-- The strongest existing frontend foundations are reusable filters, pagination, table/detail patterns, and the current `Users`, `Contractors`, `Requests`, `Transactions`, and `Support` screens.
-- The largest PRD gap is that the current admin app behaves like a generic dashboard rather than an operations-first help-on-demand control center.
-- Auth readiness is now in place at the routing layer: dashboard routes are protected and login supports backend-ready states (validation, loading, session expiry).
-- Realtime enablement work is in Phase H: H1 (Jobs + Contractors) is done; H2 (Notifications) is next.
-- Phase 1 progress:
-  - Prompt 4: Contractor KYC read-only review is done.
-  - Prompt 2: Requests dispatch + live monitoring workflow is done.
-  - Prompt 3: Contractor operations surface is done.
-  - Prompt 1: Overview operations control center is done.
-  - Phase 2 Prompt 5: Settings marketplace configuration is done.
-  - Prompt 8: Auth-ready login and protected states is done.
-  - Prompt 9: Admin route architecture cleanup is done.
-- The contractor module now exposes explicit lifecycle states, verification states, payout readiness, risk flags, queue counts, and reason-captured suspension/restore actions while remaining mock-data driven.
-- The transactions module now exposes explicit finance lifecycle states, urgent payout queues, CSV export, reconciliation state, payout readiness blockers, and reason-captured admin actions while remaining mock-data driven.
-- A dedicated integration plan file now exists to guide the next phase of work from mock frontend to phased Supabase integration.
-- That integration plan file now also serves as the chunked execution prompt bank for backend hookup work.
-- Planning direction is to keep visuals close to current Figma-backed patterns and concentrate most changes in workflow depth, status modeling, routing, and information density rather than redesign.
-- Current planning assessment:
-  - Phase 1 = moderate UI shift, high workflow change
-  - Phase 2 = moderate to high UI shift, mostly because of settings expansion and disputes
-  - Phase 3 = low to moderate UI shift
-  - Phase 4 = low UI shift
-- Highest-risk areas for needing fresh Figma thinking are pricing/promo management and deeper finance reporting, but even those should begin as extensions of current patterns.
-- Desktop tables now prefer horizontal scrolling at constrained widths rather than compressing badge/status text into broken multi-line fragments.
+
+- The app has moved well beyond mock-only operation in many modules, but `server/index.ts` is still starter-level and most live behavior is currently driven through Supabase client reads/writes rather than custom server APIs.
+- The codebase already has strong dashboard/table/sidebar/filter foundations across `Users`, `Contractors`, `Requests`, `Transactions`, `Support`, `Disputes`, and `Settings`.
+- The most important active planning file is [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md).
+- Current completed integration status is effectively:
+  - earlier chunks through `K1`
+  - plus `L1`, `N1`, and `N2`
+- The next active implementation target is `L2`.
+- Important backend contract snapshots:
+  - promo/campaign schema target for `L2`: `supabase/migrations/20260618091058_remote_schema.sql`
+  - contractor verification trigger snapshot referenced during KYC debugging: `supabase/migrations/20260618135951_remote_schema.sql`
+- The mobile/backend KYC issue is intentionally unresolved. Do not "fix" it from the admin repo without confirmation from the mobile/backend side, because the likely root cause is upstream writing of `id_verification_complete`, `police_check_complete`, and `service_licences_complete` during upload rather than after admin approval.
+- The admin-side mitigation is already applied: visible verification badges now trust document review states before contractor-level `is_verified`.
+- Validation completed in the recent KYC/contractor pass:
+  - `corepack pnpm vitest run src/components/dashboard/contractors/contractors.test.tsx src/lib/supabase/mappers.test.ts`
+  - `corepack pnpm typecheck`
+  - diagnostics were clean for the edited contractor and mapper files
 
 ## Next Steps:
-- Continue Phase I with Chunk I2 (Live disputes/support reads and writes): [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L909-L923).
-- When implementation starts, keep treating Figma as the visual source of truth and the PRD as the workflow source of truth.
+
+- Start at `L2` in [Integration-task-readiness-plan.md](file:///c:/Users/hp/Desktop/Work/Assignment/aidSprint-app/admin-aidSprint-app/Integration-task-readiness-plan.md#L1077-L1092).
+- First inspect the current settings/marketplace implementation around:
+  - `src/components/dashboard/setting/marketplace-config.tsx`
+  - `src/components/dashboard/setting/marketplace-config.data.ts`
+  - `src/components/dashboard/setting/marketplace-page.tsx`
+  - related Supabase helpers in `src/lib/supabase/data.ts` and mapper utilities
+- Preserve the current Settings and Marketplace visual structure while replacing local-only promo/template/campaign flows with real Supabase-backed reads and writes.
+- Only remove local-only success behavior when the corresponding live mutation path is actually implemented.
+- Add focused tests only for the newly live promo/template/campaign mutation paths.
+- Keep the pinned contractor/mobile KYC blocker untouched for now except for documentation follow-up if the mobile developer replies.

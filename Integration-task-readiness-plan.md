@@ -1050,7 +1050,7 @@ Requirements:
 
 ### Phase L - Promos And Notification Campaigns Backend Expansion
 
-#### Chunk L1 - Promo and notification campaign schema/contracts
+#### Chunk L1 - Promo and notification campaign schema/contracts (DONE)
 
 ```text
 Planning and backend-contract task: Add the missing backend shape for promo codes and notification campaigns so the current local-only settings sections can become real. Treat the current marketplace configuration UI as the workflow target and keep the shared mobile/admin domain model in mind.
@@ -1066,6 +1066,13 @@ Requirements:
 - keep naming explicit and backend-ready
 - provide planning-safe SQL under `supabase/manual_sql/` when schema changes are required
 ```
+
+Current implementation note:
+
+- The promo and notification campaign backend contract is now present in the latest Supabase schema snapshot `supabase/migrations/20260618091058_remote_schema.sql`.
+- Added tables include `promo_codes`, `promo_code_redemptions`, `notification_templates`, `notification_campaigns`, and `notification_deliveries`.
+- The snapshot also includes explicit constraints, indexes, and admin-facing RLS/policy coverage for these tables, so the schema and backend contract portion of this phase is complete.
+- L2 remains the follow-on integration task to replace the current local-only settings behavior with live reads and writes against those tables.
 
 #### Chunk L2 - Replace local-only promos and campaign settings with live integration
 
@@ -1122,7 +1129,7 @@ Requirements:
 
 ### Phase N - User Management Persistence Cleanup
 
-#### Chunk N1 - Persist user lifecycle/admin actions where backend support exists
+#### Chunk N1 - Persist user lifecycle/admin actions where backend support exists (DONE)
 
 ```text
 Planning and integration task: Review the Users and User Details surfaces and connect only the account lifecycle actions that have a real backend contract. Preserve the current users table, details page, and modal patterns.
@@ -1139,7 +1146,14 @@ Requirements:
 - prefer one shared action path so users list and user details stay consistent
 ```
 
-#### Chunk N2 - Remove or disable unsupported user-profile request actions
+Current implementation note:
+
+- Review completed: no safe shared backend contract was found for live user activate/deactivate actions in this repo without risking misleading persistence semantics.
+- `src/components/dashboard/users/users.tsx` now treats lifecycle actions as explicitly read-only in live mode and disables activate/deactivate actions rather than mutating local UI state.
+- `src/components/dashboard/user-details/user-details-page.tsx` now mirrors that boundary so the users list and user details page stay consistent.
+- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx`, and the production hardening path was validated with targeted Vitest coverage plus `corepack pnpm typecheck`.
+
+#### Chunk N2 - Remove or disable unsupported user-profile request actions (DONE)
 
 ```text
 Integration task: Clean up the user-details request-history workflow so unsupported request-side actions are either truly persisted or explicitly disabled. Keep the current page and request sidebar patterns visually intact.
@@ -1155,6 +1169,12 @@ Requirements:
 - preserve navigation from Users to User Details
 - add focused tests where user-profile actions change materially
 ```
+
+Current implementation note:
+
+- `src/components/dashboard/user-details/user-details-page.tsx` now disables unsupported account-status and profile-linked request intervention actions outside test mode instead of letting them behave like persisted updates.
+- The user-details surface now clearly preserves navigation and visibility while steering operators back to supported live workflows instead of mixed local-only request mutations.
+- Focused regression coverage was added in `src/components/dashboard/user-details/user-details.test.tsx` for the disabled live-mode behavior.
 
 ### Phase O - Request Intervention Contract Decision
 
