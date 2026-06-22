@@ -587,6 +587,250 @@ export type AdminActionLogRow = {
   updated_at: string;
 };
 
+export type JobOperationLogRow = {
+  id: string;
+  job_id: string;
+  operation_type: "delay" | "dispute" | "escalation" | "cleared";
+  reason: string | null;
+  actor_id: string;
+  metadata: Record<string, any> | null;
+  created_at: string;
+};
+
+export const supabaseJobOperations = {
+  async flagDelay(params: {
+    jobId: string;
+    reason: string;
+    actorUserId: string;
+  }): Promise<SupabaseResult<JobOperationLogRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { jobId, reason, actorUserId } = params;
+
+    // Validate actor ID matches session user
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Delay flag actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length < 1 || reason.length > 500) {
+      return { ok: false, message: "Delay reason must be 1-500 characters" };
+    }
+
+    const { data, error } = await client
+      .from("job_operations_log")
+      .insert({
+        id: crypto.randomUUID(),
+        job_id: jobId,
+        operation_type: "delay",
+        reason,
+        actor_id: actorUserId,
+        metadata: null,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: data as JobOperationLogRow };
+  },
+
+  async flagDispute(params: {
+    jobId: string;
+    reason: string;
+    actorUserId: string;
+  }): Promise<SupabaseResult<JobOperationLogRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { jobId, reason, actorUserId } = params;
+
+    // Validate actor ID matches session user
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Dispute flag actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length < 1 || reason.length > 500) {
+      return { ok: false, message: "Dispute reason must be 1-500 characters" };
+    }
+
+    const { data, error } = await client
+      .from("job_operations_log")
+      .insert({
+        id: crypto.randomUUID(),
+        job_id: jobId,
+        operation_type: "dispute",
+        reason,
+        actor_id: actorUserId,
+        metadata: null,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: data as JobOperationLogRow };
+  },
+
+  async flagEscalation(params: {
+    jobId: string;
+    reason: string;
+    actorUserId: string;
+  }): Promise<SupabaseResult<JobOperationLogRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { jobId, reason, actorUserId } = params;
+
+    // Validate actor ID matches session user
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Escalation flag actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length < 1 || reason.length > 500) {
+      return { ok: false, message: "Escalation reason must be 1-500 characters" };
+    }
+
+    const { data, error } = await client
+      .from("job_operations_log")
+      .insert({
+        id: crypto.randomUUID(),
+        job_id: jobId,
+        operation_type: "escalation",
+        reason,
+        actor_id: actorUserId,
+        metadata: null,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: data as JobOperationLogRow };
+  },
+
+  async clearFlag(params: {
+    jobId: string;
+    reason: string;
+    actorUserId: string;
+  }): Promise<SupabaseResult<JobOperationLogRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { jobId, reason, actorUserId } = params;
+
+    // Validate actor ID matches session user
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Clear flag actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length < 1 || reason.length > 500) {
+      return { ok: false, message: "Clear reason must be 1-500 characters" };
+    }
+
+    const { data, error } = await client
+      .from("job_operations_log")
+      .insert({
+        id: crypto.randomUUID(),
+        job_id: jobId,
+        operation_type: "cleared",
+        reason,
+        actor_id: actorUserId,
+        metadata: null,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: data as JobOperationLogRow };
+  },
+
+  async getOperationHistory(
+    jobId: string,
+  ): Promise<SupabaseResult<JobOperationLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("job_operations_log")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as JobOperationLogRow[] };
+  },
+
+  async getCurrentOperationState(
+    jobId: string,
+  ): Promise<SupabaseResult<{
+    isDelayed: boolean;
+    delayReason?: string;
+    delayedBy?: string;
+    isDisputed: boolean;
+    disputeReason?: string;
+    disputedBy?: string;
+    lastOperation?: JobOperationLogRow;
+  }>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const historyResult = await this.getOperationHistory(jobId);
+    if (!historyResult.ok) return historyResult;
+
+    const operations = historyResult.data;
+    const lastDelay = operations.find((op) => op.operation_type === "delay");
+    const lastDispute = operations.find((op) => op.operation_type === "dispute");
+    const lastCleared = operations.find((op) => op.operation_type === "cleared");
+
+    return {
+      ok: true,
+      data: {
+        isDelayed:
+          lastDelay && (!lastCleared || lastDelay.created_at > lastCleared.created_at)
+            ? true
+            : false,
+        delayReason: lastDelay?.reason || undefined,
+        delayedBy: lastDelay?.actor_id || undefined,
+        isDisputed:
+          lastDispute && (!lastCleared || lastDispute.created_at > lastCleared.created_at)
+            ? true
+            : false,
+        disputeReason: lastDispute?.reason || undefined,
+        disputedBy: lastDispute?.actor_id || undefined,
+        lastOperation: operations[0],
+      },
+    };
+  },
+};
+
 export const supabaseFinanceAuditLog = {
   async listByPaymentId(
     paymentId: string,

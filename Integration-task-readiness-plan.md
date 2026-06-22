@@ -51,7 +51,7 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 - Supabase schema supports: jobs, contractors, contractor documents, categories, service types, urgency tiers, payments, withdrawals, notifications, reviews, realtime, support_tickets, disputes, dispute_evidence, dispute_events, promo_codes, promo_code_redemptions, notification_templates, notification_campaigns, notification_deliveries, admin_security_settings, admin_mfa_recovery_codes, admin_security_events, finance_admin_events, profiles with admin role
 - **What is NOT yet integrated:** evidence file uploads (I3), support message threading (I4), dispute refund linkage to payments (I5), admin audit logging for all mutations (J3), error recovery/circuit breaker (J4), comprehensive RLS audit (J5), end-to-end testing (P1-P4), rate limiting & abuse prevention (Q1-Q4), finance write contract (M1-M2)
 
-## Integration Principles
+## Integration Principles and rules-
 
 - Start with the thinnest working vertical slice, not the biggest module.
 - Replace mock data module by module, not app-wide at once.
@@ -61,6 +61,7 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 - Add writes before realtime where possible.
 - Add realtime only after base fetch + mutation flows are stable.
 - Protect admin-only access with proper auth and RLS before exposing live data.
+- **⚠️ SOURCE OF TRUTH:** Always verify integration readiness by checking the actual `supabase/migrations/` folder (the deployed schema), NOT `supabase/manual_sql/`. The manual_sql folder is only a reference for SQL that needs to be applied. Once applied to Supabase and `supabase db pull` is run, the truth is in the timestamped migrations files. Never rely on manual_sql to determine what is deployed.
 
 ## Overall Readiness Summary
 
@@ -77,6 +78,8 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 - **Evidence file handling for disputes (I3)** — Storage bucket + upload/download UI + tests
 - **Support ticket message threading (I4)** — Message table + read-state tracking + conversation UI
 - **Dispute refund linkage and payment reversal coordination (I5)** — Schema extensions, refund tracking, finance audit log, data layer functions, UI integration with refund status display and action buttons
+- **Finance write contract (M1-M2)** — ✅ DONE — finance_audit_log table + full RLS (SELECT & INSERT policies deployed 2026-06-22)
+- **Intervention operations contract (O1-O2)** — ✅ DONE — job_operations_log table + RLS, sidebar UI fully wired (delay/dispute/escalation flags + operation history audit trail)
 - Admin MFA/TOTP with recovery codes (K1-K2)
 - Promos and notification campaigns — live CRUD with local fallback (L1-L2)
 - User management cleanup — unsupported actions disabled (N1-N2)
@@ -84,7 +87,7 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ### Needs backend decisions before full production integration
 
-- Finance write contract (M1-M2)
+*(All backend decisions made; moving to testing & monitoring phases)*
 
 ### Needs implementation
 
@@ -96,10 +99,8 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ## Recommended Integration Order (Remaining Work)
 
-1. **M1-M2** — Finance write contract (settlement operations)
-2. **O1-O2** — Intervention contract decision + UI alignment
-3. **P1-P4** — Testing suite
-4. **Q1-Q4** — Rate limiting and abuse prevention
+1. **P1-P4** — End-to-end tests (permission matrix, error scenarios, performance)
+2. **Q1-Q4** — Rate limiting and abuse prevention (auth rate limiting, mutation rate limiting, abuse detection)
 
 ---
 
