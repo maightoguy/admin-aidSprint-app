@@ -517,6 +517,11 @@ export type AdminActionType =
   | "refund_initiated"
   | "refund_completed"
   | "refund_failed"
+  | "payment_failed"
+  | "payment_cancelled"
+  | "withdrawal_failed"
+  | "withdrawal_completed"
+  | "withdrawal_cancelled"
   | "payout_approved"
   | "payout_rejected"
   | "payout_processed"
@@ -1222,6 +1227,499 @@ export const supabaseFinance = {
 
     if (error) return { ok: false, message: formatPostgrestError(error) };
     return { ok: true, data: (data ?? []) as WithdrawalRow[] };
+  },
+
+  /**
+   * Mark a payment as refunded (for captured or paid payments)
+   * - Validates current status is captured or paid
+   * - Records immutable audit event
+   * - Updates refunded_at timestamp
+   */
+  async refundPayment(params: {
+    paymentId: string;
+    refundAmount: number;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<PaymentRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    // Validate actor_id matches session
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Payment refund actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    // Validate reason
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Refund reason must be 1-500 characters" };
+    }
+
+    // Fetch current payment to validate status
+    const { data: currentPayment, error: fetchError } = await client
+      .from("payments")
+      .select("*")
+      .eq("id", params.paymentId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentPayment) {
+      return { ok: false, message: "Payment not found" };
+    }
+
+    const paymentData = currentPayment as PaymentRow;
+
+    // Validate status transition
+    if (!["captured", "paid"].includes(paymentData.status)) {
+      return {
+        ok: false,
+        message: `Cannot refund payment in ${paymentData.status} state. Only captured or paid payments can be refunded.`,
+      };
+    }
+
+    // Update payment with refund info
+    const { data: updatedPayment, error: updateError } = await client
+      .from("payments")
+      .update({
+        status: "refunded",
+        refunded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.paymentId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      // RLS violation (42501) means not admin
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    // Log audit event (fire-and-forget, errors silently ignored)
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "refund_initiated",
+      resourceType: "payment",
+      resourceId: params.paymentId,
+      reason: params.reason,
+      metadata: {
+        refundAmount: params.refundAmount,
+        oldStatus: paymentData.status,
+        newStatus: "refunded",
+      },
+    });
+
+    return { ok: true, data: (updatedPayment ?? paymentData) as PaymentRow };
+  },
+
+  /**
+   * Mark a payment as failed (for stuck or failed transactions)
+   */
+  async markPaymentFailed(params: {
+    paymentId: string;
+    failureCode: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<PaymentRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Payment update actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Failure reason must be 1-500 characters" };
+    }
+
+    const { data: currentPayment, error: fetchError } = await client
+      .from("payments")
+      .select("*")
+      .eq("id", params.paymentId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentPayment) {
+      return { ok: false, message: "Payment not found" };
+    }
+
+    const paymentData = currentPayment as PaymentRow;
+    const allowedStatuses = ["pending", "processing", "authorized", "captured", "paid"];
+    if (!allowedStatuses.includes(paymentData.status)) {
+      return {
+        ok: false,
+        message: `Cannot mark ${paymentData.status} payment as failed`,
+      };
+    }
+
+    const { data: updatedPayment, error: updateError } = await client
+      .from("payments")
+      .update({
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.paymentId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "payment_failed",
+      resourceType: "payment",
+      resourceId: params.paymentId,
+      reason: params.reason,
+      metadata: {
+        failureCode: params.failureCode,
+        oldStatus: paymentData.status,
+        newStatus: "failed",
+      },
+    });
+
+    return { ok: true, data: (updatedPayment ?? paymentData) as PaymentRow };
+  },
+
+  /**
+   * Cancel a pending payment
+   */
+  async cancelPayment(params: {
+    paymentId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<PaymentRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Payment cancel actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Cancellation reason must be 1-500 characters" };
+    }
+
+    const { data: currentPayment, error: fetchError } = await client
+      .from("payments")
+      .select("*")
+      .eq("id", params.paymentId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentPayment) {
+      return { ok: false, message: "Payment not found" };
+    }
+
+    const paymentData = currentPayment as PaymentRow;
+    if (!["pending", "requires_payment_method"].includes(paymentData.status)) {
+      return {
+        ok: false,
+        message: `Cannot cancel payment in ${paymentData.status} state. Only pending payments can be cancelled.`,
+      };
+    }
+
+    const { data: updatedPayment, error: updateError } = await client
+      .from("payments")
+      .update({
+        status: "cancelled",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.paymentId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "payment_cancelled",
+      resourceType: "payment",
+      resourceId: params.paymentId,
+      reason: params.reason,
+      metadata: {
+        oldStatus: paymentData.status,
+        newStatus: "cancelled",
+      },
+    });
+
+    return { ok: true, data: (updatedPayment ?? paymentData) as PaymentRow };
+  },
+
+  /**
+   * Mark a withdrawal as failed
+   */
+  async markWithdrawalFailed(params: {
+    withdrawalId: string;
+    failureCode: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<WithdrawalRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Withdrawal update actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Failure reason must be 1-500 characters" };
+    }
+
+    const { data: currentWithdrawal, error: fetchError } = await client
+      .from("withdrawals")
+      .select("*")
+      .eq("id", params.withdrawalId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentWithdrawal) {
+      return { ok: false, message: "Withdrawal not found" };
+    }
+
+    const withdrawalData = currentWithdrawal as WithdrawalRow;
+    if (!["pending", "processing"].includes(withdrawalData.status)) {
+      return {
+        ok: false,
+        message: `Cannot mark ${withdrawalData.status} withdrawal as failed`,
+      };
+    }
+
+    const { data: updatedWithdrawal, error: updateError } = await client
+      .from("withdrawals")
+      .update({
+        status: "failed",
+        failure_code: params.failureCode,
+        failure_message: params.reason,
+      })
+      .eq("id", params.withdrawalId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "withdrawal_failed",
+      resourceType: "withdrawal",
+      resourceId: params.withdrawalId,
+      reason: params.reason,
+      metadata: {
+        failureCode: params.failureCode,
+        oldStatus: withdrawalData.status,
+        newStatus: "failed",
+      },
+    });
+
+    return { ok: true, data: (updatedWithdrawal ?? withdrawalData) as WithdrawalRow };
+  },
+
+  /**
+   * Mark a withdrawal as completed (for manual payouts)
+   */
+  async markWithdrawalCompleted(params: {
+    withdrawalId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<WithdrawalRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Withdrawal completion actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Completion reason must be 1-500 characters" };
+    }
+
+    const { data: currentWithdrawal, error: fetchError } = await client
+      .from("withdrawals")
+      .select("*")
+      .eq("id", params.withdrawalId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentWithdrawal) {
+      return { ok: false, message: "Withdrawal not found" };
+    }
+
+    const withdrawalData = currentWithdrawal as WithdrawalRow;
+    if (withdrawalData.status !== "processing") {
+      return {
+        ok: false,
+        message: `Cannot mark ${withdrawalData.status} withdrawal as completed. Only processing withdrawals can be completed.`,
+      };
+    }
+
+    const { data: updatedWithdrawal, error: updateError } = await client
+      .from("withdrawals")
+      .update({
+        status: "completed",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", params.withdrawalId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "withdrawal_completed",
+      resourceType: "withdrawal",
+      resourceId: params.withdrawalId,
+      reason: params.reason,
+      metadata: {
+        oldStatus: withdrawalData.status,
+        newStatus: "completed",
+      },
+    });
+
+    return { ok: true, data: (updatedWithdrawal ?? withdrawalData) as WithdrawalRow };
+  },
+
+  /**
+   * Cancel a pending withdrawal
+   */
+  async cancelWithdrawal(params: {
+    withdrawalId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<SupabaseResult<WithdrawalRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data: sessionData } = await client.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    if (params.actorUserId !== sessionUserId) {
+      return {
+        ok: false,
+        message: "Withdrawal cancel actor_id must match current user (privilege escalation prevented)",
+      };
+    }
+
+    if (!params.reason || params.reason.trim().length < 1 || params.reason.length > 500) {
+      return { ok: false, message: "Cancellation reason must be 1-500 characters" };
+    }
+
+    const { data: currentWithdrawal, error: fetchError } = await client
+      .from("withdrawals")
+      .select("*")
+      .eq("id", params.withdrawalId)
+      .single();
+
+    if (fetchError) return { ok: false, message: formatPostgrestError(fetchError) };
+    if (!currentWithdrawal) {
+      return { ok: false, message: "Withdrawal not found" };
+    }
+
+    const withdrawalData = currentWithdrawal as WithdrawalRow;
+    if (withdrawalData.status !== "pending") {
+      return {
+        ok: false,
+        message: `Cannot cancel ${withdrawalData.status} withdrawal. Only pending withdrawals can be cancelled.`,
+      };
+    }
+
+    const { data: updatedWithdrawal, error: updateError } = await client
+      .from("withdrawals")
+      .update({
+        status: "cancelled",
+      })
+      .eq("id", params.withdrawalId)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "42501") {
+        return {
+          ok: false,
+          message: "Your account is not authorized to access the admin portal.",
+        };
+      }
+      return { ok: false, message: formatPostgrestError(updateError) };
+    }
+
+    void supabaseAuditLog.logAction({
+      adminId: params.actorUserId,
+      actionType: "withdrawal_cancelled",
+      resourceType: "withdrawal",
+      resourceId: params.withdrawalId,
+      reason: params.reason,
+      metadata: {
+        oldStatus: withdrawalData.status,
+        newStatus: "cancelled",
+      },
+    });
+
+    return { ok: true, data: (updatedWithdrawal ?? withdrawalData) as WithdrawalRow };
   },
 };
 
