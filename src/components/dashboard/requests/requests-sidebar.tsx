@@ -26,6 +26,8 @@ import {
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { supabaseSupport } from "@/lib/supabase/data";
+import { useAuthStore } from "@/auth/auth.store";
 import {
   RequestsChevronDownIcon,
   RequestsCloseIcon,
@@ -412,6 +414,7 @@ export function RequestsCore({
   const panelState = getRequestPanelState(request);
   const stateCopy = requestStateCopy[panelState];
   const isTrackerDisabled = panelState === "cancelled" || !onOpenLiveTracker;
+  const session = useAuthStore((state) => state.session);
   const ops = useRequestsStore((state) => state.requestOpsById[request.id]);
   const monitoringState = ops?.monitoringState ?? "live";
   const setMonitoringState = useRequestsStore(
@@ -421,7 +424,6 @@ export function RequestsCore({
   const clearDelayed = useRequestsStore((state) => state.clearDelayed);
   const openDispute = useRequestsStore((state) => state.openDispute);
   const resolveDispute = useRequestsStore((state) => state.resolveDispute);
-  const escalateSupport = useRequestsStore((state) => state.escalateSupport);
   const setCancellationReason = useRequestsStore(
     (state) => state.setCancellationReason,
   );
@@ -434,6 +436,7 @@ export function RequestsCore({
   const [disputeReason, setDisputeReason] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportReason, setSupportReason] = useState("");
+  const [isEscalatingSupport, setIsEscalatingSupport] = useState(false);
   const [statusActionError, setStatusActionError] = useState<string | null>(
     null,
   );
@@ -966,14 +969,45 @@ export function RequestsCore({
         confirmLabel="Escalate"
         reason={supportReason}
         onReasonChange={setSupportReason}
-        isSubmitting={false}
-        onConfirm={() => {
-          escalateSupport(request.id, supportReason);
-          toast.success("Escalated to support", {
-            description: "The escalation has been recorded for follow-up.",
-          });
-          setSupportOpen(false);
-          setSupportReason("");
+        isSubmitting={isEscalatingSupport}
+        onConfirm={async () => {
+          if (!session?.userId) {
+            toast.error("Error", {
+              description: "User session not found. Please log in again.",
+            });
+            return;
+          }
+
+          setIsEscalatingSupport(true);
+          try {
+            const result = await supabaseSupport.createSupportTicket({
+              requestId: request.id,
+              requesterUserId: session.userId,
+              requesterRole: "contractor",
+              escalationReason: supportReason,
+            });
+
+            if (!result.ok) {
+              const errorMessage = "message" in result ? result.message : "Failed to escalate to support.";
+              toast.error("Escalation failed", {
+                description: errorMessage,
+              });
+              return;
+            }
+
+            toast.success("Escalated to support", {
+              description: "A support ticket has been created for this issue.",
+            });
+            setSupportOpen(false);
+            setSupportReason("");
+          } catch (error) {
+            toast.error("Error", {
+              description:
+                error instanceof Error ? error.message : "Failed to escalate to support.",
+            });
+          } finally {
+            setIsEscalatingSupport(false);
+          }
         }}
       />
     </div>

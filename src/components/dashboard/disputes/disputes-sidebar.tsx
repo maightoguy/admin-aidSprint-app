@@ -8,12 +8,15 @@ import {
   ShieldAlert,
   CircleAlert,
   Gavel,
+  Banknote,
+  AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuthStore } from "@/auth/auth.store";
 import { cn } from "@/lib/utils";
 import { supabaseDisputes } from "@/lib/supabase/data";
+import type { DisputeAttachment } from "./disputes.types";
 import {
   Dialog,
   DialogDescription,
@@ -32,6 +35,7 @@ import type {
   DisputeActionLogEntry,
   DisputeLifecycleState,
   DisputeRecord,
+  DisputeRefundStatus,
   DisputeResolutionType,
 } from "./disputes.types";
 import {
@@ -268,6 +272,9 @@ export function DisputeDetailsSidebar({
   const [isApplyingAction, setIsApplyingAction] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [isUploadingFile, setIsUploadingFile] = React.useState(false);
+  const [isCompleteRefund, setIsCompleteRefund] = React.useState(false);
+  const [isFailRefund, setIsFailRefund] = React.useState(false);
+  const [refundFailureReason, setRefundFailureReason] = React.useState("");
   const adminUserId = useAuthStore((s) => s.session?.userId ?? "");
 
   React.useEffect(() => {
@@ -491,6 +498,25 @@ export function DisputeDetailsSidebar({
                       value={dispute.proposedResolutionType}
                     />
                   ) : null}
+                  {dispute.lifecycleState === "Resolved" && ["RefundCustomer", "PartialRefund", "ReversePayout"].includes(dispute.proposedResolutionType || "") && dispute.refundStatus ? (
+                    <div className="flex items-center justify-between gap-3 border-t border-[#EAECF0] px-[10px] py-[11px]">
+                      <span className="text-xs font-semibold text-[#667085]">Refund status</span>
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+                        {
+                          "bg-[#FEF3C7] text-[#92400E]": dispute.refundStatus === "pending",
+                          "bg-[#DBEAFE] text-[#1E40AF]": dispute.refundStatus === "processing",
+                          "bg-[#DCFCE7] text-[#166534]": dispute.refundStatus === "completed",
+                          "bg-[#FEE2E2] text-[#991B1B]": dispute.refundStatus === "failed",
+                        }
+                      )}>
+                        {dispute.refundStatus === "pending" && "Pending approval"}
+                        {dispute.refundStatus === "processing" && "Processing"}
+                        {dispute.refundStatus === "completed" && "Completed"}
+                        {dispute.refundStatus === "failed" && "Failed"}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -599,7 +625,7 @@ export function DisputeDetailsSidebar({
                         }
 
                         const row = result.data;
-                        const newAttachment = {
+                        const newAttachment: DisputeAttachment = {
                           id: row.id,
                           type: row.evidence_type === 'image' ? 'Image' : 'Document',
                           label: row.description || selectedFile.name,
@@ -707,6 +733,55 @@ export function DisputeDetailsSidebar({
                         Reject dispute
                       </div>
                     </DropdownMenuItem>
+                    {dispute.lifecycleState === "Resolved" && dispute.refundStatus === "pending" && (
+                      <>
+                        <div className="my-2 border-t border-[#EAECF0]" />
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            if (!dispute.paymentId) {
+                              toast.error("No payment ID linked to this dispute");
+                              return;
+                            }
+                            setIsCompleteRefund(true);
+                            const result = await supabaseDisputes.completeRefund({
+                              paymentId: dispute.paymentId,
+                              disputeId: dispute.id,
+                              adminUserId,
+                            });
+                            setIsCompleteRefund(false);
+                            if (result.ok) {
+                              toast.success("Refund completed", {
+                                description: "Payment marked as refunded",
+                              });
+                              onUpdateDispute({
+                                ...dispute,
+                                refundStatus: "completed",
+                              });
+                            } else if ("message" in result) {
+                              toast.error("Failed to complete refund", {
+                                description: result.message,
+                              });
+                            }
+                          }}
+                          disabled={isCompleteRefund}
+                          className="rounded-[10px] px-4 py-3 text-[14px] font-medium outline-none transition focus:bg-[#F8FAFC]"
+                        >
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-[#15803D]" />
+                            Complete refund
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setIsFailRefund(true)}
+                          className="rounded-[10px] px-4 py-3 text-[14px] font-medium outline-none transition focus:bg-[#F8FAFC]"
+                        >
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-[#D97706]" />
+                            Mark refund failed
+                          </div>
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -860,6 +935,94 @@ export function DisputeDetailsSidebar({
               );
             }}
           />
+
+          {isFailRefund && (
+            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] w-[400px] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_24px_40px_rgba(15,23,42,0.14)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-bold text-[#101828]">
+                    Mark refund as failed
+                  </h2>
+                  <p className="mt-1 text-sm text-[#667085]">
+                    Record why this refund operation failed
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFailRefund(false);
+                    setRefundFailureReason("");
+                  }}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-[#667085] transition hover:bg-[#F9FAFB] hover:text-[#344054]"
+                  aria-label="Close dialog"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-[#344054]">
+                  Failure reason
+                </label>
+                <Textarea
+                  value={refundFailureReason}
+                  onChange={(e) => setRefundFailureReason(e.target.value)}
+                  placeholder="Describe what went wrong with the refund"
+                  className="mt-2 min-h-[92px]"
+                  aria-label="Refund failure reason"
+                />
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFailRefund(false);
+                    setRefundFailureReason("");
+                  }}
+                  className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#EAECF0] px-4 text-sm font-semibold text-[#344054] transition hover:bg-[#F9FAFB]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!refundFailureReason.trim() || isCompleteRefund}
+                  onClick={async () => {
+                    if (!dispute.paymentId) {
+                      toast.error("No payment ID linked to this dispute");
+                      return;
+                    }
+                    setIsCompleteRefund(true);
+                    const result = await supabaseDisputes.failRefund({
+                      paymentId: dispute.paymentId,
+                      disputeId: dispute.id,
+                      adminUserId,
+                      failureReason: refundFailureReason.trim(),
+                    });
+                    setIsCompleteRefund(false);
+                    if (result.ok) {
+                      toast.success("Refund marked as failed", {
+                        description: "Admin can retry the refund later",
+                      });
+                      onUpdateDispute({
+                        ...dispute,
+                        refundStatus: "failed",
+                      });
+                      setIsFailRefund(false);
+                      setRefundFailureReason("");
+                    } else if ("message" in result) {
+                      toast.error("Failed to mark refund as failed", {
+                        description: result.message,
+                      });
+                    }
+                  }}
+                  className="inline-flex h-10 items-center justify-center rounded-[8px] border border-transparent bg-[#D97706] px-4 text-sm font-semibold text-white transition hover:bg-[#B45309] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Mark failed
+                </button>
+              </div>
+            </DialogPrimitive.Content>
+          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

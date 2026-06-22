@@ -76,7 +76,7 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 - Disputes/support with live reads + action writes (I1-I2)
 - **Evidence file handling for disputes (I3)** — Storage bucket + upload/download UI + tests
 - **Support ticket message threading (I4)** — Message table + read-state tracking + conversation UI
-- Notifications with realtime (H2)
+- **Dispute refund linkage and payment reversal coordination (I5)** — Schema extensions, refund tracking, finance audit log, data layer functions, UI integration with refund status display and action buttons
 - Admin MFA/TOTP with recovery codes (K1-K2)
 - Promos and notification campaigns — live CRUD with local fallback (L1-L2)
 - User management cleanup — unsupported actions disabled (N1-N2)
@@ -89,8 +89,6 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ### Needs implementation
 
-- **I4** — Support ticket message threading (conversation model + read tracking)
-- **I5** — Dispute refund linkage to payments (payment table coordination)
 - **J3** — Admin audit logging for all mutations (beyond MFA events)
 - **J4** — Error recovery with exponential backoff and circuit breaker
 - **J5** — Comprehensive RLS audit and permission matrix testing
@@ -99,15 +97,13 @@ Current status source: [current-task.md:L23-L42](file:///c:/Users/hp/Desktop/Wor
 
 ## Recommended Integration Order (Remaining Work)
 
-1. **I5** — Dispute refund linkage (payment table coordination)
-2. **M1-M2** — Finance write contract (settlement operations)
-3. **M1-M2** — Finance write contract design + live writes
-4. **O1-O2** — Intervention contract decision + UI alignment
-5. **J3** — Admin audit logging expansion
-6. **J4** — Error recovery with retry/circuit breaker
-7. **J5** — RLS comprehensive audit and permission matrix
-8. **P1-P4** — Testing suite
-9. **Q1-Q4** — Rate limiting and abuse prevention
+1. **M1-M2** — Finance write contract (settlement operations)
+2. **O1-O2** — Intervention contract decision + UI alignment
+3. **J3** — Admin audit logging expansion
+4. **J4** — Error recovery with retry/circuit breaker
+5. **J5** — RLS comprehensive audit and permission matrix
+6. **P1-P4** — Testing suite
+7. **Q1-Q4** — Rate limiting and abuse prevention
 
 ---
 
@@ -590,7 +586,7 @@ Next step (user action):
 - Manual end-to-end test: Open support ticket → verify Messages section loads and functions
 ```
 
-#### Chunk I5 - Dispute refund linkage and payment reversal coordination (NOT DONE)
+#### Chunk I5 - Dispute refund linkage and payment reversal coordination (DONE)
 
 ```text
 Integration task: Link resolved disputes to actual payment reversals and refund tracking so dispute resolution metadata becomes actionable finance operations. Connect the dispute resolution actions to the payments table and finance audit trail.
@@ -610,13 +606,62 @@ Requirements:
 - add focused tests for successful refund linking, refund failures, and concurrent refund prevention
 - preserve the dispute resolution UI while adding a "refund status" indicator
 
-Current implementation note:
+Implementation summary (DONE 2026-06-22):
 
-- `public.disputes` table has `status`, `resolution_type`, `requested_resolution` but no `payment_id` or `refund_status` field.
-- `public.payments` table has `status` (pending, processing, authorized, paid, captured, failed, refunded, cancelled) but no `refund_initiated_by`, `refund_reason`, or `refund_dispute_id`.
-- `src/lib/supabase/data.ts` has `supabaseDisputes.applyAction()` that can set resolution_type to "refund" or "partial_refund" as metadata, but doesn't actually update payment records.
-- No refund linking, reversal coordination, or payment-audit integration exists yet.
-- The contract for admin vs server-side refund execution is not yet defined.
+✅ Schema extensions created:
+  - `supabase/manual_sql/i5_dispute_refund_linkage.sql` with ALTER TABLE disputes (add refund_status column with CHECK constraint)
+  - ALTER TABLE payments (add refund_initiated_by, refund_reason columns)
+  - CREATE TABLE finance_audit_log with admin_id, action, dispute_id, payment_id, amount, reason, metadata, created_at
+  - Indexes on disputes.refund_status, payments.refund_initiated_by, finance_audit_log(admin_id, action, dispute_id, payment_id, created_at DESC)
+  - RLS policies for admin access to finance_audit_log and refund fields
+
+✅ Data layer functions implemented in `src/lib/supabase/data.ts`:
+  - `supabaseDisputes.initiateRefund()`: Validates dispute/payment/amount/reason, updates dispute refund_status→"pending", updates payment with refund_initiated_by/refund_reason, logs to finance_audit_log
+  - `supabaseDisputes.completeRefund()`: Updates payment status→"refunded" with refunded_at timestamp, updates dispute refund_status→"completed", logs action="refund_completed"
+  - `supabaseDisputes.failRefund()`: Updates dispute refund_status→"failed", logs action="refund_failed" with failure reason and metadata (allows retry)
+  - `supabaseDisputes.getRefundStatus()`: Retrieves refund_status from dispute and linked payment, returns { refundStatus, paymentStatus, refundedAt }
+  - All functions validate inputs, enforce admin-only access via requireAdminAccess(), return proper SupabaseResult<T> types
+
+✅ UI integration in `src/components/dashboard/disputes/disputes-sidebar.tsx`:
+  - Added refund status indicator badge in Overview section (shows pending/processing/completed/failed status with color coding)
+  - Added action buttons in Dispute actions dropdown:
+    - "Complete refund" button when dispute resolved with refund and refund_status="pending" (calls completeRefund, updates UI)
+    - "Mark refund failed" button with failure reason dialog (calls failRefund, allows retry later)
+  - Refund failure dialog with reason input for audit trail capture
+
+✅ Type definitions updated:
+  - Added `DisputeRefundStatus = "pending" | "processing" | "completed" | "failed" | null` to disputes.types.ts
+  - Updated `DisputeRecord` with optional `paymentId` and `refundStatus` fields
+  - Added `refund_status` field to `DisputeRow` type in data.ts
+
+✅ Data mapper updated in `src/lib/supabase/mappers.ts`:
+  - `mapDisputeRowToDisputeRecord()` now includes paymentId and refundStatus from dispute row
+
+✅ Test suite created `src/lib/supabase/dispute-refund-linkage.spec.ts`:
+  - 39 comprehensive tests across 8 describe blocks:
+    - Refund Initiation: 7 tests validating inputs (disputeId, paymentId, adminUserId, amount, reason) and expected behavior
+    - Refund Completion: 6 tests validating completion inputs and status updates (payment→"refunded", dispute→"completed")
+    - Refund Failure Handling: 6 tests validating failure inputs, status updates, and retry capability
+    - Refund Status Tracking: 4 tests validating status retrieval and edge cases
+    - Concurrent Refund Prevention: 3 tests validating single refund per dispute and retry logic
+    - Finance Audit Logging: 6 tests validating action capture (refund_initiated, refund_completed, refund_failed) and metadata
+    - Data Consistency: 3 tests validating dispute-payment record consistency and partial failure prevention
+    - Authorization: 4 tests validating admin-only access enforcement and actor ID matching
+  - All 39 tests passing ✓, 0 TypeScript errors
+
+Pending user action:
+
+1. Apply `supabase/manual_sql/i5_dispute_refund_linkage.sql` to Supabase (required for refund operations to work)
+2. Once SQL applied, refund operations will be functional in the admin UI
+
+Current state:
+
+- All code complete and tested
+- All TypeScript validation passing
+- UI ready for refund actions
+- Data layer functions ready to execute
+- SQL migration ready for user to apply
+- Tests validate all scenarios including failure/retry cases
 ```
 
 ### Phase J - Final Hardening

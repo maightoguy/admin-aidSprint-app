@@ -47,6 +47,13 @@ export type DisputeActionLogEntry = {
   summary: string;
 };
 
+export type DisputeRefundStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | null;
+
 export type DisputeRecord = {
   id: string;
   disputeId: string;
@@ -74,6 +81,8 @@ export type DisputeRecord = {
   notes: DisputeNote[];
   actionLog: DisputeActionLogEntry[];
   proposedResolutionType?: DisputeResolutionType;
+  paymentId?: string;
+  refundStatus?: DisputeRefundStatus;
   backendStatus?: string;
   dataSource?: "mock" | "live";
 };

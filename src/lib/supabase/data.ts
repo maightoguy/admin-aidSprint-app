@@ -318,6 +318,7 @@ export type DisputeRow = {
   related_withdrawal_id: string | null;
   resolution_type: string | null;
   resolution_amount: number | null;
+  refund_status: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
@@ -1435,6 +1436,51 @@ export const supabaseSupport = {
       return { ok: false, message: err instanceof Error ? err.message : "Failed to count unread messages." };
     }
   },
+
+  async createSupportTicket(params: {
+    requestId: string;
+    requesterUserId: string;
+    requesterRole: string;
+    escalationReason: string;
+  }): Promise<SupabaseResult<{ id: string }>> {
+    const client = requireSupabaseClient();
+    const requestId = params.requestId.trim();
+    const requesterUserId = params.requesterUserId.trim();
+    const requesterRole = params.requesterRole.trim();
+    const escalationReason = params.escalationReason.trim();
+
+    // Validation
+    if (!requestId) return { ok: false, message: "Request ID is required." };
+    if (!requesterUserId) return { ok: false, message: "Requester user ID is required." };
+    if (!requesterRole) return { ok: false, message: "Requester role is required." };
+    if (!escalationReason || escalationReason.length === 0)
+      return { ok: false, message: "Escalation reason cannot be empty." };
+    if (escalationReason.length > 5000)
+      return { ok: false, message: "Escalation reason cannot exceed 5000 characters." };
+
+    try {
+      const { data, error } = await client
+        .from("support_tickets")
+        .insert({
+          requester_id: requesterUserId,
+          requester_role: requesterRole,
+          job_id: requestId,
+          subject: `Support escalation from ${requesterRole}`,
+          description: escalationReason,
+          status: "open",
+          priority: "high",
+        })
+        .select("id")
+        .single();
+
+      if (error) return { ok: false, message: formatPostgrestError(error) };
+      if (!data) return { ok: false, message: "Failed to create support ticket." };
+
+      return { ok: true, data: { id: data.id } };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to create support ticket." };
+    }
+  },
 };
 
 export const supabaseDisputes = {
@@ -1676,6 +1722,308 @@ export const supabaseDisputes = {
       return { ok: true, data: rowData as DisputeEvidenceRow };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : 'Upload failed.' };
+    }
+  },
+
+  async initiateRefund(params: {
+    disputeId: string;
+    paymentId: string;
+    adminUserId: string;
+    refundAmount: number;
+    refundReason: string;
+  }): Promise<SupabaseResult<{ disputeId: string; paymentId: string; refundStatus: string }>> {
+    const client = requireSupabaseClient();
+    const disputeId = params.disputeId.trim();
+    const paymentId = params.paymentId.trim();
+    const adminUserId = params.adminUserId.trim();
+    const refundAmount = params.refundAmount;
+    const refundReason = params.refundReason.trim();
+
+    // Validation
+    if (!disputeId) return { ok: false, message: "Dispute ID is required." };
+    if (!paymentId) return { ok: false, message: "Payment ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+    if (refundAmount <= 0) return { ok: false, message: "Refund amount must be greater than 0." };
+    if (!refundReason) return { ok: false, message: "Refund reason is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: adminUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const now = new Date().toISOString();
+
+    try {
+      // Update dispute with refund_status = pending
+      const { data: disputeData, error: disputeError } = await client
+        .from("disputes")
+        .update({
+          refund_status: "pending",
+          updated_at: now,
+        })
+        .eq("id", disputeId)
+        .select("*")
+        .single();
+
+      if (disputeError) {
+        return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
+      }
+
+      // Update payment with refund metadata
+      const { data: paymentData, error: paymentError } = await client
+        .from("payments")
+        .update({
+          refund_initiated_by: adminUserId,
+          refund_reason: refundReason,
+          updated_at: now,
+        })
+        .eq("id", paymentId)
+        .select("*")
+        .single();
+
+      if (paymentError) {
+        return { ok: false, message: `Failed to update payment: ${formatPostgrestError(paymentError)}` };
+      }
+
+      // Log to finance audit log
+      const { error: auditError } = await client
+        .from("finance_audit_log")
+        .insert({
+          admin_id: adminUserId,
+          action: "refund_initiated",
+          dispute_id: disputeId,
+          payment_id: paymentId,
+          amount: refundAmount,
+          reason: refundReason,
+          metadata: {
+            payment_status: paymentData?.status,
+            payment_amount: paymentData?.amount,
+          },
+        });
+
+      if (auditError) {
+        return { ok: false, message: `Failed to audit log: ${formatPostgrestError(auditError)}` };
+      }
+
+      return { 
+        ok: true, 
+        data: {
+          disputeId,
+          paymentId,
+          refundStatus: "pending",
+        }
+      };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to initiate refund." };
+    }
+  },
+
+  async completeRefund(params: {
+    paymentId: string;
+    disputeId: string;
+    adminUserId: string;
+  }): Promise<SupabaseResult<{ refundStatus: string; paymentStatus: string }>> {
+    const client = requireSupabaseClient();
+    const paymentId = params.paymentId.trim();
+    const disputeId = params.disputeId.trim();
+    const adminUserId = params.adminUserId.trim();
+
+    if (!paymentId) return { ok: false, message: "Payment ID is required." };
+    if (!disputeId) return { ok: false, message: "Dispute ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: adminUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const now = new Date().toISOString();
+
+    try {
+      // Update payment status to 'refunded' and mark refunded_at
+      const { data: paymentData, error: paymentError } = await client
+        .from("payments")
+        .update({
+          status: "refunded",
+          refunded_at: now,
+          updated_at: now,
+        })
+        .eq("id", paymentId)
+        .select("*")
+        .single();
+
+      if (paymentError) {
+        return { ok: false, message: `Failed to update payment: ${formatPostgrestError(paymentError)}` };
+      }
+
+      // Update dispute refund_status to 'completed'
+      const { error: disputeError } = await client
+        .from("disputes")
+        .update({
+          refund_status: "completed",
+          updated_at: now,
+        })
+        .eq("id", disputeId);
+
+      if (disputeError) {
+        return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
+      }
+
+      // Log to finance audit log
+      const { error: auditError } = await client
+        .from("finance_audit_log")
+        .insert({
+          admin_id: adminUserId,
+          action: "refund_completed",
+          dispute_id: disputeId,
+          payment_id: paymentId,
+          amount: paymentData?.amount,
+          metadata: {
+            payment_status: "refunded",
+            refunded_at: now,
+          },
+        });
+
+      if (auditError) {
+        console.error("Audit log error:", auditError);
+        // Don't fail the refund if audit log fails; log is informational
+      }
+
+      return {
+        ok: true,
+        data: {
+          refundStatus: "completed",
+          paymentStatus: "refunded",
+        },
+      };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to complete refund." };
+    }
+  },
+
+  async failRefund(params: {
+    paymentId: string;
+    disputeId: string;
+    adminUserId: string;
+    failureReason: string;
+  }): Promise<SupabaseResult<{ refundStatus: string }>> {
+    const client = requireSupabaseClient();
+    const paymentId = params.paymentId.trim();
+    const disputeId = params.disputeId.trim();
+    const adminUserId = params.adminUserId.trim();
+    const failureReason = params.failureReason.trim();
+
+    if (!paymentId) return { ok: false, message: "Payment ID is required." };
+    if (!disputeId) return { ok: false, message: "Dispute ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+    if (!failureReason) return { ok: false, message: "Failure reason is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: adminUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    const now = new Date().toISOString();
+
+    try {
+      // Update dispute refund_status to 'failed'
+      const { error: disputeError } = await client
+        .from("disputes")
+        .update({
+          refund_status: "failed",
+          updated_at: now,
+        })
+        .eq("id", disputeId);
+
+      if (disputeError) {
+        return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
+      }
+
+      // Get payment data for audit log
+      const { data: paymentData } = await client
+        .from("payments")
+        .select("*")
+        .eq("id", paymentId)
+        .single();
+
+      // Log to finance audit log
+      const { error: auditError } = await client
+        .from("finance_audit_log")
+        .insert({
+          admin_id: adminUserId,
+          action: "refund_failed",
+          dispute_id: disputeId,
+          payment_id: paymentId,
+          amount: paymentData?.amount,
+          reason: failureReason,
+          metadata: {
+            failure_reason: failureReason,
+            payment_status: paymentData?.status,
+          },
+        });
+
+      if (auditError) {
+        console.error("Audit log error:", auditError);
+        // Don't fail if audit log fails; log is informational
+      }
+
+      return {
+        ok: true,
+        data: {
+          refundStatus: "failed",
+        },
+      };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to mark refund as failed." };
+    }
+  },
+
+  async getRefundStatus(params: {
+    disputeId: string;
+  }): Promise<SupabaseResult<{ refundStatus: string | null; paymentStatus: string | null; refundedAt: string | null }>> {
+    const client = requireSupabaseClient();
+    const disputeId = params.disputeId.trim();
+
+    if (!disputeId) return { ok: false, message: "Dispute ID is required." };
+
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    try {
+      // Get dispute with refund status
+      const { data: disputeData, error: disputeError } = await client
+        .from("disputes")
+        .select("refund_status, related_payment_id")
+        .eq("id", disputeId)
+        .single();
+
+      if (disputeError) {
+        return { ok: false, message: `Failed to fetch dispute: ${formatPostgrestError(disputeError)}` };
+      }
+
+      // If no related payment, return what we have
+      if (!disputeData?.related_payment_id) {
+        return {
+          ok: true,
+          data: {
+            refundStatus: disputeData?.refund_status,
+            paymentStatus: null,
+            refundedAt: null,
+          },
+        };
+      }
+
+      // Get payment status and refunded_at
+      const { data: paymentData } = await client
+        .from("payments")
+        .select("status, refunded_at")
+        .eq("id", disputeData.related_payment_id)
+        .single();
+
+      return {
+        ok: true,
+        data: {
+          refundStatus: disputeData.refund_status,
+          paymentStatus: paymentData?.status,
+          refundedAt: paymentData?.refunded_at,
+        },
+      };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Failed to get refund status." };
     }
   },
 };

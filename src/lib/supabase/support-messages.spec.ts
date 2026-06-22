@@ -198,7 +198,7 @@ describe("Support Ticket Message Threading (I4)", () => {
 
     it("should reject admin trying to insert with sender_role 'user'", () => {
       const isAdmin = true;
-      const senderRole = "user"; // Mismatch
+      const senderRole: string = "user"; // Mismatch
       const canInsert = isAdmin && senderRole === "admin";
       expect(canInsert).toBe(false);
     });

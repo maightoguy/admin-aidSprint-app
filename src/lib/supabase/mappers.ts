@@ -1068,6 +1068,8 @@ export function mapDisputeRowToDisputeRecord(params: {
             },
           ],
     proposedResolutionType: mapDbResolutionTypeToUi(dispute.resolution_type),
+    paymentId: dispute.related_payment_id || undefined,
+    refundStatus: (dispute.refund_status as any) || undefined,
     backendStatus: dispute.status,
     dataSource: "live",
   };
