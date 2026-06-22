@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import {
   supabaseContractorBankAccounts,
   supabaseFinance,
@@ -89,11 +89,12 @@ type FinanceQueueFilter =
   | "completed";
 
 type FinanceAction =
-  | "approvePayout"
-  | "rejectPayout"
-  | "markReconciled"
-  | "flagForReview"
-  | "reversePayout";
+  | "refundPayment"
+  | "markPaymentFailed"
+  | "cancelPayment"
+  | "markWithdrawalFailed"
+  | "markWithdrawalCompleted"
+  | "cancelWithdrawal";
 
 type FinanceSummaryCard = {
   title: string;
@@ -330,6 +331,45 @@ function createAuditEntry(
     createdAtLabel: new Date().toLocaleString(),
     summary,
   };
+}
+
+function getAvailableActionsForTransaction(
+  transaction: FinanceTransactionRecord,
+): FinanceAction[] {
+  const actions: FinanceAction[] = [];
+
+  if (transaction.type === "Service payment") {
+    // Payment actions
+    if (transaction.status === "Captured") {
+      actions.push("refundPayment");
+    }
+    if (
+      [
+        "Authorized",
+        "Captured",
+      ].includes(transaction.status)
+    ) {
+      actions.push("markPaymentFailed");
+    }
+    if (transaction.status === "Authorized") {
+      actions.push("cancelPayment");
+    }
+  } else if (transaction.type === "Withdrawal") {
+    // Withdrawal actions
+    if (
+      ["Processing", "Requested"].includes(transaction.status)
+    ) {
+      actions.push("markWithdrawalFailed");
+    }
+    if (transaction.status === "Processing") {
+      actions.push("markWithdrawalCompleted");
+    }
+    if (transaction.status === "Requested") {
+      actions.push("cancelWithdrawal");
+    }
+  }
+
+  return actions;
 }
 
 function getQueueForTransaction(
@@ -737,53 +777,61 @@ function buildTransactions(
 }
 
 function getReasonDialogConfig(action: FinanceAction): ReasonDialogConfig {
-  if (action === "approvePayout") {
+  if (action === "refundPayment") {
     return {
-      title: "Approve payout",
-      description: "Confirm approval and capture a reason for the audit trail.",
-      reasonLabel: "Approval reason",
-      confirmLabel: "Confirm approval",
+      title: "Refund payment",
+      description: "Process a payment refund and capture the reason for audit.",
+      reasonLabel: "Refund reason",
+      confirmLabel: "Process refund",
       confirmTone: "primary",
     };
   }
 
-  if (action === "rejectPayout") {
+  if (action === "markPaymentFailed") {
     return {
-      title: "Reject payout",
-      description: "Capture why this payout is being rejected or failed.",
-      reasonLabel: "Rejection reason",
-      confirmLabel: "Confirm rejection",
+      title: "Mark payment as failed",
+      description: "Record payment failure and document the reason.",
+      reasonLabel: "Failure reason",
+      confirmLabel: "Mark as failed",
       confirmTone: "danger",
     };
   }
 
-  if (action === "markReconciled") {
+  if (action === "cancelPayment") {
     return {
-      title: "Mark as reconciled",
-      description:
-        "Capture the reconciliation note for downstream finance review.",
-      reasonLabel: "Reconciliation note",
-      confirmLabel: "Mark reconciled",
-      confirmTone: "primary",
+      title: "Cancel payment",
+      description: "Cancel a pending payment and document the cancellation.",
+      reasonLabel: "Cancellation reason",
+      confirmLabel: "Cancel payment",
+      confirmTone: "danger",
     };
   }
 
-  if (action === "flagForReview") {
+  if (action === "markWithdrawalFailed") {
     return {
-      title: "Flag for review",
-      description:
-        "Explain why this transaction needs another finance review pass.",
-      reasonLabel: "Review reason",
-      confirmLabel: "Flag for review",
+      title: "Mark withdrawal as failed",
+      description: "Record withdrawal failure and document the reason.",
+      reasonLabel: "Failure reason",
+      confirmLabel: "Mark as failed",
+      confirmTone: "danger",
+    };
+  }
+
+  if (action === "markWithdrawalCompleted") {
+    return {
+      title: "Mark withdrawal as completed",
+      description: "Confirm manual payout completion and document details.",
+      reasonLabel: "Completion note",
+      confirmLabel: "Mark as completed",
       confirmTone: "primary",
     };
   }
 
   return {
-    title: "Reverse payout",
-    description: "Explain why this payout must be reversed.",
-    reasonLabel: "Reversal reason",
-    confirmLabel: "Reverse payout",
+    title: "Cancel withdrawal",
+    description: "Cancel a pending withdrawal request.",
+    reasonLabel: "Cancellation reason",
+    confirmLabel: "Cancel withdrawal",
     confirmTone: "danger",
   };
 }
@@ -969,23 +1017,25 @@ function QueueCard({
 }
 
 function FinanceActionMenu({
-  transactionCode,
+  transaction,
   onViewDetails,
   onOpenAction,
   writesEnabled,
 }: {
-  transactionCode: string;
+  transaction: FinanceTransactionRecord;
   onViewDetails: () => void;
   onOpenAction: (action: FinanceAction) => void;
   writesEnabled: boolean;
 }) {
+  const availableActions = getAvailableActionsForTransaction(transaction);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="inline-flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#D0D5DD] bg-white text-[#101828] transition hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#071B58]/20"
-          aria-label={`Open actions for transaction ${transactionCode}`}
+          aria-label={`Open actions for transaction ${transaction.transactionCode}`}
         >
           <MoreVertical className="h-4 w-4" />
         </button>
@@ -1001,21 +1051,41 @@ function FinanceActionMenu({
         >
           View details
         </DropdownMenuItem>
-        {writesEnabled ? (
+        {writesEnabled && availableActions.length > 0 ? (
           <>
             <DropdownMenuSeparator className="bg-[#EAECF0]" />
-            <DropdownMenuItem
-              onClick={() => onOpenAction("approvePayout")}
-              className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#15803D] focus:bg-[#F8FAFC]"
-            >
-              Approve payout
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onOpenAction("rejectPayout")}
-              className="h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 text-[#F04438] focus:bg-[#F8FAFC]"
-            >
-              Reject payout
-            </DropdownMenuItem>
+            {availableActions.map((action) => {
+              const actionLabels: Record<FinanceAction, string> = {
+                refundPayment: "Refund payment",
+                markPaymentFailed: "Mark as failed",
+                cancelPayment: "Cancel payment",
+                markWithdrawalFailed: "Mark as failed",
+                markWithdrawalCompleted: "Mark as completed",
+                cancelWithdrawal: "Cancel withdrawal",
+              };
+
+              const actionColors: Record<FinanceAction, string> = {
+                refundPayment: "text-[#175CD3]",
+                markPaymentFailed: "text-[#F04438]",
+                cancelPayment: "text-[#F04438]",
+                markWithdrawalFailed: "text-[#F04438]",
+                markWithdrawalCompleted: "text-[#15803D]",
+                cancelWithdrawal: "text-[#F04438]",
+              };
+
+              return (
+                <DropdownMenuItem
+                  key={action}
+                  onClick={() => onOpenAction(action)}
+                  className={cn(
+                    "h-[36px] px-[10px] py-[10px] text-[12px] font-semibold leading-4 focus:bg-[#F8FAFC]",
+                    actionColors[action],
+                  )}
+                >
+                  {actionLabels[action]}
+                </DropdownMenuItem>
+              );
+            })}
           </>
         ) : (
           <>
@@ -1024,8 +1094,9 @@ function FinanceActionMenu({
               disabled
               className="h-auto cursor-not-allowed px-[10px] py-[10px] text-[12px] font-medium leading-4 text-[#98A2B3] opacity-100 focus:bg-transparent"
             >
-              Finance write actions are not available for live Supabase records
-              yet.
+              {writesEnabled
+                ? "No actions available for this transaction status"
+                : "Finance write actions are not available for live Supabase records yet."}
             </DropdownMenuItem>
           </>
         )}
@@ -1077,13 +1148,15 @@ function DetailRow({
 }
 
 function FinanceStatusMenu({
+  transaction,
   onSelectAction,
   writesEnabled,
 }: {
+  transaction: FinanceTransactionRecord | null;
   onSelectAction: (action: FinanceAction) => void;
   writesEnabled: boolean;
 }) {
-  if (!writesEnabled) {
+  if (!writesEnabled || !transaction) {
     return (
       <button
         type="button"
@@ -1092,6 +1165,21 @@ function FinanceStatusMenu({
         aria-label="Finance actions unavailable"
       >
         Finance actions unavailable
+      </button>
+    );
+  }
+
+  const availableActions = getAvailableActionsForTransaction(transaction);
+
+  if (availableActions.length === 0) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-[13px] text-[14px] font-medium text-[#98A2B3] opacity-100"
+        aria-label="No finance actions available"
+      >
+        No actions available for this status
       </button>
     );
   }
@@ -1116,40 +1204,42 @@ function FinanceStatusMenu({
         collisionPadding={16}
         className="z-[90] w-[352px] max-w-[calc(100vw-48px)] rounded-[14px] border border-[#EAECF0] bg-white p-0 shadow-[0_24px_40px_rgba(15,23,42,0.14)]"
       >
-        <DropdownMenuItem
-          onClick={() => onSelectAction("approvePayout")}
-          className="rounded-none px-4 py-3 text-[14px] font-medium text-[#15803D] focus:bg-[#F8FAFC]"
-        >
-          Approve payout
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-[#EAECF0]" />
-        <DropdownMenuItem
-          onClick={() => onSelectAction("rejectPayout")}
-          className="rounded-none px-4 py-3 text-[14px] font-medium text-[#F04438] focus:bg-[#F8FAFC]"
-        >
-          Reject payout
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-[#EAECF0]" />
-        <DropdownMenuItem
-          onClick={() => onSelectAction("markReconciled")}
-          className="rounded-none px-4 py-3 text-[14px] font-medium text-[#175CD3] focus:bg-[#F8FAFC]"
-        >
-          Mark as reconciled
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-[#EAECF0]" />
-        <DropdownMenuItem
-          onClick={() => onSelectAction("flagForReview")}
-          className="rounded-none px-4 py-3 text-[14px] font-medium text-[#F79009] focus:bg-[#F8FAFC]"
-        >
-          Flag for review
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-[#EAECF0]" />
-        <DropdownMenuItem
-          onClick={() => onSelectAction("reversePayout")}
-          className="rounded-none px-4 py-3 text-[14px] font-medium text-[#F04438] focus:bg-[#F8FAFC]"
-        >
-          Reverse payout
-        </DropdownMenuItem>
+        {availableActions.map((action, index) => {
+          const actionLabels: Record<FinanceAction, string> = {
+            refundPayment: "Refund payment",
+            markPaymentFailed: "Mark as failed",
+            cancelPayment: "Cancel payment",
+            markWithdrawalFailed: "Mark as failed",
+            markWithdrawalCompleted: "Mark as completed",
+            cancelWithdrawal: "Cancel withdrawal",
+          };
+
+          const actionColors: Record<FinanceAction, string> = {
+            refundPayment: "text-[#175CD3]",
+            markPaymentFailed: "text-[#F04438]",
+            cancelPayment: "text-[#F04438]",
+            markWithdrawalFailed: "text-[#F04438]",
+            markWithdrawalCompleted: "text-[#15803D]",
+            cancelWithdrawal: "text-[#F04438]",
+          };
+
+          const needsSeparator = index > 0;
+
+          return (
+            <div key={action}>
+              {needsSeparator && <DropdownMenuSeparator className="bg-[#EAECF0]" />}
+              <DropdownMenuItem
+                onClick={() => onSelectAction(action)}
+                className={cn(
+                  "rounded-none px-4 py-3 text-[14px] font-medium focus:bg-[#F8FAFC]",
+                  actionColors[action],
+                )}
+              >
+                {actionLabels[action]}
+              </DropdownMenuItem>
+            </div>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1398,6 +1488,7 @@ function TransactionDetailsSidebar({
 
                 <div className="mt-auto pt-6">
                   <FinanceStatusMenu
+                    transaction={transaction}
                     onSelectAction={setPendingAction}
                     writesEnabled={writesEnabled}
                   />
@@ -1736,6 +1827,8 @@ export default function TransactionsPage() {
     ];
   }, [transactions]);
 
+  const [actionLoading, setActionLoading] = useState(false);
+
   const handleViewDetails = (
     transactionId: string,
     initialAction: FinanceAction | null = null,
@@ -1744,98 +1837,182 @@ export default function TransactionsPage() {
     setSidebarAction(initialAction);
   };
 
-  const handleApplyAction = (action: FinanceAction, reason: string) => {
+  const handleApplyAction = async (action: FinanceAction, reason: string) => {
     if (!selectedTransactionId) {
+      toast.error("No transaction selected.");
+      return;
+    }
+
+    const transaction = transactions.find(
+      (t) => t.id === selectedTransactionId,
+    );
+    if (!transaction) {
+      toast.error("Transaction not found.");
       return;
     }
 
     if (!financeWritesEnabled) {
-      toast.info(
+      toast.error(
         "Finance write actions are not available for live Supabase records yet.",
       );
       return;
     }
 
-    setTransactions((currentTransactions) =>
-      currentTransactions.map((transaction) => {
-        if (transaction.id !== selectedTransactionId) {
-          return transaction;
-        }
+    setActionLoading(true);
 
-        let nextStatus = transaction.status;
-        let nextReadiness = transaction.payoutReadiness;
-        let nextReconciliation = transaction.reconciliationState;
-        let nextBlockerReason = transaction.blockerReason;
+    try {
+      // Get current session user ID
+      const sessionResult = await supabase.auth.getSession();
+      const sessionUserId = sessionResult.data.session?.user?.id?.trim() ?? "";
 
-        if (action === "approvePayout") {
-          nextStatus =
-            transaction.type === "Withdrawal" ? "Approved" : "Captured";
-          nextReadiness = "Ready";
-          nextBlockerReason = undefined;
-        }
+      if (!sessionUserId) {
+        throw new Error("Not authenticated. Please sign in again.");
+      }
 
-        if (action === "rejectPayout") {
-          nextStatus = "Failed";
-          nextReadiness = "Blocked";
-          nextBlockerReason = reason;
-        }
+      let result;
 
-        if (action === "markReconciled") {
-          nextReconciliation = "Reconciled";
-        }
+      if (action === "refundPayment") {
+        result = await supabaseFinance.refundPayment({
+          paymentId: transaction.id,
+          refundAmount: Math.abs(transaction.amount),
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else if (action === "markPaymentFailed") {
+        result = await supabaseFinance.markPaymentFailed({
+          paymentId: transaction.id,
+          failureCode: "ADMIN_MARKED_FAILED",
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else if (action === "cancelPayment") {
+        result = await supabaseFinance.cancelPayment({
+          paymentId: transaction.id,
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else if (action === "markWithdrawalFailed") {
+        result = await supabaseFinance.markWithdrawalFailed({
+          withdrawalId: transaction.id,
+          failureCode: "ADMIN_MARKED_FAILED",
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else if (action === "markWithdrawalCompleted") {
+        result = await supabaseFinance.markWithdrawalCompleted({
+          withdrawalId: transaction.id,
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else if (action === "cancelWithdrawal") {
+        result = await supabaseFinance.cancelWithdrawal({
+          withdrawalId: transaction.id,
+          actorUserId: sessionUserId,
+          reason,
+        });
+      } else {
+        throw new Error("Unknown action");
+      }
 
-        if (action === "flagForReview") {
-          nextStatus =
-            transaction.type === "Withdrawal"
-              ? "UnderReview"
-              : transaction.status;
-          nextReadiness = "NeedsReview";
-          nextReconciliation = "Flagged";
-          nextBlockerReason = reason;
-        }
+      if (!result || !result.ok) {
+        throw new Error(result?.message || "Unknown error");
+      }
 
-        if (action === "reversePayout") {
-          nextStatus =
-            transaction.type === "Withdrawal" ? "Reversed" : "Refunded";
-          nextReadiness = "Blocked";
-          nextReconciliation = "Flagged";
-          nextBlockerReason = reason;
-        }
+      const actionLabels: Record<FinanceAction, string> = {
+        refundPayment: "Payment refunded successfully.",
+        markPaymentFailed: "Payment marked as failed.",
+        cancelPayment: "Payment cancelled successfully.",
+        markWithdrawalFailed: "Withdrawal marked as failed.",
+        markWithdrawalCompleted: "Withdrawal marked as completed.",
+        cancelWithdrawal: "Withdrawal cancelled successfully.",
+      };
 
-        const actionSummaryMap: Record<FinanceAction, string> = {
-          approvePayout: `Payout approved. ${reason}`,
-          rejectPayout: `Payout rejected. ${reason}`,
-          markReconciled: `Marked as reconciled. ${reason}`,
-          flagForReview: `Flagged for review. ${reason}`,
-          reversePayout: `Payout reversal initiated. ${reason}`,
-        };
+      toast.success(actionLabels[action]);
 
-        return {
-          ...transaction,
-          status: nextStatus,
-          payoutReadiness: nextReadiness,
-          reconciliationState: nextReconciliation,
-          blockerReason: nextBlockerReason,
-          updatedAtLabel: new Date().toLocaleDateString(),
-          auditTrail: [
-            createAuditEntry(actionSummaryMap[action]),
-            ...transaction.auditTrail,
-          ],
-        };
-      }),
-    );
+      // Refresh live data
+      const [paymentsResult, withdrawalsResult] = await Promise.all([
+        supabaseFinance.listPayments({ limit: 200 }),
+        supabaseFinance.listWithdrawals({ limit: 200 }),
+      ]);
 
-    const toastSummary: Record<FinanceAction, string> = {
-      approvePayout: "Payout approved successfully.",
-      rejectPayout: "Payout rejected successfully.",
-      markReconciled: "Transaction marked as reconciled.",
-      flagForReview: "Transaction flagged for review.",
-      reversePayout: "Payout reversal recorded.",
-    };
+      if (!paymentsResult.ok || !withdrawalsResult.ok) {
+        console.error("Failed to refresh finance data");
+        return;
+      }
 
-    toast.success(
-      `${toastSummary[action]}${liveCounts ? " (local-only)" : ""}`,
-    );
+      const contractorIds = Array.from(
+        new Set([
+          ...paymentsResult.data
+            .map((row) => row.payee_id)
+            .filter(Boolean),
+          ...withdrawalsResult.data.map((row) => row.contractor_id),
+        ]),
+      ) as string[];
+
+      const [profilesResult, bankAccountsResult] = await Promise.all([
+        supabaseProfiles.listByIds(contractorIds),
+        supabaseContractorBankAccounts.listByContractorIds(contractorIds),
+      ]);
+
+      if (!profilesResult.ok || !bankAccountsResult.ok) {
+        console.error("Failed to refresh profile/bank account data");
+        return;
+      }
+
+      const profileById = new Map<string, ProfileRow>(
+        profilesResult.data.map((profile) => [profile.id, profile]),
+      );
+      const accountsByContractorId = bankAccountsResult.data.reduce<
+        Record<string, ContractorBankAccountRow[]>
+      >((acc, account) => {
+        const key = account.contractor_id;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(account);
+        return acc;
+      }, {});
+
+      const paymentRecords = paymentsResult.data.map((payment) => {
+        const contractorId = payment.payee_id ?? "";
+        const profile = contractorId
+          ? (profileById.get(contractorId) ?? null)
+          : null;
+        const accounts = contractorId
+          ? (accountsByContractorId[contractorId] ?? [])
+          : [];
+        const bankAccount = pickBankAccount(accounts, null);
+
+        return mapPaymentRowToFinanceTransactionRecord({
+          payment,
+          contractorProfile: profile,
+          bankAccount,
+        });
+      });
+
+      const withdrawalRecords = withdrawalsResult.data.map((withdrawal) => {
+        const contractorId = withdrawal.contractor_id;
+        const profile = profileById.get(contractorId) ?? null;
+        const accounts = accountsByContractorId[contractorId] ?? [];
+        const bankAccount = pickBankAccount(
+          accounts,
+          withdrawal.bank_account_id,
+        );
+
+        return mapWithdrawalRowToFinanceTransactionRecord({
+          withdrawal,
+          contractorProfile: profile,
+          bankAccount,
+        });
+      });
+
+      setTransactions([...withdrawalRecords, ...paymentRecords]);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An error occurred.";
+      toast.error(errorMessage);
+      console.error("Finance action error:", error);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleExport = () => {
@@ -2055,7 +2232,7 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <FinanceActionMenu
-                          transactionCode={transaction.transactionCode}
+                          transaction={transaction}
                           onViewDetails={() =>
                             handleViewDetails(transaction.id)
                           }
@@ -2098,7 +2275,7 @@ export default function TransactionsPage() {
                       </p>
                     </div>
                     <FinanceActionMenu
-                      transactionCode={transaction.transactionCode}
+                      transaction={transaction}
                       onViewDetails={() => handleViewDetails(transaction.id)}
                       onOpenAction={(action) =>
                         handleViewDetails(transaction.id, action)

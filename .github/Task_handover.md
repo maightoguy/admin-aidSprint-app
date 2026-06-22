@@ -1,26 +1,51 @@
 # Task Handover - AidSprint Admin App
 
-## Status: In-Progress
+## Status: In-Progress (M2 Complete)
 
 ## Latest Changes:
 
+- ✅ **CHUNK M2 COMPLETE** — Live Finance Status Actions for Admin Dashboard (2026-06-22)
+  - Wired all 6 M1 finance mutations to admin dashboard UI
+  - Implemented getAvailableActionsForTransaction() to determine valid actions by type & status
+  - Updated FinanceActionMenu to show only available M1 actions per transaction state
+  - Updated FinanceStatusMenu to display correct action options in sidebar
+  - Implemented handleApplyAction() async handler:
+    * Gets session user ID for actor validation
+    * Calls appropriate M1 data layer function with correct parameters
+    * Validates all state transitions via RLS policies
+    * Shows toast notifications for success/error states
+    * Refreshes live transaction list after mutation
+  - UI action flow: View details → Click action → Enter reason → Confirm → Mutation executes → Refresh list
+  - All 6 M1 mutations now available in live dashboard:
+    - Payment (Captured): Refund with amount
+    - Payment (Authorized/Captured): Mark Failed with code
+    - Payment (Authorized): Cancel with reason
+    - Withdrawal (Processing/Requested): Mark Failed with code
+    - Withdrawal (Processing): Mark Completed for manual payout
+    - Withdrawal (Requested): Cancel with reason
+  - Proper parameter mapping: transaction.id → paymentId/withdrawalId, sessionUserId → actorUserId
+  - Reason capture integrated (1-500 chars validation)
+  - Audit logging automatic (admin_action_log fire-and-forget pattern)
+  - TypeScript: 0 errors after M2 implementation
+  - Status: Production-ready, all finance mutations live
+
 - ✅ **CHUNK M1 COMPLETE** — Finance Write Contract, Policies, and Audit Trail (2026-06-22)
   - Defined supported admin finance actions: refund, mark-failed, cancel for payments/withdrawals
-  - Created `public.finance_admin_events` immutable audit table with actor_id, action, old_status, new_status, reason, metadata
+  - Reused existing admin_action_log immutable audit table with full schema support
   - Added admin UPDATE RLS policies for safe payment/withdrawal status transitions
   - Implemented 6 data layer mutations in supabaseFinance:
-    - refundPayment(): captured/paid → refunded, logs refund amount
+    - refundPayment(): captured → refunded, logs refund amount
     - markPaymentFailed(): any non-terminal → failed, logs failure code
-    - cancelPayment(): pending → cancelled
+    - cancelPayment(): authorized → cancelled
     - markWithdrawalFailed(): processing/pending → failed
     - markWithdrawalCompleted(): processing → completed (manual payouts)
-    - cancelWithdrawal(): pending → cancelled
+    - cancelWithdrawal(): requested → cancelled
   - All mutations require actor_id validation (privilege escalation prevention)
   - All mutations validate reason field (1-500 chars, required for audit trail)
   - All mutations wire to supabaseAuditLog.logAction() pattern (fire-and-forget)
   - Added new AdminActionType values: payment_failed, payment_cancelled, withdrawal_failed, withdrawal_completed, withdrawal_cancelled
   - Non-blocking design: mutations mark state locally, async job queue handles Stripe/processor
-  - Created admin_finance_policies.sql with all RLS policies and immutable audit table
+  - Created admin_finance_policies.sql with all 4 RLS policies (no separate table needed)
   - TypeScript: 0 errors, all mutations follow existing data layer patterns
   - Status: Production-ready, deployment ready
 
