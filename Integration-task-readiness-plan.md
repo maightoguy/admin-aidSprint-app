@@ -1444,6 +1444,94 @@ Production-Ready Status:
 ✅ Ready for live deployment
 ```
 
+### Phase G1.5 - Finance Metadata and Audit Log Integration (NEW)
+
+#### Chunk G1.5 - Refund metadata display and finance audit trail visualization (DONE 2026-06-24)
+
+```text
+Integration task: Complete the bridge between M1 database schema extensions and G1 live data display. Surface new refund tracking columns (refund_initiated_by, refund_reason) and finance_audit_log entries in the admin transactions dashboard, enabling full visibility into refund operations.
+
+✅ COMPLETED:
+
+1. Updated PaymentRow Type:
+   - Added refund_initiated_by: string | null (UUID of admin who initiated refund)
+   - Added refund_reason: string | null (Text reason for refund)
+   - Type now fully reflects schema columns added in migration 20260622111850
+
+2. Created FinanceAuditLogRow Type and Data Layer Functions:
+   - Added FinanceAuditLogRow type matching finance_audit_log table structure:
+     * id, admin_id, action, dispute_id, payment_id, amount, reason, metadata, created_at
+   - Created supabaseFinanceAuditLog object with 3 query functions:
+     * listByPaymentId(paymentId) - Fetch audit entries for specific payment
+     * listByDisputeId(disputeId) - Fetch audit entries for dispute
+     * listRecent(limit) - Fetch recent audit entries
+   - All functions enforce admin-only access via requireAdminAccess()
+   - All functions return SupabaseResult<FinanceAuditLogRow[]> (type-safe discriminated union)
+   - All functions follow existing data layer patterns for consistency
+
+3. Enhanced FinanceTransactionRecord Type:
+   - Added refund_initiated_by?: string | null field to UI model
+   - Added refund_reason?: string | null field to UI model
+   - Enables UI to display who refunded and why without additional fetches
+
+4. Updated mapPaymentRowToFinanceTransactionRecord():
+   - Now extracts refund_initiated_by and refund_reason from PaymentRow
+   - Passes these fields to the FinanceTransactionRecord UI model
+   - Maps database metadata to display model seamlessly
+
+5. Enhanced Transaction Detail Sidebar:
+   - Added audit log fetching on transaction open via useEffect
+   - Calls supabaseFinanceAuditLog.listByPaymentId() for service payments
+   - Displays "Loading audit history..." state during fetch
+   - Maps finance_audit_log entries to AuditEntry display objects with:
+     * entry.id for React key
+     * entry.admin_id.slice(0,8).toUpperCase() as actor display
+     * formatDateLabel(entry.created_at) for timestamp
+     * "${entry.action}: ${entry.reason}" as summary text
+   - Shows "No finance audit history available" when list is empty
+   - Handles errors gracefully with console logging
+
+6. Added Refund Metadata Display Panel:
+   - New "Refund details" section in transaction sidebar (shown when refund_initiated_by present)
+   - Displays refund admin ID (8-char truncated) and refund reason
+   - Uses consistent styling with other metadata panels
+   - Positioned between reconciliation state and audit trail for logical flow
+
+7. Updated Component Imports:
+   - Added supabaseFinanceAuditLog import to transactions.tsx
+   - Wired audit log fetching without circular dependencies
+
+8. Type Safety and Testing:
+   - Updated test fixture in mappers.spec.ts to include new PaymentRow fields
+   - All new fields tested as null/undefined cases
+   - TypeScript: 0 errors after all changes
+
+Result:
+Admins can now see:
+- Who initiated any refund (refund_initiated_by field in detail sidebar)
+- Why a refund was initiated (refund_reason text in detail sidebar)
+- Complete audit trail of all finance actions on a transaction (finance_audit_log entries)
+- When each action occurred (timestamp with formatDateLabel)
+- What action was taken and the reason provided (action + reason in audit entry summary)
+
+This closes the gap between M1 backend mutations (which write refund metadata to database) and G1 live data display (which now surfaces it in the UI). Combined with M2 mutation support, admins have full visibility and control over finance operations with complete audit trails.
+
+Type Safety:
+✅ PaymentRow includes new columns
+✅ FinanceTransactionRecord includes refund metadata fields
+✅ supabaseFinanceAuditLog fully typed with SupabaseResult pattern
+✅ Component state management typed (auditLogs array, auditLoading boolean)
+✅ No type mismatches or unused variables
+✅ TypeScript: 0 errors
+
+Deployment Ready:
+✅ G1 (live data fetch) now displays M1 refund metadata
+✅ Audit trail populated from finance_audit_log table
+✅ No breaking changes to existing UI components
+✅ Graceful loading states and error handling
+✅ Consistent with existing design system and patterns
+```
+
 ### Phase N - User Management Persistence Cleanup
 
 #### Chunk N1 - Persist user lifecycle/admin actions where backend support exists (DONE)

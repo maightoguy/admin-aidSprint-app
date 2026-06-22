@@ -314,6 +314,8 @@ export type PaymentRow = {
   updated_at: string;
   captured_at: string | null;
   refunded_at: string | null;
+  refund_initiated_by: string | null;
+  refund_reason: string | null;
 };
 
 export type WithdrawalRow = {
@@ -328,6 +330,18 @@ export type WithdrawalRow = {
   stripe_payout_id: string | null;
   failure_code: string | null;
   failure_message: string | null;
+};
+
+export type FinanceAuditLogRow = {
+  id: string;
+  admin_id: string;
+  action: string;
+  dispute_id: string | null;
+  payment_id: string | null;
+  amount: number | null;
+  reason: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
 };
 
 export type SupportTicketRow = {
@@ -571,6 +585,59 @@ export type AdminActionLogRow = {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export const supabaseFinanceAuditLog = {
+  async listByPaymentId(
+    paymentId: string,
+  ): Promise<SupabaseResult<FinanceAuditLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("finance_audit_log")
+      .select("*")
+      .eq("payment_id", paymentId)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as FinanceAuditLogRow[] };
+  },
+
+  async listByDisputeId(
+    disputeId: string,
+  ): Promise<SupabaseResult<FinanceAuditLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("finance_audit_log")
+      .select("*")
+      .eq("dispute_id", disputeId)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as FinanceAuditLogRow[] };
+  },
+
+  async listRecent(
+    limit: number = 50,
+  ): Promise<SupabaseResult<FinanceAuditLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const { data, error } = await client
+      .from("finance_audit_log")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as FinanceAuditLogRow[] };
+  },
 };
 
 export const supabaseProfiles = {

@@ -25,6 +25,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import {
   supabaseContractorBankAccounts,
   supabaseFinance,
+  supabaseFinanceAuditLog,
   supabaseProfiles,
   type ContractorBankAccountRow,
   type PaymentRow,
@@ -133,6 +134,8 @@ type FinanceTransactionRecord = {
   netAmount: number;
   payoutBatchCode: string;
   auditTrail: FinanceAuditEntry[];
+  refund_initiated_by?: string | null;
+  refund_reason?: string | null;
 };
 
 type ReasonDialogConfig = {
@@ -561,6 +564,8 @@ function mapPaymentRowToFinanceTransactionRecord(params: {
     netAmount,
     payoutBatchCode: "—",
     auditTrail: [],
+    refund_initiated_by: payment.refund_initiated_by,
+    refund_reason: payment.refund_reason,
   };
 }
 
@@ -1266,11 +1271,21 @@ function TransactionDetailsSidebar({
     null,
   );
   const [reason, setReason] = useState("");
+  const [auditLogs, setAuditLogs] = useState<
+    Array<{
+      id: string;
+      actor: string;
+      createdAtLabel: string;
+      summary: string;
+    }>
+  >([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setPendingAction(null);
       setReason("");
+      setAuditLogs([]);
       return;
     }
 
@@ -1279,11 +1294,46 @@ function TransactionDetailsSidebar({
       setReason("");
       onConsumeInitialAction();
     }
-  }, [initialAction, onConsumeInitialAction, open]);
+
+    // Load finance audit logs when transaction is opened
+    if (transaction) {
+      const loadAuditLogs = async () => {
+        try {
+          setAuditLoading(true);
+
+          // Determine if this is a payment or withdrawal
+          const isPayment = transaction.type === "Service payment";
+          const result = isPayment
+            ? await supabaseFinanceAuditLog.listByPaymentId(transaction.id)
+            : null;
+
+          if (result?.ok) {
+            const logs = result.data.map((entry) => ({
+              id: entry.id,
+              actor: entry.admin_id.slice(0, 8).toUpperCase(),
+              createdAtLabel: formatDateLabel(entry.created_at),
+              summary: `${entry.action}: ${entry.reason || "No reason provided"}`,
+            }));
+            setAuditLogs(logs);
+          }
+        } catch (error) {
+          console.error("Failed to load audit logs:", error);
+          setAuditLogs([]);
+        } finally {
+          setAuditLoading(false);
+        }
+      };
+
+      loadAuditLogs();
+    }
+  }, [initialAction, onConsumeInitialAction, open, transaction]);
 
   const reasonConfig = pendingAction
     ? getReasonDialogConfig(pendingAction)
     : null;
+
+  // Build combined audit trail from transaction + fetched logs
+  const displayAuditTrail = auditLogs.length > 0 ? auditLogs : transaction?.auditTrail || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1446,6 +1496,23 @@ function TransactionDetailsSidebar({
                       </p>
                     </div>
                   ) : null}
+                  {transaction.refund_initiated_by ? (
+                    <div className="border-t border-[#EAECF0] px-[10px] py-[11px]">
+                      <p className="text-[14px] font-normal leading-5 text-[#98A2B3]">
+                        Refund details
+                      </p>
+                      <p className="mt-2 text-[12px] font-medium text-[#2D2D2D]">
+                        <span className="font-semibold">Admin:</span>{" "}
+                        {transaction.refund_initiated_by.slice(0, 8).toUpperCase()}
+                      </p>
+                      {transaction.refund_reason && (
+                        <p className="mt-1 text-[12px] font-medium text-[#2D2D2D]">
+                          <span className="font-semibold">Reason:</span>{" "}
+                          {transaction.refund_reason}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] px-4 py-4">
@@ -1453,8 +1520,12 @@ function TransactionDetailsSidebar({
                     Audit trail
                   </p>
                   <div className="mt-3 space-y-3">
-                    {transaction.auditTrail.length ? (
-                      transaction.auditTrail.map((entry) => (
+                    {auditLoading ? (
+                      <div className="rounded-[12px] border border-dashed border-[#D0D5DD] bg-white px-4 py-4 text-center text-sm font-medium text-[#98A2B3]">
+                        Loading audit history...
+                      </div>
+                    ) : displayAuditTrail.length ? (
+                      displayAuditTrail.map((entry) => (
                         <div
                           key={entry.id}
                           className="rounded-[12px] border border-[#EAECF0] bg-white px-4 py-3"

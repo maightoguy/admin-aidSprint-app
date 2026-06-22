@@ -1,8 +1,29 @@
 # Task Handover - AidSprint Admin App
 
-## Status: In-Progress (M2 Complete)
+## Status: In-Progress (G1.5 Bridge Complete)
 
 ## Latest Changes:
+
+- ✅ **CHUNK G1.5 COMPLETE** — Finance Metadata and Audit Log Integration (2026-06-24)
+  - Updated PaymentRow type with refund_initiated_by and refund_reason fields to match schema
+  - Created FinanceAuditLogRow type and supabaseFinanceAuditLog data layer object with 3 functions:
+    - listByPaymentId(paymentId) - Fetch audit entries for specific payment
+    - listByDisputeId(disputeId) - Fetch audit entries for dispute
+    - listRecent(limit) - Fetch recent audit entries
+  - All audit log queries enforce admin-only access and return SupabaseResult<FinanceAuditLogRow[]>
+  - Enhanced FinanceTransactionRecord type with refund_initiated_by and refund_reason fields
+  - Updated mapPaymentRowToFinanceTransactionRecord() to pass refund metadata from DB to UI model
+  - Enhanced TransactionDetailsSidebar component:
+    - Fetches finance_audit_log entries when transaction is opened
+    - Displays "Loading audit history..." state during fetch
+    - Shows refund admin ID and reason in dedicated panel when refund_initiated_by present
+    - Maps audit log entries to display objects with action, reason, actor, and timestamp
+    - Handles empty states and errors gracefully
+  - Added import for supabaseFinanceAuditLog in transactions.tsx
+  - Updated mappers.spec.ts test fixture with new PaymentRow fields
+  - TypeScript: 0 errors after all changes
+  - Result: Admins now see full refund metadata and complete audit trails in transaction details
+  - Status: Production-ready, G1→M1 bridge complete
 
 - ✅ **CHUNK M2 COMPLETE** — Live Finance Status Actions for Admin Dashboard (2026-06-22)
   - Wired all 6 M1 finance mutations to admin dashboard UI
