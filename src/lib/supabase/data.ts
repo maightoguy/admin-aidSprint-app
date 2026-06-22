@@ -1,6 +1,8 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "./client";
 import { validateEvidenceFile } from "./evidence";
+import { withRetry, DEFAULT_RETRY_CONFIG, type RetryConfig } from "@/lib/resilience/retry";
+import { CircuitBreaker, DEFAULT_CIRCUIT_BREAKER_CONFIG } from "@/lib/resilience/circuit-breaker";
 
 export type SupabaseResult<T> =
   | { ok: true; data: T }
@@ -12,6 +14,18 @@ const ADMIN_SESSION_REQUIRED_MESSAGE = "Please sign in again to continue.";
 const ADMIN_SESSION_MISMATCH_MESSAGE =
   "Your admin session no longer matches this action. Please sign in again.";
 const ADMIN_ACCESS_CACHE_TTL_MS = 30_000;
+
+/**
+ * Circuit breakers for critical resources to prevent cascading failures
+ */
+const circuitBreakers = {
+  contractors: new CircuitBreaker("contractors", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+  jobs: new CircuitBreaker("jobs", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+  disputes: new CircuitBreaker("disputes", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+  payments: new CircuitBreaker("payments", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+  support: new CircuitBreaker("support", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+  settings: new CircuitBreaker("settings", DEFAULT_CIRCUIT_BREAKER_CONFIG),
+};
 
 let cachedAdminAccess:
   | {
@@ -53,6 +67,46 @@ function formatPostgrestError(error: PostgrestError | null) {
   const message = error.message?.trim();
   if (message) return message;
   return "Something went wrong. Please try again.";
+}
+
+/**
+ * Wrap a mutation with retry logic and circuit breaker protection
+ * Automatically retries transient errors (network, timeout) while failing fast on permanent errors
+ * Circuit breaker prevents cascading failures when service is down
+ */
+async function withResilience<T>(
+  resourceType: keyof typeof circuitBreakers,
+  mutation: () => Promise<T>,
+  retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
+): Promise<T> {
+  const cb = circuitBreakers[resourceType];
+
+  return cb.execute(async () => {
+    return withRetry(mutation, retryConfig);
+  });
+}
+
+/**
+ * Get circuit breaker metrics for monitoring
+ */
+export function getResilienceMetrics() {
+  return Object.entries(circuitBreakers).reduce(
+    (acc, [name, cb]) => {
+      acc[name] = cb.getMetrics();
+      return acc;
+    },
+    {} as Record<keyof typeof circuitBreakers, ReturnType<CircuitBreaker["getMetrics"]>>,
+  );
+}
+
+/**
+ * Manually reset a circuit breaker (for recovery/testing)
+ */
+export function resetCircuitBreaker(resourceType: keyof typeof circuitBreakers) {
+  circuitBreakers[resourceType].reset();
+  console.info(
+    `[Resilience] Circuit breaker for ${resourceType} has been manually reset.`,
+  );
 }
 
 export function requireSupabaseClient(): SupabaseClient {
@@ -447,6 +501,73 @@ export type UrgencyTierRow = {
   created_at: string;
 };
 
+export type AdminActionType =
+  | "contractor_suspended"
+  | "contractor_restored"
+  | "contractor_kyc_approved"
+  | "contractor_kyc_rejected"
+  | "job_cancelled"
+  | "job_status_updated"
+  | "dispute_created"
+  | "dispute_resolved"
+  | "dispute_rejected"
+  | "support_ticket_created"
+  | "support_ticket_escalated"
+  | "support_ticket_resolved"
+  | "refund_initiated"
+  | "refund_completed"
+  | "refund_failed"
+  | "payout_approved"
+  | "payout_rejected"
+  | "payout_processed"
+  | "settings_category_created"
+  | "settings_category_updated"
+  | "settings_category_deleted"
+  | "settings_service_type_created"
+  | "settings_service_type_updated"
+  | "settings_service_type_deleted"
+  | "settings_urgency_tier_updated"
+  | "settings_promo_code_created"
+  | "settings_promo_code_deleted"
+  | "settings_notification_template_created"
+  | "settings_notification_template_deleted"
+  | "settings_notification_campaign_created"
+  | "settings_notification_campaign_deleted"
+  | "admin_password_changed"
+  | "admin_mfa_enabled"
+  | "admin_mfa_disabled";
+
+export type AdminResourceType =
+  | "contractor"
+  | "contractor_document"
+  | "job"
+  | "dispute"
+  | "support_ticket"
+  | "payment"
+  | "withdrawal"
+  | "payout"
+  | "service_category"
+  | "service_type"
+  | "urgency_tier"
+  | "promo_code"
+  | "notification_template"
+  | "notification_campaign"
+  | "admin_profile";
+
+export type AdminActionLogRow = {
+  id: string;
+  admin_id: string;
+  action_type: AdminActionType;
+  resource_type: AdminResourceType;
+  resource_id: string;
+  reason: string | null;
+  metadata: Record<string, any>;
+  result: "success" | "failure";
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export const supabaseProfiles = {
   async getById(userId: string): Promise<SupabaseResult<ProfileRow>> {
     const client = requireSupabaseClient();
@@ -729,16 +850,91 @@ export const supabaseJobs = {
               };
             })();
 
-    const { data, error } = await client
-      .from("jobs")
-      .update(payload)
-      .eq("id", jobId)
-      .select("*")
-      .single();
+    try {
+      const { data, error } = await withResilience("jobs", async () => {
+        return client
+          .from("jobs")
+          .update(payload)
+          .eq("id", jobId)
+          .select("*")
+          .single();
+      });
 
-    if (error) return { ok: false, message: formatPostgrestError(error) };
-    if (!data) return { ok: false, message: "Job not found." };
-    return { ok: true, data: data as JobRow };
+      if (error) {
+        // Log failures for cancellation
+        if (params.status === "cancelled") {
+          const actorUserId = params.actorUserId?.trim() ?? "";
+          if (actorUserId) {
+            supabaseAuditLog.logAction({
+              adminId: actorUserId,
+              actionType: "job_cancelled",
+              resourceType: "job",
+              resourceId: jobId,
+              reason: params.cancellationReason || undefined,
+              success: false,
+              errorMessage: formatPostgrestError(error),
+            });
+          }
+        }
+        return { ok: false, message: formatPostgrestError(error) };
+      }
+      if (!data) {
+        // Log failures for cancellation
+        if (params.status === "cancelled") {
+          const actorUserId = params.actorUserId?.trim() ?? "";
+          if (actorUserId) {
+            supabaseAuditLog.logAction({
+              adminId: actorUserId,
+              actionType: "job_cancelled",
+              resourceType: "job",
+              resourceId: jobId,
+              reason: params.cancellationReason || undefined,
+              success: false,
+              errorMessage: "Job not found.",
+            });
+          }
+        }
+        return { ok: false, message: "Job not found." };
+      }
+
+      // Log successful cancellation
+      if (params.status === "cancelled") {
+        const actorUserId = params.actorUserId?.trim() ?? "";
+        if (actorUserId) {
+          supabaseAuditLog.logAction({
+            adminId: actorUserId,
+            actionType: "job_cancelled",
+            resourceType: "job",
+            resourceId: jobId,
+            reason: params.cancellationReason || undefined,
+            metadata: { status: params.status },
+            success: true,
+          });
+        }
+      }
+
+      return { ok: true, data: data as JobRow };
+    } catch (error) {
+      // Log cancellation failures from retry layer
+      if (params.status === "cancelled") {
+        const actorUserId = params.actorUserId?.trim() ?? "";
+        if (actorUserId) {
+          const message = error instanceof Error ? error.message : "Job update failed.";
+          supabaseAuditLog.logAction({
+            adminId: actorUserId,
+            actionType: "job_cancelled",
+            resourceType: "job",
+            resourceId: jobId,
+            reason: params.cancellationReason || undefined,
+            success: false,
+            errorMessage: message,
+          });
+        }
+      }
+      const message =
+        error instanceof Error ? error.message : "Job update failed.";
+      return { ok: false, message };
+    }
   },
 };
 
@@ -816,16 +1012,80 @@ export const supabaseContractors = {
             restore_reason: reason,
           };
 
-    const { data, error } = await client
-      .from("contractors")
-      .update(payload)
-      .eq("id", contractorId)
-      .select("*")
-      .single();
+    try {
+      const { data, error } = await withResilience("contractors", async () => {
+        return client
+          .from("contractors")
+          .update(payload)
+          .eq("id", contractorId)
+          .select("*")
+          .single();
+      });
 
-    if (error) return { ok: false, message: formatPostgrestError(error) };
-    if (!data) return { ok: false, message: "Contractor not found." };
-    return { ok: true, data: data as ContractorRow };
+      if (error) {
+        // Log failure
+        supabaseAuditLog.logAction({
+          adminId: actorUserId,
+          actionType:
+            params.action === "suspend"
+              ? "contractor_suspended"
+              : "contractor_restored",
+          resourceType: "contractor",
+          resourceId: contractorId,
+          reason,
+          success: false,
+          errorMessage: formatPostgrestError(error),
+        });
+        return { ok: false, message: formatPostgrestError(error) };
+      }
+      if (!data) {
+        supabaseAuditLog.logAction({
+          adminId: actorUserId,
+          actionType:
+            params.action === "suspend"
+              ? "contractor_suspended"
+              : "contractor_restored",
+          resourceType: "contractor",
+          resourceId: contractorId,
+          reason,
+          success: false,
+          errorMessage: "Contractor not found.",
+        });
+        return { ok: false, message: "Contractor not found." };
+      }
+
+      // Log success
+      supabaseAuditLog.logAction({
+        adminId: actorUserId,
+        actionType:
+          params.action === "suspend"
+            ? "contractor_suspended"
+            : "contractor_restored",
+        resourceType: "contractor",
+        resourceId: contractorId,
+        reason,
+        metadata: { action: params.action },
+        success: true,
+      });
+
+      return { ok: true, data: data as ContractorRow };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Contractor update failed.";
+      supabaseAuditLog.logAction({
+        adminId: actorUserId,
+        actionType:
+          params.action === "suspend"
+            ? "contractor_suspended"
+            : "contractor_restored",
+        resourceType: "contractor",
+        resourceId: contractorId,
+        reason,
+        success: false,
+        errorMessage: message,
+      });
+      return { ok: false, message };
+    }
   },
 };
 
@@ -1060,7 +1320,38 @@ export const supabaseContractorDocuments = {
       .in("id", documentIds)
       .select("*");
 
-    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (error) {
+      // Log failure
+      supabaseAuditLog.logAction({
+        adminId: reviewedBy,
+        actionType:
+          params.status === "approved"
+            ? "contractor_kyc_approved"
+            : "contractor_kyc_rejected",
+        resourceType: "contractor_document",
+        resourceId: contractorId,
+        reason: params.rejectionReason || undefined,
+        metadata: { documentIds, status: params.status },
+        success: false,
+        errorMessage: formatPostgrestError(error),
+      });
+      return { ok: false, message: formatPostgrestError(error) };
+    }
+
+    // Log success
+    supabaseAuditLog.logAction({
+      adminId: reviewedBy,
+      actionType:
+        params.status === "approved"
+          ? "contractor_kyc_approved"
+          : "contractor_kyc_rejected",
+      resourceType: "contractor_document",
+      resourceId: contractorId,
+      reason: params.rejectionReason || undefined,
+      metadata: { documentIds, documentCount: documentIds.length, status: params.status },
+      success: true,
+    });
+
     return { ok: true, data: (data ?? []) as ContractorDocumentRow[] };
   },
 };
@@ -1473,11 +1764,62 @@ export const supabaseSupport = {
         .select("id")
         .single();
 
-      if (error) return { ok: false, message: formatPostgrestError(error) };
-      if (!data) return { ok: false, message: "Failed to create support ticket." };
+      if (error) {
+        // Log failure - but only if requesterRole is admin
+        if (requesterRole === "admin") {
+          supabaseAuditLog.logAction({
+            adminId: requesterUserId,
+            actionType: "support_ticket_created",
+            resourceType: "support_ticket",
+            resourceId: requestId,
+            reason: escalationReason,
+            success: false,
+            errorMessage: formatPostgrestError(error),
+          });
+        }
+        return { ok: false, message: formatPostgrestError(error) };
+      }
+      if (!data) {
+        if (requesterRole === "admin") {
+          supabaseAuditLog.logAction({
+            adminId: requesterUserId,
+            actionType: "support_ticket_created",
+            resourceType: "support_ticket",
+            resourceId: requestId,
+            reason: escalationReason,
+            success: false,
+            errorMessage: "Failed to create support ticket.",
+          });
+        }
+        return { ok: false, message: "Failed to create support ticket." };
+      }
+
+      // Log success - only for admin escalations
+      if (requesterRole === "admin") {
+        supabaseAuditLog.logAction({
+          adminId: requesterUserId,
+          actionType: "support_ticket_escalated",
+          resourceType: "support_ticket",
+          resourceId: data.id,
+          reason: escalationReason,
+          metadata: { jobId: requestId },
+          success: true,
+        });
+      }
 
       return { ok: true, data: { id: data.id } };
     } catch (err) {
+      if (params.requesterRole === "admin") {
+        supabaseAuditLog.logAction({
+          adminId: requesterUserId,
+          actionType: "support_ticket_created",
+          resourceType: "support_ticket",
+          resourceId: requestId,
+          reason: escalationReason,
+          success: false,
+          errorMessage: err instanceof Error ? err.message : "Failed to create support ticket.",
+        });
+      }
       return { ok: false, message: err instanceof Error ? err.message : "Failed to create support ticket." };
     }
   },
@@ -1764,6 +2106,16 @@ export const supabaseDisputes = {
         .single();
 
       if (disputeError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_initiated",
+          resourceType: "payment",
+          resourceId: paymentId,
+          reason: refundReason,
+          metadata: { amount: refundAmount, disputeId },
+          success: false,
+          errorMessage: `Failed to update dispute: ${formatPostgrestError(disputeError)}`,
+        });
         return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
       }
 
@@ -1780,6 +2132,16 @@ export const supabaseDisputes = {
         .single();
 
       if (paymentError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_initiated",
+          resourceType: "payment",
+          resourceId: paymentId,
+          reason: refundReason,
+          metadata: { amount: refundAmount, disputeId },
+          success: false,
+          errorMessage: `Failed to update payment: ${formatPostgrestError(paymentError)}`,
+        });
         return { ok: false, message: `Failed to update payment: ${formatPostgrestError(paymentError)}` };
       }
 
@@ -1800,8 +2162,29 @@ export const supabaseDisputes = {
         });
 
       if (auditError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_initiated",
+          resourceType: "payment",
+          resourceId: paymentId,
+          reason: refundReason,
+          metadata: { amount: refundAmount, disputeId },
+          success: false,
+          errorMessage: `Failed to audit log: ${formatPostgrestError(auditError)}`,
+        });
         return { ok: false, message: `Failed to audit log: ${formatPostgrestError(auditError)}` };
       }
+
+      // Log successful refund initiation
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_initiated",
+        resourceType: "payment",
+        resourceId: paymentId,
+        reason: refundReason,
+        metadata: { amount: refundAmount, disputeId, paymentStatus: paymentData?.status },
+        success: true,
+      });
 
       return { 
         ok: true, 
@@ -1812,6 +2195,16 @@ export const supabaseDisputes = {
         }
       };
     } catch (err) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_initiated",
+        resourceType: "payment",
+        resourceId: paymentId,
+        reason: refundReason,
+        metadata: { amount: refundAmount, disputeId },
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Failed to initiate refund.",
+      });
       return { ok: false, message: err instanceof Error ? err.message : "Failed to initiate refund." };
     }
   },
@@ -1849,6 +2242,15 @@ export const supabaseDisputes = {
         .single();
 
       if (paymentError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_completed",
+          resourceType: "payment",
+          resourceId: paymentId,
+          metadata: { disputeId },
+          success: false,
+          errorMessage: `Failed to update payment: ${formatPostgrestError(paymentError)}`,
+        });
         return { ok: false, message: `Failed to update payment: ${formatPostgrestError(paymentError)}` };
       }
 
@@ -1862,6 +2264,15 @@ export const supabaseDisputes = {
         .eq("id", disputeId);
 
       if (disputeError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_completed",
+          resourceType: "payment",
+          resourceId: paymentId,
+          metadata: { disputeId },
+          success: false,
+          errorMessage: `Failed to update dispute: ${formatPostgrestError(disputeError)}`,
+        });
         return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
       }
 
@@ -1885,6 +2296,16 @@ export const supabaseDisputes = {
         // Don't fail the refund if audit log fails; log is informational
       }
 
+      // Log successful refund completion
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_completed",
+        resourceType: "payment",
+        resourceId: paymentId,
+        metadata: { disputeId, refundAmount: paymentData?.amount, refundedAt: now },
+        success: true,
+      });
+
       return {
         ok: true,
         data: {
@@ -1893,6 +2314,15 @@ export const supabaseDisputes = {
         },
       };
     } catch (err) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_completed",
+        resourceType: "payment",
+        resourceId: paymentId,
+        metadata: { disputeId },
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Failed to complete refund.",
+      });
       return { ok: false, message: err instanceof Error ? err.message : "Failed to complete refund." };
     }
   },
@@ -1930,6 +2360,16 @@ export const supabaseDisputes = {
         .eq("id", disputeId);
 
       if (disputeError) {
+        supabaseAuditLog.logAction({
+          adminId: adminUserId,
+          actionType: "refund_failed",
+          resourceType: "payment",
+          resourceId: paymentId,
+          reason: failureReason,
+          metadata: { disputeId },
+          success: false,
+          errorMessage: `Failed to update dispute: ${formatPostgrestError(disputeError)}`,
+        });
         return { ok: false, message: `Failed to update dispute: ${formatPostgrestError(disputeError)}` };
       }
 
@@ -1961,6 +2401,17 @@ export const supabaseDisputes = {
         // Don't fail if audit log fails; log is informational
       }
 
+      // Log successful refund failure recording
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_failed",
+        resourceType: "payment",
+        resourceId: paymentId,
+        reason: failureReason,
+        metadata: { disputeId, paymentAmount: paymentData?.amount, failedAt: now },
+        success: true,
+      });
+
       return {
         ok: true,
         data: {
@@ -1968,6 +2419,16 @@ export const supabaseDisputes = {
         },
       };
     } catch (err) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "refund_failed",
+        resourceType: "payment",
+        resourceId: paymentId,
+        reason: failureReason,
+        metadata: { disputeId },
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Failed to mark refund as failed.",
+      });
       return { ok: false, message: err instanceof Error ? err.message : "Failed to mark refund as failed." };
     }
   },
@@ -2025,6 +2486,131 @@ export const supabaseDisputes = {
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed to get refund status." };
     }
+  },
+
+  async createDisputeFromRequest(params: {
+    requestId: string;
+    adminUserId: string;
+    disputeReason: string;
+  }): Promise<SupabaseResult<{ id: string; disputeId: string }>> {
+    const client = requireSupabaseClient();
+    const requestId = params.requestId.trim();
+    const adminUserId = params.adminUserId.trim();
+    const disputeReason = params.disputeReason.trim();
+
+    // Validation
+    if (!requestId) return { ok: false, message: "Request ID is required." };
+    if (!adminUserId) return { ok: false, message: "Admin user ID is required." };
+    if (!disputeReason) return { ok: false, message: "Dispute reason is required." };
+
+    const adminCheck = await requireAdminAccess({ expectedUserId: adminUserId });
+    if (adminCheck.ok === false) return adminCheck;
+
+    // Verify request exists
+    const { data: jobData, error: jobError } = await client
+      .from("jobs")
+      .select("id, status")
+      .eq("id", requestId)
+      .single();
+
+    if (jobError) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "dispute_created",
+        resourceType: "dispute",
+        resourceId: requestId,
+        reason: disputeReason,
+        success: false,
+        errorMessage: "Request not found.",
+      });
+      return { ok: false, message: "Request not found." };
+    }
+    if (!jobData) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "dispute_created",
+        resourceType: "dispute",
+        resourceId: requestId,
+        reason: disputeReason,
+        success: false,
+        errorMessage: "Request not found.",
+      });
+      return { ok: false, message: "Request not found." };
+    }
+
+    const now = new Date().toISOString();
+
+    // Create dispute
+    const { data: disputeData, error: disputeError } = await client
+      .from("disputes")
+      .insert({
+        job_id: requestId,
+        opened_by_id: adminUserId,
+        opened_by_role: "admin",
+        dispute_type: "other",
+        status: "open",
+        priority: "medium",
+        reason: disputeReason,
+        requested_resolution: "",
+        assigned_admin_id: adminUserId,
+        created_at: now,
+        updated_at: now,
+      })
+      .select("*")
+      .single();
+
+    if (disputeError) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "dispute_created",
+        resourceType: "dispute",
+        resourceId: requestId,
+        reason: disputeReason,
+        success: false,
+        errorMessage: formatPostgrestError(disputeError),
+      });
+      return { ok: false, message: formatPostgrestError(disputeError) };
+    }
+    if (!disputeData) {
+      supabaseAuditLog.logAction({
+        adminId: adminUserId,
+        actionType: "dispute_created",
+        resourceType: "dispute",
+        resourceId: requestId,
+        reason: disputeReason,
+        success: false,
+        errorMessage: "Failed to create dispute.",
+      });
+      return { ok: false, message: "Failed to create dispute." };
+    }
+
+    // Create dispute event for audit trail
+    const { error: eventError } = await client.from("dispute_events").insert({
+      dispute_id: disputeData.id,
+      actor_id: adminUserId,
+      actor_role: "admin",
+      action: "created",
+      reason: disputeReason,
+      metadata: { initiated_from: "request_list" },
+    });
+
+    if (eventError) {
+      // Log but don't fail - dispute was created, just event failed
+      console.error("Failed to create dispute event:", formatPostgrestError(eventError));
+    }
+
+    // Log successful dispute creation
+    supabaseAuditLog.logAction({
+      adminId: adminUserId,
+      actionType: "dispute_created",
+      resourceType: "dispute",
+      resourceId: disputeData.id,
+      reason: disputeReason,
+      metadata: { jobId: requestId, initiatedFrom: "request_list" },
+      success: true,
+    });
+
+    return { ok: true, data: { id: disputeData.id, disputeId: disputeData.id } };
   },
 };
 
@@ -2818,3 +3404,194 @@ export const supabaseSettings = {
     return { ok: true, data: { id: normalized } };
   },
 };
+
+/**
+ * Centralized admin action logging helper
+ * Used by all mutations to create audit trail entries
+ * Async/fire-and-forget to avoid slowing down mutations
+ */
+async function insertAdminActionLog(params: {
+  adminId: string;
+  actionType: AdminActionType;
+  resourceType: AdminResourceType;
+  resourceId: string;
+  reason?: string;
+  metadata?: Record<string, any>;
+  success?: boolean;
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    const client = requireSupabaseClient();
+
+    await client.from("admin_action_log").insert({
+      admin_id: params.adminId,
+      action_type: params.actionType,
+      resource_type: params.resourceType,
+      resource_id: params.resourceId,
+      reason: params.reason || null,
+      metadata: params.metadata || {},
+      result: params.success === false ? "failure" : "success",
+      error_message: params.errorMessage || null,
+    });
+  } catch (error) {
+    // Silently fail - audit logging should not block mutations
+    console.warn("Failed to log admin action:", error);
+  }
+}
+
+export const supabaseAuditLog = {
+  /**
+   * Log an admin action (called by mutations)
+   * Async, does not block mutation
+   */
+  async logAction(params: {
+    adminId: string;
+    actionType: AdminActionType;
+    resourceType: AdminResourceType;
+    resourceId: string;
+    reason?: string;
+    metadata?: Record<string, any>;
+    success?: boolean;
+    errorMessage?: string;
+  }): Promise<void> {
+    insertAdminActionLog(params);
+  },
+
+  /**
+   * Retrieve admin action logs with filters
+   */
+  async listActions(params?: {
+    adminId?: string;
+    actionType?: AdminActionType;
+    resourceType?: AdminResourceType;
+    resourceId?: string;
+    result?: "success" | "failure";
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SupabaseResult<AdminActionLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    let query = client.from("admin_action_log").select("*");
+
+    if (params?.adminId) {
+      query = query.eq("admin_id", params.adminId);
+    }
+    if (params?.actionType) {
+      query = query.eq("action_type", params.actionType);
+    }
+    if (params?.resourceType) {
+      query = query.eq("resource_type", params.resourceType);
+    }
+    if (params?.resourceId) {
+      query = query.eq("resource_id", params.resourceId);
+    }
+    if (params?.result) {
+      query = query.eq("result", params.result);
+    }
+    if (params?.startDate) {
+      query = query.gte("created_at", params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.lte("created_at", params.endDate);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const limit = params?.limit || 100;
+    const offset = params?.offset || 0;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as AdminActionLogRow[] };
+  },
+
+  /**
+   * Get admin action log by ID
+   */
+  async getById(id: string): Promise<SupabaseResult<AdminActionLogRow>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalized = id.trim();
+    if (!normalized) return { ok: false, message: "Audit log ID is required." };
+
+    const { data, error } = await client
+      .from("admin_action_log")
+      .select("*")
+      .eq("id", normalized)
+      .single();
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    if (!data) return { ok: false, message: "Audit log entry not found." };
+    return { ok: true, data: data as AdminActionLogRow };
+  },
+
+  /**
+   * Get audit logs for a specific resource (for compliance/investigation)
+   */
+  async getResourceAuditTrail(
+    resourceType: AdminResourceType,
+    resourceId: string,
+  ): Promise<SupabaseResult<AdminActionLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    const normalized = resourceId.trim();
+    if (!normalized) return { ok: false, message: "Resource ID is required." };
+
+    const { data, error } = await client
+      .from("admin_action_log")
+      .select("*")
+      .eq("resource_type", resourceType)
+      .eq("resource_id", normalized)
+      .order("created_at", { ascending: true });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as AdminActionLogRow[] };
+  },
+
+  /**
+   * Export admin action logs for compliance reporting
+   */
+  async exportLogs(params?: {
+    adminId?: string;
+    actionType?: AdminActionType;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<SupabaseResult<AdminActionLogRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+
+    let query = client.from("admin_action_log").select("*");
+
+    if (params?.adminId) {
+      query = query.eq("admin_id", params.adminId);
+    }
+    if (params?.actionType) {
+      query = query.eq("action_type", params.actionType);
+    }
+    if (params?.startDate) {
+      query = query.gte("created_at", params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.lte("created_at", params.endDate);
+    }
+
+    query = query.order("created_at", { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data || []) as AdminActionLogRow[] };
+  },
+};
+

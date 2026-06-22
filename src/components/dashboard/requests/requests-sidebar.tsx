@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { supabaseSupport } from "@/lib/supabase/data";
+import { supabaseSupport, supabaseDisputes } from "@/lib/supabase/data";
 import { useAuthStore } from "@/auth/auth.store";
 import {
   RequestsChevronDownIcon,
@@ -437,6 +437,7 @@ export function RequestsCore({
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportReason, setSupportReason] = useState("");
   const [isEscalatingSupport, setIsEscalatingSupport] = useState(false);
+  const [isCreatingDispute, setIsCreatingDispute] = useState(false);
   const [statusActionError, setStatusActionError] = useState<string | null>(
     null,
   );
@@ -947,14 +948,43 @@ export function RequestsCore({
         confirmLabel="Open dispute"
         reason={disputeReason}
         onReasonChange={setDisputeReason}
-        isSubmitting={false}
-        onConfirm={() => {
-          openDispute(request.id, disputeReason);
-          toast.success("Dispute opened", {
-            description: "This request is now marked for dispute review.",
-          });
-          setDisputeOpen(false);
-          setDisputeReason("");
+        isSubmitting={isCreatingDispute}
+        onConfirm={async () => {
+          if (!disputeReason.trim()) return;
+          if (!session?.userId) {
+            toast.error("Error", {
+              description: "User session not found. Please log in again.",
+            });
+            return;
+          }
+
+          setIsCreatingDispute(true);
+          try {
+            const result = await supabaseDisputes.createDisputeFromRequest({
+              requestId: request.id,
+              adminUserId: session.userId,
+              disputeReason: disputeReason.trim(),
+            });
+
+            if (!result.ok) {
+              const errorMessage = "message" in result ? result.message : "Failed to open dispute.";
+              toast.error("Failed to open dispute", {
+                description: errorMessage,
+              });
+              return;
+            }
+
+            // Also update the local store for UI consistency
+            openDispute(request.id, disputeReason);
+
+            toast.success("Dispute opened", {
+              description: "This request is now marked for dispute review.",
+            });
+            setDisputeOpen(false);
+            setDisputeReason("");
+          } finally {
+            setIsCreatingDispute(false);
+          }
         }}
       />
       <ReasonDialog
