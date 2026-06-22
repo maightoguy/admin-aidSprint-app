@@ -24,9 +24,9 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { supabaseSupport, supabaseDisputes } from "@/lib/supabase/data";
+import { supabaseSupport, supabaseDisputes, supabaseJobOperations } from "@/lib/supabase/data";
 import { useAuthStore } from "@/auth/auth.store";
 import {
   RequestsChevronDownIcon,
@@ -442,6 +442,8 @@ export function RequestsCore({
     null,
   );
   const [isStatusSaving, setIsStatusSaving] = useState(false);
+  const [operationHistory, setOperationHistory] = useState<any[]>([]);
+  const [operationLoading, setOperationLoading] = useState(false);
 
   const handleStatusUpdate = async (
     action: RequestStatusAction,
@@ -467,6 +469,32 @@ export function RequestsCore({
       setIsStatusSaving(false);
     }
   };
+
+  // Fetch operation history when sidebar opens
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchOperationHistory = async () => {
+      setOperationLoading(true);
+      try {
+        const result = await supabaseJobOperations.getOperationHistory(request.id);
+        if (result.ok) {
+          setOperationHistory(result.data);
+        } else {
+          const errorMessage = "message" in result ? result.message : "Failed to fetch operation history";
+          console.error("Failed to fetch operation history:", errorMessage);
+          setOperationHistory([]);
+        }
+      } catch (error) {
+        console.error("Error fetching operation history:", error);
+        setOperationHistory([]);
+      } finally {
+        setOperationLoading(false);
+      }
+    };
+
+    fetchOperationHistory();
+  }, [open, request.id]);
 
   return (
     <div className="flex h-full flex-col">
@@ -684,11 +712,38 @@ export function RequestsCore({
                 <button
                   type="button"
                   disabled={actionsDisabled}
-                  onClick={() => {
-                    clearDelayed(request.id);
-                    toast.success("Delay cleared", {
-                      description: "Removed the delayed flag for this request.",
-                    });
+                  onClick={async () => {
+                    if (!session?.userId) {
+                      toast.error("Error", {
+                        description: "User session not found. Please log in again.",
+                      });
+                      return;
+                    }
+
+                    try {
+                      const result = await supabaseJobOperations.clearFlag({
+                        jobId: request.id,
+                        reason: "Cleared delay flag",
+                        actorUserId: session.userId,
+                      });
+
+                      if (!result.ok) {
+                        const errorMessage = "message" in result ? result.message : "Failed to clear delay";
+                        toast.error("Failed to clear delay", {
+                          description: errorMessage,
+                        });
+                        return;
+                      }
+
+                      clearDelayed(request.id);
+                      toast.success("Delay cleared", {
+                        description: "Removed the delayed flag for this request.",
+                      });
+                    } catch (error) {
+                      toast.error("Error clearing delay", {
+                        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+                      });
+                    }
                   }}
                   className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Clear delayed flag"
@@ -714,11 +769,38 @@ export function RequestsCore({
                 <button
                   type="button"
                   disabled={actionsDisabled}
-                  onClick={() => {
-                    resolveDispute(request.id);
-                    toast.success("Dispute resolved", {
-                      description: "Marked this request as dispute cleared.",
-                    });
+                  onClick={async () => {
+                    if (!session?.userId) {
+                      toast.error("Error", {
+                        description: "User session not found. Please log in again.",
+                      });
+                      return;
+                    }
+
+                    try {
+                      const result = await supabaseJobOperations.clearFlag({
+                        jobId: request.id,
+                        reason: "Resolved dispute flag",
+                        actorUserId: session.userId,
+                      });
+
+                      if (!result.ok) {
+                        const errorMessage = "message" in result ? result.message : "Failed to resolve dispute";
+                        toast.error("Failed to resolve dispute", {
+                          description: errorMessage,
+                        });
+                        return;
+                      }
+
+                      resolveDispute(request.id);
+                      toast.success("Dispute resolved", {
+                        description: "Marked this request as dispute cleared.",
+                      });
+                    } catch (error) {
+                      toast.error("Error resolving dispute", {
+                        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+                      });
+                    }
                   }}
                   className="inline-flex items-center gap-2 rounded-[10px] border border-[#D0D5DD] bg-white px-3 py-2 text-[12px] font-semibold text-[#344054] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Resolve dispute"
@@ -783,6 +865,61 @@ export function RequestsCore({
             </p>
           ) : null}
         </div>
+
+        {/* Operation History Audit Trail */}
+        {(operationHistory.length > 0 || operationLoading) && (
+          <div className="border-t pt-4">
+            <p className="text-[12px] font-medium text-[#6B7280]">
+              Operation history
+            </p>
+            {operationLoading ? (
+              <p className="mt-2 text-[12px] leading-5 text-[#98A2B3]">
+                Loading operation history...
+              </p>
+            ) : operationHistory.length === 0 ? (
+              <p className="mt-2 text-[12px] leading-5 text-[#98A2B3]">
+                No operations recorded yet.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {operationHistory.map((op: any) => {
+                  const timestamp = new Date(op.created_at);
+                  const formattedTime = timestamp.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  const actorId = op.actor_id?.slice(0, 8).toUpperCase() ?? "UNKNOWN";
+
+                  return (
+                    <div
+                      key={op.id}
+                      className="rounded-lg border border-[#EAECF0] bg-[#FAFBFC] p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-[12px] font-semibold text-[#101828]">
+                            {op.operation_type.charAt(0).toUpperCase() + op.operation_type.slice(1)}
+                          </p>
+                          {op.reason && (
+                            <p className="mt-1 text-[11px] text-[#667085]">
+                              {op.reason}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[10px] text-[#98A2B3]">
+                            {formattedTime} by {actorId}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <p className="text-[12px] font-medium text-[#6B7280]">
             Additional details
@@ -927,13 +1064,43 @@ export function RequestsCore({
         reason={delayReason}
         onReasonChange={setDelayReason}
         isSubmitting={false}
-        onConfirm={() => {
-          flagDelayed(request.id, delayReason);
-          toast.success("Delay flagged", {
-            description: "This request has been flagged as delayed.",
-          });
-          setDelayOpen(false);
-          setDelayReason("");
+        onConfirm={async () => {
+          if (!delayReason.trim()) return;
+          if (!session?.userId) {
+            toast.error("Error", {
+              description: "User session not found. Please log in again.",
+            });
+            return;
+          }
+
+          try {
+            const result = await supabaseJobOperations.flagDelay({
+              jobId: request.id,
+              reason: delayReason.trim(),
+              actorUserId: session.userId,
+            });
+
+            if (!result.ok) {
+              const errorMessage = "message" in result ? result.message : "Failed to flag delay";
+              toast.error("Failed to flag delay", {
+                description: errorMessage,
+              });
+              return;
+            }
+
+            // Also update the local store for UI consistency
+            flagDelayed(request.id, delayReason);
+
+            toast.success("Delay flagged", {
+              description: "This request has been flagged as delayed.",
+            });
+            setDelayOpen(false);
+            setDelayReason("");
+          } catch (error) {
+            toast.error("Error flagging delay", {
+              description: error instanceof Error ? error.message : "An unexpected error occurred.",
+            });
+          }
         }}
       />
       <ReasonDialog
@@ -960,6 +1127,22 @@ export function RequestsCore({
 
           setIsCreatingDispute(true);
           try {
+            // Log dispute flag to job_operations_log
+            const jobOpResult = await supabaseJobOperations.flagDispute({
+              jobId: request.id,
+              reason: disputeReason.trim(),
+              actorUserId: session.userId,
+            });
+
+            if (!jobOpResult.ok) {
+              const errorMessage = "message" in jobOpResult ? jobOpResult.message : "Failed to flag dispute";
+              toast.error("Failed to flag dispute", {
+                description: errorMessage,
+              });
+              return;
+            }
+
+            // Create formal dispute record
             const result = await supabaseDisputes.createDisputeFromRequest({
               requestId: request.id,
               adminUserId: session.userId,
@@ -1010,6 +1193,22 @@ export function RequestsCore({
 
           setIsEscalatingSupport(true);
           try {
+            // Log escalation to job_operations_log
+            const jobOpResult = await supabaseJobOperations.flagEscalation({
+              jobId: request.id,
+              reason: supportReason || "Support escalation required",
+              actorUserId: session.userId,
+            });
+
+            if (!jobOpResult.ok) {
+              const errorMessage = "message" in jobOpResult ? jobOpResult.message : "Failed to flag escalation";
+              toast.error("Failed to flag escalation", {
+                description: errorMessage,
+              });
+              return;
+            }
+
+            // Create support ticket
             const result = await supabaseSupport.createSupportTicket({
               requestId: request.id,
               requesterUserId: session.userId,
