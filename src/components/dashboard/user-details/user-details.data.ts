@@ -78,4 +78,10 @@ export function getMockUserDetailsRecords(): UserDetailsRecord[] {
   });
 }
 
-export const userDetailsRecords: UserDetailsRecord[] = getMockUserDetailsRecords();
+// Integration note:
+// `userDetailsRecords` is a local test-mode fallback used for stories/tests and local dev.
+// It must not be used in production. When not in test mode this export will be an empty array.
+export const userDetailsRecords: UserDetailsRecord[] =
+  import.meta.env.MODE === "test" || import.meta.env.VITEST
+    ? getMockUserDetailsRecords()
+    : [];

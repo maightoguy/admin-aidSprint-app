@@ -136,4 +136,13 @@ function buildExpandedUserRecords(seed: UserRecord[]) {
   return expanded;
 }
 
-export const userRecords: UserRecord[] = buildExpandedUserRecords(userSeedRecords);
+export const userRecords: UserRecord[] =
+  import.meta.env.MODE === "test" || import.meta.env.VITEST
+    ? buildExpandedUserRecords(userSeedRecords)
+    : [];
+
+// Integration note:
+// `userRecords` is a local test-mode seed used for Storybook/tests and local dev fallbacks.
+// It MUST NOT be relied on in production. The integration plan requires that the
+// live Supabase `profiles` + `jobs` endpoints back the users list at runtime.
+

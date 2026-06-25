@@ -1,0 +1,47 @@
+name: Playwright E2E
+
+on: [push, pull_request]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm install
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      - name: Build app
+        run: npm run build
+      - name: Serve built app
+        run: npx http-server ./dist -p 5173 &
+      - name: Run Playwright tests (with retries)
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:5173
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          MAX_ATTEMPTS=3
+          attempt=1
+          while [ $attempt -le $MAX_ATTEMPTS ]; do
+            echo "Playwright attempt $attempt/$MAX_ATTEMPTS"
+            npx playwright test --config=playwright.config.ts && break
+            attempt=$((attempt+1))
+            if [ $attempt -le $MAX_ATTEMPTS ]; then
+              echo "Playwright tests failed; retrying in 5s..."
+              sleep 5
+            fi
+          done
+          if [ $attempt -gt $MAX_ATTEMPTS ]; then
+            echo "All Playwright attempts failed after $MAX_ATTEMPTS tries."
+            exit 1
+          fi
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report

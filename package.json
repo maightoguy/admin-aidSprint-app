@@ -9,6 +9,9 @@
     "build:server": "vite build --config vite.config.server.ts",
     "start": "node dist/server/node-build.mjs",
     "test": "vitest --run",
+    "test:e2e": "vitest --run --config=e2e/vitest.config.ts",
+    "test:playwright": "pnpm exec playwright test --config=playwright.config.ts",
+    "test:playwright:install": "pnpm exec playwright install --with-deps",
     "format.fix": "prettier --write .",
     "typecheck": "tsc"
   },
@@ -62,6 +65,8 @@
     "@types/react-dom": "^18.3.7",
     "@types/three": "^0.176.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "@playwright/test": "^1.61.1",
+    "http-server": "^14.2.1",
     "@vitest/coverage-v8": "^4.1.4",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
