@@ -155,7 +155,31 @@ export const liveTrackerRoadLabels: LiveTrackerRoadLabel[] = [
   { id: "ayoola", label: "Ayoola Awe St", x: 45, y: 68, rotation: 88 },
 ];
 
-export const liveTrackerJobs: LiveTrackerJob[] = userDetailsRecords
+function getMockRequest(index: number): any {
+  return {
+    id: `fallback-${index}`,
+    requestCode: "KJH 000000",
+    service: "General assistance",
+    location: "Lagos, Nigeria",
+    date: "Apr 12, 2023",
+    status: "Pending" as const,
+    completedRequests: "0 requests completed",
+    rating: "0.0",
+    urgencyLabel: "Emergency",
+    totalPayment: "$0.00",
+    baseFee: "$0/hr",
+    totalHours: "0hrs($0)",
+    description: "Request details not available.",
+    platformFee: "$0.00",
+    lifecycleStatus: "Assigned" as const,
+    contractorLocation: "Lagos, Nigeria",
+    userLocation: "Lagos, Nigeria",
+    etaLabel: "Awaiting assignment",
+    uploadedImages: [] as any[],
+  };
+}
+
+export const liveTrackerJobs: LiveTrackerJob[] = (userDetailsRecords.length > 0 ? userDetailsRecords : [])
   .flatMap((user) =>
     user.requestHistory.map((request) => ({
       user,
@@ -194,14 +218,14 @@ export const liveTrackerJobs: LiveTrackerJob[] = userDetailsRecords
     isEmergency: request.urgencyLabel === "Emergency",
   }));
 
-export const incomingLiveTrackerJobs: LiveTrackerJob[] = [
+export const incomingLiveTrackerJobs: LiveTrackerJob[] = userDetailsRecords.length === 0 ? [] : [
   {
     id: "incoming-job-1",
     requestId: "incoming-emergency-1",
     userId: "emery-torff",
     customerName: "Emery Torff",
     request: {
-      ...userDetailsRecords[0].requestHistory[0],
+      ...(userDetailsRecords[0]?.requestHistory?.[0] ?? getMockRequest(0)),
       id: "incoming-emergency-1",
       requestCode: "KJH 123490",
       service: "Plumbing",
@@ -239,7 +263,7 @@ export const incomingLiveTrackerJobs: LiveTrackerJob[] = [
     userId: "cooper-siphron",
     customerName: "Cooper Siphron",
     request: {
-      ...userDetailsRecords[2].requestHistory[0],
+      ...(userDetailsRecords[2]?.requestHistory?.[0] ?? getMockRequest(2)),
       id: "incoming-emergency-2",
       requestCode: "KJH 123491",
       service: "Electrician",

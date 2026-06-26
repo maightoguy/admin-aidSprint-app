@@ -1,0 +1,22 @@
+# =======================================================
+# CLINE-OPTIMIZED FILE AND FOLDER EXCLUSIONS
+# =======================================================
+
+# 1. Recursive Blocks (Catches folders hidden deep inside subdirectories)
+**/node_modules/**
+**/dist/**
+**/dist-ssr/**
+**/build/**
+**/out/**
+**/.cache/**
+
+# 3. Block Heavy Media and Binaries (Zero value for AI context)
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.zip
+*.tar.gz
