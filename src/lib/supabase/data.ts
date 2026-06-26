@@ -3,6 +3,9 @@ import { supabase } from "./client";
 import { validateEvidenceFile } from "./evidence";
 import { withRetry, DEFAULT_RETRY_CONFIG, type RetryConfig } from "@/lib/resilience/retry";
 import { CircuitBreaker, DEFAULT_CIRCUIT_BREAKER_CONFIG } from "@/lib/resilience/circuit-breaker";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("SupabaseData");
 
 export type SupabaseResult<T> =
   | { ok: true; data: T }
@@ -2061,6 +2064,39 @@ export const supabaseContractorBankAccounts = {
 };
 
 export const supabaseContractorDocuments = {
+  /**
+   * Generate signed URLs for contractor document storage paths.
+   * The contractor-documents bucket is private, so raw storage_path
+   * values cannot be resolved without a signed URL.
+   */
+  async getSignedUrls(
+    documents: ContractorDocumentRow[],
+    expiresInSeconds?: number,
+  ): Promise<Map<string, string>> {
+    const client = requireSupabaseClient();
+    const signedUrls = new Map<string, string>();
+    const bucket = "contractor-documents";
+    const expiresIn = expiresInSeconds ?? 60 * 60; // 1 hour default
+
+    await Promise.all(
+      documents.map(async (document) => {
+        if (!document.storage_path) return;
+        try {
+          const { data, error } = await client.storage
+            .from(bucket)
+            .createSignedUrl(document.storage_path, expiresIn);
+          if (!error && data?.signedUrl) {
+            signedUrls.set(document.id, data.signedUrl);
+          }
+        } catch {
+          // Leave signed URL unresolved for this document
+        }
+      }),
+    );
+
+    return signedUrls;
+  },
+
   async listByContractorIds(
     contractorIds: string[],
   ): Promise<SupabaseResult<ContractorDocumentRow[]>> {
@@ -2160,6 +2196,21 @@ export const supabaseContractorDocuments = {
       metadata: { documentIds, documentCount: documentIds.length, status: params.status },
       success: true,
     });
+
+    // Touch contractor row to fire on_contractor_verification_update trigger.
+    // The trigger re-derives id_verification_complete, police_check_complete,
+    // service_licences_complete, and is_verified from actual document statuses.
+    const { error: touchError } = await client
+      .from("contractors")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", contractorId);
+
+    if (touchError) {
+      logger.warn("Failed to touch contractor after document review.", {
+        contractorId,
+        error: formatPostgrestError(touchError),
+      });
+    }
 
     return { ok: true, data: (data ?? []) as ContractorDocumentRow[] };
   },

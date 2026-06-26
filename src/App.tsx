@@ -50,8 +50,8 @@ const App = () => (
             <Route path={ROUTES.disputes} element={<DisputesPage />} />
             <Route path={ROUTES.settings} element={<SettingsPage />} />
             <Route path={ROUTES.marketplace} element={<MarketplacePage />} />
-            <Route path={ROUTES.users} element={<Users />} />
-            <Route path={ROUTES.userDetails} element={<UserDetailsPage />} />
+            <Route path={ROUTES.users} element={<Users accountActionsEnabled />} />
+            <Route path={ROUTES.userDetails} element={<UserDetailsPage accountActionsEnabled requestActionsEnabled />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

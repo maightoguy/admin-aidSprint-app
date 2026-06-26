@@ -791,6 +791,8 @@ export async function loadLiveContractorDetails(
     ),
   ].sort((left, right) => right.dateTime.localeCompare(left.dateTime));
 
+  const documentSignedUrls = await supabaseContractorDocuments.getSignedUrls(docs);
+
   return {
     contractor: {
       ...record,
@@ -799,6 +801,7 @@ export async function loadLiveContractorDetails(
     kycState: mapContractorDocumentsToKycInitialState({
       documents: docs,
       reviewerProfiles: relatedProfilesById,
+      signedUrls: documentSignedUrls,
     }),
     requestRows,
     transactions,

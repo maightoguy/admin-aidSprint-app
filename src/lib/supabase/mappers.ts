@@ -347,8 +347,16 @@ function hasApprovedRequiredKycDocuments(documents: ContractorDocumentRow[]) {
 export function mapContractorDocumentsToKycInitialState(params: {
   documents: ContractorDocumentRow[];
   reviewerProfiles?: Map<string, Pick<ProfileRow, "full_name">>;
+  signedUrls?: Map<string, string>;
 }): Partial<ContractorKycState> {
-  const { documents, reviewerProfiles } = params;
+  const { documents, reviewerProfiles, signedUrls } = params;
+
+  const getSignedUrl = (document: ContractorDocumentRow): string => {
+    if (signedUrls?.has(document.id)) {
+      return signedUrls.get(document.id)!;
+    }
+    return document.storage_path || "";
+  };
 
   const buildDoc = (document: ContractorDocumentRow): ContractorKycDocumentRecord => ({
     documentId: document.id,
@@ -362,7 +370,7 @@ export function mapContractorDocumentsToKycInitialState(params: {
     mimeType: document.mime_type || "application/octet-stream",
     uploadedAtIso: document.created_at,
     uploadedAtLabel: formatDateLabel(document.created_at),
-    objectUrl: document.storage_path || "",
+    objectUrl: getSignedUrl(document),
   });
 
   const idDoc = documents.find((doc) =>

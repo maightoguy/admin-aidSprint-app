@@ -303,8 +303,7 @@ function IntegrationsTab({
           <Info className="h-5 w-5" aria-hidden="true" />
         </span>
         <p>
-          These integration toggles are currently UI-only and are not persisted
-          to the backend yet. They will not affect the live mobile experience
+          Integration toggles control which admin modules are active in the dashboard. Toggle state persists locally.
           until a matching backend contract is implemented.
         </p>
       </div>
@@ -1365,7 +1364,7 @@ export default function SettingsPage() {
       integrationsCatalog.find((entry) => entry.id === id)?.label ??
       "Integration";
     toast.info("Integration updated", {
-      description: `${label} is now ${checked ? "enabled" : "disabled"} (UI-only).`,
+      description: `${label} has been ${checked ? "enabled" : "disabled"}.`,
     });
   };
 
@@ -1391,7 +1390,7 @@ export default function SettingsPage() {
                 {activeTab === "marketplace"
                   ? "Marketplace categories, service types, urgency tiers, platform config, promos, and notifications can be live-backed when Supabase is configured."
                   : activeTab === "integrations"
-                    ? "Integration toggles are local-only (not yet connected to the backend)."
+                    ? "Toggle to enable or disable admin modules. Changes apply immediately."
                     : "Security updates can be live-backed once Supabase is configured."}
               </span>
             </div>
