@@ -21,8 +21,44 @@ import MarketplacePage from "./components/dashboard/setting/marketplace-page";
 import DisputesPage from "./components/dashboard/disputes/disputes";
 import UserDetailsPage from "./components/dashboard/user-details/user-details-page";
 import Users from "./components/dashboard/users/users";
+import { useAuthStore } from "@/auth/auth.store";
+import { supabaseProfiles } from "@/lib/supabase/data";
+import { useCallback } from "react";
 
 const queryClient = new QueryClient();
+
+function UserDetailsPageWithStatusHandler() {
+  const session = useAuthStore((state) => state.session);
+
+  const handleStatusChange = useCallback(
+    async (user: { id: string; name: string }, status: string) => {
+      const actorUserId = session?.userId?.trim() ?? "";
+      if (!actorUserId) {
+        throw new Error("You must be signed in to update account status.");
+      }
+
+      const active = status === "Active";
+      const result = await supabaseProfiles.updateAccountStatus({
+        userId: user.id,
+        active,
+        actorUserId,
+      });
+
+      if (result.ok === false) {
+        throw new Error(result.message);
+      }
+    },
+    [session?.userId],
+  );
+
+  return (
+    <UserDetailsPage
+      accountActionsEnabled
+      requestActionsEnabled
+      onStatusChange={handleStatusChange}
+    />
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -51,7 +87,7 @@ const App = () => (
             <Route path={ROUTES.settings} element={<SettingsPage />} />
             <Route path={ROUTES.marketplace} element={<MarketplacePage />} />
             <Route path={ROUTES.users} element={<Users accountActionsEnabled />} />
-            <Route path={ROUTES.userDetails} element={<UserDetailsPage accountActionsEnabled requestActionsEnabled />} />
+            <Route path={ROUTES.userDetails} element={<UserDetailsPageWithStatusHandler />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

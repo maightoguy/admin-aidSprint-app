@@ -961,6 +961,45 @@ export const supabaseProfiles = {
     return { ok: true, data: rows };
   },
 
+  async updateAccountStatus(params: {
+    userId: string;
+    active: boolean;
+    actorUserId: string;
+  }): Promise<SupabaseResult<ProfileRow>> {
+    const client = requireSupabaseClient();
+    const userId = params.userId.trim();
+    const actorUserId = params.actorUserId.trim();
+
+    if (!userId) {
+      return { ok: false, message: "User id is required." };
+    }
+
+    if (!actorUserId) {
+      return { ok: false, message: "Admin user id is required." };
+    }
+
+    const adminCheck = await requireAdminAccess({
+      expectedUserId: actorUserId,
+    });
+    if (adminCheck.ok === false) return adminCheck;
+
+    // Deactivation: set linked_auth_methods to empty array.
+    // Activation: set linked_auth_methods to ["email"] (the default linked method).
+    const linkedAuthMethods = params.active ? ["email"] : [];
+
+    const { error } = await client
+      .from("profiles")
+      .update({
+        linked_auth_methods: linkedAuthMethods,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+
+    return { ok: true, data: null as unknown as ProfileRow };
+  },
+
   async listLatest(params?: {
     limit?: number;
     roles?: string[];
