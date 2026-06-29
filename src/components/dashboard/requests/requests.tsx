@@ -48,6 +48,7 @@ import { paginateItems } from "../shared/pagination-utils";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabase } from "@/lib/supabase/client";
 import {
+  supabaseJobAttachments,
   supabaseJobs,
   supabaseProfiles,
   type JobRow,
@@ -399,6 +400,21 @@ export default function RequestsPage() {
           profilesResult.data.map((profile) => [profile.id, profile]),
         );
 
+        // Load job attachments
+        const jobIds = jobs.map((job) => job.id);
+        const attachmentsResult = await supabaseJobAttachments.listByJobIds(jobIds);
+        const attachments = attachmentsResult.ok ? attachmentsResult.data : [];
+        const attachmentUrls = attachmentsResult.ok
+          ? await supabaseJobAttachments.getSignedUrls(attachments)
+          : new Map<string, string>();
+
+        const attachmentsByJobId = new Map<string, typeof attachments>();
+        for (const attachment of attachments) {
+          const items = attachmentsByJobId.get(attachment.job_id) ?? [];
+          items.push(attachment);
+          attachmentsByJobId.set(attachment.job_id, items);
+        }
+
         const nextRows: RequestListRow[] = jobs.map((job) => {
           const userProfile = profilesById.get(job.user_id) ?? null;
           const contractorProfile = job.contractor_id
@@ -409,6 +425,8 @@ export default function RequestsPage() {
             job,
             userProfile,
             contractorProfile,
+            attachments: attachmentsByJobId.get(job.id) ?? [],
+            attachmentUrls,
           });
 
           const userName =

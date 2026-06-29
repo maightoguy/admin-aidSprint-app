@@ -590,6 +590,16 @@ export type AdminActionLogRow = {
   updated_at: string;
 };
 
+export type JobAttachmentRow = {
+  id: string;
+  job_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  uploaded_by: string;
+  created_at: string;
+};
+
 export type JobOperationLogRow = {
   id: string;
   job_id: string;
@@ -598,6 +608,65 @@ export type JobOperationLogRow = {
   actor_id: string;
   metadata: Record<string, any> | null;
   created_at: string;
+};
+
+export const supabaseJobAttachments = {
+  async listByJobIds(
+    jobIds: string[],
+  ): Promise<SupabaseResult<JobAttachmentRow[]>> {
+    const client = requireSupabaseClient();
+    const adminCheck = await requireAdminAccess();
+    if (adminCheck.ok === false) return adminCheck;
+    const ids = Array.from(
+      new Set(jobIds.map((id) => String(id).trim()).filter(Boolean)),
+    );
+
+    if (ids.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const { data, error } = await client
+      .from("job_attachments")
+      .select("*")
+      .in("job_id", ids)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: formatPostgrestError(error) };
+    return { ok: true, data: (data ?? []) as JobAttachmentRow[] };
+  },
+
+  /**
+   * Generate signed URLs for job attachment storage paths.
+   * The job-attachments bucket is private, so raw storage_path
+   * values cannot be resolved without a signed URL.
+   */
+  async getSignedUrls(
+    attachments: JobAttachmentRow[],
+    expiresInSeconds?: number,
+  ): Promise<Map<string, string>> {
+    const client = requireSupabaseClient();
+    const signedUrls = new Map<string, string>();
+    const bucket = "job-attachments";
+    const expiresIn = expiresInSeconds ?? 60 * 60; // 1 hour default
+
+    await Promise.all(
+      attachments.map(async (attachment) => {
+        if (!attachment.storage_path) return;
+        try {
+          const { data, error } = await client.storage
+            .from(bucket)
+            .createSignedUrl(attachment.storage_path, expiresIn);
+          if (!error && data?.signedUrl) {
+            signedUrls.set(attachment.id, data.signedUrl);
+          }
+        } catch {
+          // Leave signed URL unresolved for this attachment
+        }
+      }),
+    );
+
+    return signedUrls;
+  },
 };
 
 export const supabaseJobOperations = {

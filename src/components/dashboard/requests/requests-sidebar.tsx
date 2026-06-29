@@ -277,21 +277,163 @@ function MonitoringStatusPill({ state }: { state: RequestMonitoringState }) {
   );
 }
 
+function extractImageUrlsFromText(text: string): { displayText: string; imageUrls: string[] } {
+  const attachmentMarker = "---ATTACHMENTS---";
+  const markerIndex = text.indexOf(attachmentMarker);
+
+  if (markerIndex === -1) {
+    // No marker — return full text with no images
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = text.match(urlRegex) ?? [];
+    const imageUrls = urls.filter((u) => /\.(jpg|jpeg|png|gif|webp|svg)/i.test(u) || /\/storage\/v1\/object\/sign\//i.test(u));
+    if (imageUrls.length > 0) {
+      const cleaned = text.replace(urlRegex, "").replace(/^[—\-–\s]+/, "").replace(/[—\-–\s]+$/, "").trim();
+      return { displayText: cleaned, imageUrls };
+    }
+    return { displayText: text, imageUrls: [] };
+  }
+
+  const beforeMarker = text.slice(0, markerIndex).trim();
+  const afterMarker = text.slice(markerIndex + attachmentMarker.length).trim();
+
+  // Extract URLs from after-marker text
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = afterMarker.match(urlRegex) ?? [];
+  const imageUrls = urls.filter((u) => /\.(jpg|jpeg|png|gif|webp|svg)/i.test(u) || /\/storage\/v1\/object\/sign\//i.test(u));
+
+  return { displayText: beforeMarker, imageUrls };
+}
+
+function DescriptionImageThumbnail({ url, index }: { url: string; index: number }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const fileName = `Attachment ${index + 1}`;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setViewerOpen(true)}
+        className="inline-block h-[52px] w-[52px] overflow-hidden rounded-[10px] border border-[#D0D5DD] bg-[#F5F5F5] hover:opacity-90 transition mr-2 mb-2"
+        title={fileName}
+        aria-label={`View ${fileName}`}
+      >
+        <img src={url} alt={fileName} className="h-full w-full object-cover" loading="lazy" />
+      </button>
+      {viewerOpen ? (
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="z-[100] max-h-[90vh] max-w-[90vw] overflow-auto rounded-[18px] border border-[#EAECF0] bg-white p-4">
+            <DialogTitle className="sr-only">{fileName}</DialogTitle>
+            <div className="flex items-center justify-between border-b border-[#EAECF0] pb-3 mb-3">
+              <span className="text-sm font-semibold text-[#101828]">{fileName}</span>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#667085] hover:bg-[#F5F5F5]"
+                  aria-label="Close image viewer"
+                >
+                  <RequestsCloseIcon className="h-5 w-5" />
+                </button>
+              </DialogClose>
+            </div>
+            <img src={url} alt={fileName} className="max-h-[75vh] w-full rounded-[10px] object-contain" />
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
+  );
+}
+
+function RenderedDescription({ text }: { text: string }) {
+  const { displayText, imageUrls } = extractImageUrlsFromText(text);
+
+  return (
+    <div>
+      {displayText ? <p className="text-sm leading-6 text-[#475467] whitespace-pre-wrap">{displayText}</p> : null}
+      {imageUrls.length > 0 ? (
+        <div className={displayText ? "mt-2" : ""}>
+          <div className="flex flex-wrap items-center gap-2">
+            {imageUrls.map((url, index) => (
+              <DescriptionImageThumbnail key={url} url={url} index={index} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function UploadedImageCard({
   label,
   tone,
+  url,
+  isImage,
+  fileName,
 }: UserRequestHistoryItem["uploadedImages"][number]) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  if (isImage && url) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="relative h-[52px] w-[52px] overflow-hidden rounded-[10px] border border-[#D0D5DD] bg-[#F5F5F5] hover:opacity-90 transition"
+          title={fileName || label}
+          aria-label={`View ${fileName || label}`}
+        >
+          <img
+            src={url}
+            alt={fileName || label}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        </button>
+        {viewerOpen ? (
+          <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+            <DialogContent className="z-[100] max-h-[90vh] max-w-[90vw] overflow-auto rounded-[18px] border border-[#EAECF0] bg-white p-4">
+              <DialogTitle className="sr-only">
+                {fileName || label}
+              </DialogTitle>
+              <div className="flex items-center justify-between border-b border-[#EAECF0] pb-3 mb-3">
+                <span className="text-sm font-semibold text-[#101828] truncate max-w-[70%]">
+                  {fileName || label}
+                </span>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#667085] hover:bg-[#F5F5F5]"
+                    aria-label="Close image viewer"
+                  >
+                    <RequestsCloseIcon className="h-5 w-5" />
+                  </button>
+                </DialogClose>
+              </div>
+              <img
+                src={url}
+                alt={fileName || label}
+                className="max-h-[75vh] w-full rounded-[10px] object-contain"
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </>
+    );
+  }
+
   return (
-    <div
+    <a
+      href={url || "#"}
+      download={fileName || label}
       className={[
-        "flex h-[44px] w-[44px] items-end justify-start overflow-hidden rounded-[10px] border border-[#D0D5DD] p-1.5 text-[8px] font-semibold tracking-[0.02em]",
+        "flex h-[52px] min-w-[52px] items-center justify-center overflow-hidden rounded-[10px] border border-[#D0D5DD] p-2 text-[9px] font-semibold tracking-[0.02em]",
         tone === "light"
           ? "bg-[linear-gradient(180deg,#F8FAFC_0%,#E5E7EB_100%)] text-[#667085]"
           : "bg-[linear-gradient(180deg,#D6D3D1_0%,#78716C_100%)] text-white",
       ].join(" ")}
+      title={fileName || label}
     >
-      <span>{label}</span>
-    </div>
+      <span className="text-center leading-tight break-words max-w-full">{fileName || label}</span>
+    </a>
   );
 }
 
@@ -930,7 +1072,6 @@ export function RequestsCore({
               ["Total hours", request.totalHours],
               ["Location", request.location],
               ["Urgency", `${request.urgencyLabel}(within 60mins) + $30`],
-              ["Description", request.description],
               ["Platform fee", request.platformFee],
               ["Total payment", request.totalPayment],
               ["Status", `• ${getStatusLabel(panelState)}`],
@@ -956,6 +1097,12 @@ export function RequestsCore({
                 </span>
               </div>
             ))}
+            <div className="border border-[#F0F1F2] bg-[#FAFAFA] px-[9px] py-[13px] rounded-b-[10px]">
+              <span className="text-[14px] text-[#6B7280]">Description</span>
+              <div className="mt-2">
+                <RenderedDescription text={request.description} />
+              </div>
+            </div>
           </div>
         </div>
         <div>
@@ -978,7 +1125,7 @@ export function RequestsCore({
             },
             {
               label: "Customer note",
-              value: request.description,
+              content: <RenderedDescription text={request.description} />,
             },
           ].map((item, index) => (
             <div key={`${item.label}-${index}`}>
@@ -986,9 +1133,10 @@ export function RequestsCore({
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#98A2B3]">
                   {item.label}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#475467]">
-                  {item.value}
-                </p>
+                <div className="mt-2 text-sm leading-6 text-[#475467]">
+                  {"content" in item ? item.content : null}
+                  {"value" in item ? <RenderedDescription text={item.value} /> : null}
+                </div>
               </div>
               {index === 0 ? <div className="h-px bg-[#F0F1F2]" /> : null}
             </div>

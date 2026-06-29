@@ -43,6 +43,11 @@ export type LiveTrackerJob = {
   etaMinutes: number;
   state: LiveTrackerJobState;
   isEmergency: boolean;
+  /** Live geographic coordinates for Leaflet map */
+  customerLat?: number;
+  customerLng?: number;
+  contractorLat?: number;
+  contractorLng?: number;
 };
 
 export type LiveTrackerSimulationResult = {

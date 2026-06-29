@@ -34,6 +34,7 @@ import type {
   DisputeEvidenceRow,
   DisputeEventRow,
   DisputeRow,
+  JobAttachmentRow,
   JobRow,
   NotificationCampaignRow,
   PaymentRow,
@@ -151,12 +152,27 @@ export function mapJobRowToUserRequestHistoryItem(params: {
   job: JobRow;
   userProfile?: Pick<ProfileRow, "full_name" | "email"> | null;
   contractorProfile?: Pick<ProfileRow, "full_name" | "email"> | null;
+  attachments?: JobAttachmentRow[];
+  attachmentUrls?: Map<string, string>;
 }): UserRequestHistoryItem {
-  const { job, userProfile, contractorProfile } = params;
+  const { job, userProfile, contractorProfile, attachments = [], attachmentUrls } = params;
 
   const hoursLabel = `${job.hours}hrs(${formatCurrency(job.base_price * job.hours)})`;
   const baseFeeLabel = `${formatCurrency(job.base_price)}/hr`;
   const totalPayment = job.final_price ?? job.price_estimate;
+
+  const uploadedImages = attachments.map((attachment) => {
+    const url = attachmentUrls?.get(attachment.id) ?? "";
+    const isImage = attachment.mime_type?.startsWith("image/");
+    return {
+      id: attachment.id,
+      label: attachment.file_name || "Attachment",
+      tone: "light" as const,
+      url: url || undefined,
+      isImage,
+      fileName: attachment.file_name,
+    };
+  });
 
   return {
     id: job.id,
@@ -182,7 +198,7 @@ export function mapJobRowToUserRequestHistoryItem(params: {
         : job.status === "arrived"
           ? "Arrived"
           : "—",
-    uploadedImages: [],
+    uploadedImages,
   };
 }
 

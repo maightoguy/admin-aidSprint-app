@@ -24,6 +24,9 @@ export type UserRequestUploadedImage = {
   id: string;
   label: string;
   tone: UserRequestImageTone;
+  url?: string;
+  isImage?: boolean;
+  fileName?: string;
 };
 
 export type UserRequestHistoryItem = {
