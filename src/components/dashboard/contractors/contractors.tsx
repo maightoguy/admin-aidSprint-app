@@ -38,6 +38,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/auth/auth.store";
 import { supabaseContractors } from "@/lib/supabase/data";
 import { createLogger } from "@/lib/logger";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import type {
   ContractorAccountStatus,
   ContractorCurrentStatus,
@@ -695,6 +696,25 @@ export default function ContractorsPage({
               : "The contractor has been restored to the active queue.",
         },
       );
+
+      // Emit event for notification + audit trail
+      void emitEvent({
+        type:
+          lifecycleAction === "suspend"
+            ? BusinessEventType.CONTRACTOR_SUSPENDED
+            : BusinessEventType.CONTRACTOR_RESTORED,
+        actorId: adminUserId.trim(),
+        subjectId: selectedLifecycleContractor.id,
+        source: "admin-dashboard",
+        priority: "high",
+        audit: true,
+        realtime: true,
+        metadata: {
+          lifecycleAction,
+          reason: trimmedReason,
+          contractorName: selectedLifecycleContractor.name,
+        },
+      });
 
       closeLifecycleDialog();
     } catch (error) {

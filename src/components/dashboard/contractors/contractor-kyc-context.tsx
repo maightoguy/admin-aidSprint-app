@@ -12,6 +12,7 @@ import { useAuthStore } from "@/auth/auth.store";
 import { createLogger } from "@/lib/logger";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseContractorDocuments } from "@/lib/supabase/data";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import type {
   ContractorKycCategory,
   ContractorKycDocumentRecord,
@@ -427,6 +428,22 @@ export function ContractorKycProvider({
         applyReviewDecision(category, "accepted");
       }
 
+      // Emit event for notification + audit trail
+      void emitEvent({
+        type: BusinessEventType.KYC_APPROVED,
+        actorId: reviewerId,
+        subjectId: contractorId?.trim() || "",
+        source: "admin-dashboard",
+        priority: "high",
+        audit: true,
+        realtime: true,
+        metadata: {
+          documentCategory: category,
+          documentIds,
+          reviewerLabel,
+        },
+      });
+
       return { ok: true as const };
     },
     [
@@ -512,6 +529,23 @@ export function ContractorKycProvider({
       if (isMountedRef.current) {
         applyReviewDecision(category, "rejected", reason);
       }
+
+      // Emit event for notification + audit trail
+      void emitEvent({
+        type: BusinessEventType.KYC_REJECTED,
+        actorId: reviewerId,
+        subjectId: contractorId?.trim() || "",
+        source: "admin-dashboard",
+        priority: "high",
+        audit: true,
+        realtime: true,
+        metadata: {
+          documentCategory: category,
+          documentIds,
+          rejectionReason: reason,
+          reviewerLabel,
+        },
+      });
 
       return { ok: true as const };
     },

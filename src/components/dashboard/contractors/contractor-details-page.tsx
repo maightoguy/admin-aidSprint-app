@@ -28,6 +28,7 @@ import { ContractorDetailsTabs } from "./contractor-details-tabs";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { supabaseContractors } from "@/lib/supabase/data";
 import { createLogger } from "@/lib/logger";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import {
   contractorRecords,
   loadLiveContractorDetails,
@@ -869,6 +870,25 @@ export default function ContractorDetailsPage({
               : `${currentContractor.name} has been returned to the active contractor queue.`,
         },
       );
+
+      // Emit event for notification + audit trail
+      void emitEvent({
+        type:
+          lifecycleAction === "suspend"
+            ? BusinessEventType.CONTRACTOR_SUSPENDED
+            : BusinessEventType.CONTRACTOR_RESTORED,
+        actorId: adminUserId,
+        subjectId: currentContractor.id,
+        source: "admin-dashboard",
+        priority: "high",
+        audit: true,
+        realtime: true,
+        metadata: {
+          lifecycleAction,
+          reason: trimmedReason,
+          contractorName: currentContractor.name,
+        },
+      });
     } catch (error) {
       setActionError(
         error instanceof Error
