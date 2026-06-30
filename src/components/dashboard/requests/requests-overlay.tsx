@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useRef } from "react";
-import { AlertTriangle, PauseCircle, PlayCircle, Radio, X } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { AlertTriangle, ArrowLeft, PauseCircle, PlayCircle, Radio, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -163,6 +163,28 @@ export function RequestsLiveTrackerOverlay({
 
   const jobId = job?.id ?? null;
 
+  // Intercept browser/Android back button to close the map instead of navigating away
+  useEffect(() => {
+    if (!isMapOpen) return;
+
+    // Push a dummy state so the back button triggers popstate instead of navigating
+    window.history.pushState({ liveTrackerOpen: true }, "");
+
+    const handlePopState = () => {
+      closeMap();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      // Clean up the dummy history entry when map closes
+      if (window.history.state?.liveTrackerOpen) {
+        window.history.back();
+      }
+    };
+  }, [closeMap, isMapOpen]);
+
   useEffect(() => {
     if (!isMapOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -180,16 +202,29 @@ export function RequestsLiveTrackerOverlay({
           Full-screen live tracker for the selected service request.
         </DialogDescription>
         <div className="relative h-full w-full">
+          {/* Back button — prominent on mobile, visible on all screen sizes */}
           <button
             type="button"
             onClick={closeMap}
-            className="absolute right-4 top-4 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white backdrop-blur transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/30"
+            className="absolute left-4 top-4 z-30 inline-flex h-11 items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-[#071B58] shadow-sm backdrop-blur transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:left-6 sm:top-6"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back</span>
+          </button>
+
+          {/* Close button — top-right corner */}
+          <button
+            type="button"
+            onClick={closeMap}
+            className="absolute right-4 top-4 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white backdrop-blur transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/30 sm:right-6 sm:top-6"
             aria-label="Close live tracker"
           >
             <X className="h-5 w-5" />
           </button>
+
           {requestId ? (
-            <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-2 sm:left-6 sm:top-6">
+            <div className="absolute left-4 top-16 z-20 flex flex-wrap items-center gap-2 sm:left-6 sm:top-6 sm:ml-[120px]">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
                 <Radio className="h-3.5 w-3.5" aria-hidden="true" />
                 Live monitoring
