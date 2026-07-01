@@ -52,6 +52,7 @@ import {
   mapDisputeRowToDisputeRecord,
   mapDisputeStatusToLifecycleState,
 } from "@/lib/supabase/mappers";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 
 const disputeLifecycleStates: DisputeLifecycleState[] = [
   "Opened",
@@ -494,6 +495,28 @@ export default function DisputesPage() {
       if (result.ok === false) {
         return { ok: false as const, message: result.message };
       }
+
+      // Emit event for notification trail (audit:false — data.ts already logs)
+      void emitEvent({
+        type:
+          request.action === "resolve"
+            ? BusinessEventType.DISPUTE_RESOLVED
+            : request.action === "reject"
+              ? BusinessEventType.DISPUTE_REJECTED
+              : BusinessEventType.DISPUTE_CREATED,
+        actorId: actorUserId,
+        subjectId: selectedDispute.id,
+        source: "admin-dashboard",
+        priority: request.action === "reject" ? "high" : "normal",
+        audit: false,
+        realtime: true,
+        metadata: {
+          action: request.action,
+          reason: request.reason,
+          resolutionType: request.resolutionType,
+          disputeId: selectedDispute.disputeId,
+        },
+      });
 
       const actionSummary =
         request.action === "requestEvidence"

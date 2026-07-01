@@ -55,6 +55,7 @@ import {
 } from "@/lib/supabase/data";
 import { mapJobRowToUserRequestHistoryItem } from "@/lib/supabase/mappers";
 import { createLogger } from "@/lib/logger";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 
 type RequestListRow = {
   id: string;
@@ -723,6 +724,32 @@ export default function RequestsPage() {
       }
 
       setLocalRequestRow(updateResult.data);
+
+      // Emit event for notification trail
+      // Note: audit=false for cancellations because data.ts already logs via supabaseAuditLog
+      void emitEvent({
+        type:
+          nextJobStatus === "completed"
+            ? BusinessEventType.JOB_COMPLETED
+            : nextJobStatus === "cancelled"
+              ? BusinessEventType.JOB_CANCELLED
+              : BusinessEventType.JOB_BROADCAST,
+        actorId: adminUserId,
+        subjectId: selectedRow.id,
+        source: "admin-dashboard",
+        priority: "high",
+        audit: nextJobStatus !== "cancelled",
+        realtime: true,
+        metadata: {
+          jobStatus: nextJobStatus,
+          service: selectedRow.request.service,
+          userName: selectedRow.userName,
+          cancellationReason: nextJobStatus === "cancelled"
+            ? options?.cancellationReason?.trim() || null
+            : undefined,
+        },
+      });
+
       useRequestsStore.getState().setRequestStatusOverride(selectedRow.id, {
         status:
           nextJobStatus === "completed"

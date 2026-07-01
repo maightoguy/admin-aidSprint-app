@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/auth/auth.store";
 import { cn } from "@/lib/utils";
 import { supabaseDisputes } from "@/lib/supabase/data";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import type { DisputeAttachment } from "./disputes.types";
 import {
   Dialog,

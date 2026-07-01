@@ -44,6 +44,7 @@ import {
   mapSupportTicketRowToSupportTicket,
   mapSupportUiStatusToDbStatus,
 } from "@/lib/supabase/mappers";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 
 const supportStatuses: SupportTicketStatus[] = ["Open", "Pending", "Resolved"];
 const supportPriorities: SupportTicketPriority[] = [
@@ -350,6 +351,21 @@ export default function SupportPage() {
           ),
         );
       }
+
+      // Emit event for notification trail (audit:false — data.ts already logs)
+      void emitEvent({
+        type: BusinessEventType.SUPPORT_TICKET_RESOLVED,
+        actorId: adminUserId,
+        subjectId: selectedTicketId,
+        source: "admin-dashboard",
+        priority: "normal",
+        audit: false,
+        realtime: true,
+        metadata: {
+          newStatus: status,
+          ticketName: selectedTicket?.userName ?? "",
+        },
+      });
 
       toast.success("Ticket status updated successfully.", {
         description: `The ticket is now marked as ${status.toLowerCase()}.`,

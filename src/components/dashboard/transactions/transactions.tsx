@@ -55,6 +55,7 @@ import { contractorRecords } from "../contractors/contractors.data";
 import type { ContractorRecord } from "../contractors/contractors.types";
 import { toast } from "sonner";
 import { filterTransactions } from "./transactions.utils";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 
 type FinanceTransactionType = "Withdrawal" | "Service payment";
 
@@ -1999,6 +2000,38 @@ export default function TransactionsPage() {
       };
 
       toast.success(actionLabels[action]);
+
+      // Emit event for notification trail (audit:false — data.ts already logs)
+      void emitEvent({
+        type:
+          action === "refundPayment"
+            ? BusinessEventType.PAYMENT_REFUNDED
+            : action === "markPaymentFailed"
+              ? BusinessEventType.PAYMENT_FAILED
+              : action === "cancelPayment"
+                ? BusinessEventType.PAYMENT_CANCELLED
+                : action === "markWithdrawalFailed"
+                  ? BusinessEventType.WITHDRAWAL_FAILED
+                  : action === "cancelWithdrawal"
+                    ? BusinessEventType.WITHDRAWAL_CANCELLED
+                    : BusinessEventType.WITHDRAWAL_COMPLETED,
+        actorId: sessionUserId,
+        subjectId: transaction.id,
+        source: "admin-dashboard",
+        priority:
+          action === "markPaymentFailed" || action === "markWithdrawalFailed"
+            ? "high"
+            : "normal",
+        audit: false,
+        realtime: true,
+        metadata: {
+          action,
+          amount: transaction.amount,
+          contractorName: transaction.contractorName,
+          type: transaction.type,
+          reason,
+        },
+      });
 
       // Refresh live data
       const [paymentsResult, withdrawalsResult] = await Promise.all([

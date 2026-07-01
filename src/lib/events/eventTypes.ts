@@ -23,28 +23,41 @@ export const BusinessEventType = {
   CONTRACTOR_RESTORED: "contractor_restored",
   // Job lifecycle
   JOB_CREATED: "job_created",
+  JOB_BROADCAST: "job_broadcast",
   JOB_ASSIGNED: "job_assigned",
   JOB_ACCEPTED: "job_accepted",
+  JOB_CONTRACTOR_EN_ROUTE: "job_contractor_en_route",
+  JOB_ARRIVED: "job_arrived",
+  JOB_IN_PROGRESS: "job_in_progress",
   JOB_STARTED: "job_started",
   JOB_COMPLETED: "job_completed",
   JOB_CANCELLED: "job_cancelled",
+  JOB_EXPIRED: "job_expired",
+  JOB_NO_SHOW: "job_no_show",
   // Dispute lifecycle
   DISPUTE_CREATED: "dispute_created",
   DISPUTE_RESOLVED: "dispute_resolved",
   DISPUTE_REJECTED: "dispute_rejected",
   // Payment lifecycle
   PAYMENT_FAILED: "payment_failed",
+  PAYMENT_CANCELLED: "payment_cancelled",
+  PAYMENT_REFUNDED: "payment_refunded",
+  // Refund lifecycle (dispute-driven)
+  REFUND_INITIATED: "refund_initiated",
   REFUND_REQUESTED: "refund_requested",
   REFUND_COMPLETED: "refund_completed",
+  REFUND_FAILED: "refund_failed",
   // Withdrawal lifecycle
   WITHDRAWAL_REQUESTED: "withdrawal_requested",
   WITHDRAWAL_COMPLETED: "withdrawal_completed",
   WITHDRAWAL_FAILED: "withdrawal_failed",
+  WITHDRAWAL_CANCELLED: "withdrawal_cancelled",
   // Support lifecycle
   SUPPORT_TICKET_CREATED: "support_ticket_created",
   SUPPORT_TICKET_RESOLVED: "support_ticket_resolved",
   // Promotion lifecycle
   PROMOTION_CREATED: "promotion_created",
+  PROMOTION_UPDATED: "promotion_updated",
   PROMOTION_DELETED: "promotion_deleted",
   // System events
   SYSTEM_WARNING: "system_warning",

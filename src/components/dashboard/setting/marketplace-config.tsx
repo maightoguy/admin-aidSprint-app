@@ -28,6 +28,7 @@ import {
   mapServiceTypeRowsToRecords,
   mapUrgencyTierRowsToRecords,
 } from "@/lib/supabase/mappers";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import { createLogger } from "@/lib/logger";
 import {
   initialNotificationCampaigns,
@@ -1665,6 +1666,20 @@ export function MarketplaceConfigTab() {
             return;
           }
           await reloadLiveMarketplaceData();
+          // Emit event for notification trail
+          void emitEvent({
+            type: BusinessEventType.PROMOTION_DELETED,
+            actorId: "",
+            subjectId: target.record.id,
+            source: "admin-dashboard",
+            priority: "normal",
+            audit: false,
+            realtime: true,
+            metadata: {
+              promoCode: target.record.code,
+              reason: trimmedReason,
+            },
+          });
           toast.success("Promo deleted", { description: trimmedReason });
         } else {
           setPromos((prev) =>
@@ -1923,6 +1938,22 @@ export function MarketplaceConfigTab() {
         }
 
         await reloadLiveMarketplaceData();
+        // Emit event for notification trail
+        void emitEvent({
+          type: BusinessEventType.PROMOTION_CREATED,
+          actorId: "",
+          subjectId: promo.id,
+          source: "admin-dashboard",
+          priority: "low",
+          audit: false,
+          realtime: true,
+          metadata: {
+            promoCode: promo.code,
+            discountType: promo.discountType,
+            discountValue: promo.discountValue,
+            description: promo.description,
+          },
+        });
         toast.success("Promo created", {
           description: `${promo.code} is now available.`,
         });
@@ -1946,6 +1977,22 @@ export function MarketplaceConfigTab() {
         }
 
         await reloadLiveMarketplaceData();
+        // Emit event for notification trail
+        void emitEvent({
+          type: BusinessEventType.PROMOTION_UPDATED,
+          actorId: "",
+          subjectId: editingPromo.id,
+          source: "admin-dashboard",
+          priority: "low",
+          audit: false,
+          realtime: true,
+          metadata: {
+            promoCode: promo.code,
+            discountType: promo.discountType,
+            discountValue: promo.discountValue,
+            description: promo.description,
+          },
+        });
         toast.success("Promo updated", {
           description: `${promo.code} has been saved.`,
         });

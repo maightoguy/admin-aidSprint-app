@@ -28,6 +28,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { supabaseSupport, supabaseDisputes, supabaseJobOperations } from "@/lib/supabase/data";
 import { useAuthStore } from "@/auth/auth.store";
+import { emitEvent, BusinessEventType } from "@/lib/events";
 import {
   RequestsChevronDownIcon,
   RequestsCloseIcon,
@@ -1308,6 +1309,22 @@ export function RequestsCore({
             // Also update the local store for UI consistency
             openDispute(request.id, disputeReason);
 
+            // Emit event for notification trail (audit:false — data.ts already logs)
+            void emitEvent({
+              type: BusinessEventType.DISPUTE_CREATED,
+              actorId: session.userId,
+              subjectId: request.id,
+              source: "admin-dashboard",
+              priority: "high",
+              audit: false,
+              realtime: true,
+              metadata: {
+                disputeReason: disputeReason.trim(),
+                service: request.service,
+                requestCode: request.requestCode,
+              },
+            });
+
             toast.success("Dispute opened", {
               description: "This request is now marked for dispute review.",
             });
@@ -1371,6 +1388,22 @@ export function RequestsCore({
               });
               return;
             }
+
+            // Emit event for notification trail (audit:false — data.ts already logs)
+            void emitEvent({
+              type: BusinessEventType.SUPPORT_TICKET_CREATED,
+              actorId: session.userId,
+              subjectId: request.id,
+              source: "admin-dashboard",
+              priority: "high",
+              audit: false,
+              realtime: true,
+              metadata: {
+                escalationReason: supportReason,
+                service: request.service,
+                requestCode: request.requestCode,
+              },
+            });
 
             toast.success("Escalated to support", {
               description: "A support ticket has been created for this issue.",
